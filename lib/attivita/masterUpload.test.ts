@@ -90,6 +90,19 @@ describe('parseMasterUpload', () => {
       expect(out.righe[0].nominativo, header).toBe('BOCCIA SALVINO');
     }
   });
+  it('legge anche RAGSOC: è così che lo chiama l\'export di Latina', () => {
+    /*
+      Il caso reale del 2026-08-03. Il master TERRACINA01 arriva con l'intestatario nella
+      colonna RAGSOC — ragione sociale — e nessuno degli altri nomi la agganciava. Il file
+      entrava lo stesso, senza errori, con il nome utente VUOTO su tutte le righe: una
+      colonna non riconosciuta non è un errore, è una colonna che non c'è. Sul campo
+      l'operatore si trovava l'anagrafica muta su 3.940 interventi.
+    */
+    for (const header of ['RAGSOC', 'RagSoc', 'RAGIONE SOCIALE', 'Ragione_Sociale']) {
+      const out = parseMasterUpload([['Ordine', header], ['12379743', 'CECI OTELLO']]);
+      expect(out.righe[0].nominativo, header).toBe('CECI OTELLO');
+    }
+  });
   it('legge il RECAPITO, e non lo scambia col nome utente', () => {
     for (const header of ['RECAPITO', 'Recapito utente', 'RECAPITO TELEFONICO', 'Telefono', 'CELLULARE']) {
       const out = parseMasterUpload([['Ordine', header], ['12379743', '3331234567']]);
