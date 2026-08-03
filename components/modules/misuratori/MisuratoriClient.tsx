@@ -49,7 +49,11 @@ export type RegistroProps = {
   apiBase?: string;
   titolo?: string;
   sottotitolo?: string;
-  /** Ricalcolo dalla consuntivazione: esiste solo per ACEA. */
+  /**
+   * Ricalcolo del registro dal lavoro chiuso in positivo. Esisteva solo per ACEA; dal
+   * 2026-08-03 le due commesse condividono il motore (`lib/misuratori/sincronizzaRegistro`)
+   * e il pulsante ha senso su entrambe — è l'unico modo di recuperare il pregresso.
+   */
   mostraRicalcola?: boolean;
   /** Colonna PDR: un misuratore d'acqua non ha un punto di riconsegna gas. */
   mostraPdr?: boolean;

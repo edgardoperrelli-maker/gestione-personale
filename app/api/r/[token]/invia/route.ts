@@ -254,16 +254,29 @@ export async function POST(_req: Request, { params }: { params: Promise<{ token:
     }
   }
 
-  // Inserisci in misuratori_rimossi (idempotente: ON CONFLICT DO NOTHING)
+  /*
+    Inserisci nei registri misuratori (idempotente: ON CONFLICT DO NOTHING).
+
+    L'esito si LEGGE. Fino al 2026-08-03 questi due upsert erano `await` nudi, e quello
+    AcquaLatina falliva a ogni chiusura — l'indice di unicità era parziale e `ON CONFLICT`
+    non lo agganciava. Nessuno se n'è accorto per settimane: 212 rapportini chiusi in
+    positivo e un registro a zero, con l'errore che tornava dal DB e finiva nel nulla.
+
+    Si logga ma NON si fallisce: l'operatore sul campo ha finito il suo lavoro, e un
+    rapportino respinto perché il magazzino non ha registrato il contatore sarebbe un danno
+    peggiore del buco. Il recupero c'è ed è il «Ricalcola» del registro.
+  */
   if (misuratoriFermi.length > 0) {
-    await supabaseAdmin
+    const { error } = await supabaseAdmin
       .from('misuratori_rimossi')
       .upsert(misuratoriFermi, { onConflict: 'intervento_id', ignoreDuplicates: true });
+    if (error) console.error('[invia] registro misuratori ACEA non scritto:', error.message);
   }
   if (misuratoriAcqualatina.length > 0) {
-    await supabaseAdmin
+    const { error } = await supabaseAdmin
       .from('acqualatina_misuratori_rimossi')
       .upsert(misuratoriAcqualatina, { onConflict: 'intervento_id', ignoreDuplicates: true });
+    if (error) console.error('[invia] registro misuratori AcquaLatina non scritto:', error.message);
   }
 
   // Sweep: i positivi appena registrati revocano le voci non compilate con lo stesso ODL

@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
   resolveUserRole,
+  resolveAssignableRole,
+  canAccessPath,
+  getAllowedModulesForUser,
   canAccessPathFromMetadata,
   buildAppMetadataUpdate,
   normalizeAllowedModules,
@@ -22,6 +25,42 @@ describe('resolveUserRole', () => {
   });
   it('ruolo assente → operatore', () => {
     expect(resolveUserRole(null, undefined)).toBe('operatore');
+  });
+});
+
+/*
+  La precedenza è la sostanza del fix del 2026-08-03: il ruolo aveva DUE sorgenti e il
+  middleware ne guardava una sola. Questi test fissano quale vince, in entrambi i versi —
+  ed è l'unico modo per accorgersi se qualcuno reinverte l'ordine dentro le funzioni.
+*/
+describe('precedenza del ruolo: app_metadata prima, profiles come fallback legacy', () => {
+  it('metadata vince sul profilo quando il profilo dice DI PIÙ (profilo stantio)', () => {
+    // Prima diceva admin, e il middleware sbarrava lo stesso: config morta che sembrava viva.
+    expect(resolveUserRole('admin', 'operatore')).toBe('operatore');
+    expect(resolveAssignableRole('admin_plus', 'operatore')).toBe('operatore');
+  });
+
+  it('metadata vince sul profilo quando il profilo dice DI MENO', () => {
+    // Prima la pagina negava una porta che il middleware aveva già aperto.
+    expect(resolveUserRole('viewer', 'admin')).toBe('admin');
+    expect(resolveAssignableRole('viewer', 'admin_plus')).toBe('admin_plus');
+  });
+
+  it('il profilo decide solo dove i metadata TACCIONO (utente legacy)', () => {
+    expect(resolveUserRole('admin', undefined)).toBe('admin');
+    expect(resolveUserRole('admin', null)).toBe('admin');
+    expect(resolveAssignableRole('admin_plus', undefined)).toBe('admin_plus');
+    // Un valore nei metadata che non significa niente non conta come "parola detta".
+    expect(resolveUserRole('admin', 'capoccia')).toBe('admin');
+  });
+
+  it('la pagina e il middleware ora decidono uguale sullo stesso utente', () => {
+    // Utente admin per metadata ma "viewer" per un profilo stantio: il middleware lo fa
+    // passare, e adesso anche la pagina — una sola decisione, non due che si somigliano.
+    const metadata = { role: 'admin', allowedModules: ['acea'] };
+    const role = resolveUserRole('viewer', metadata.role);
+    expect(canAccessPath('/hub/acea', getAllowedModulesForUser(metadata, role), role)).toBe(true);
+    expect(canAccessPathFromMetadata('/hub/acea', metadata)).toBe(true);
   });
 });
 

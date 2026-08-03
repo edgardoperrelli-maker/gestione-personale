@@ -23,6 +23,11 @@ const VISTE = [
     title: 'Misuratori rimossi',
     description: 'Contatori smontati in campo, dal deposito alla riconsegna al committente',
   },
+  {
+    href: '/hub/acqualatina/strumenti',
+    title: 'Strumenti',
+    description: 'Carica il master del committente: gli ordini nuovi entrano a registro',
+  },
 ];
 
 export default async function AcqualatinaPage() {
