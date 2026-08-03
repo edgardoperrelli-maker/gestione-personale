@@ -65,4 +65,50 @@ describe('pallet scrivibile nella cella', () => {
     // massivo, e toglierlo per far posto all'editor sarebbe stato un pessimo scambio.
     expect(client).toMatch(/handleAssegnaPallet/);
   });
+
+  it("l'endpoint del blocco segue l'apiBase: ogni commessa scrive sul SUO registro", () => {
+    // Con l'URL cablato, il registro ACEA avrebbe impallettato quello AcquaLatina.
+    expect(client).toMatch(/fetch\(`\$\{apiBase\}\/pallet`/);
+  });
+});
+
+describe('pallet: stessa funzione sulle due commesse', () => {
+  const paginaAcea = readFileSync(
+    resolve(__dirname, '../../app/hub/misuratori/acea/page.tsx'),
+    'utf8',
+  );
+  const paginaAcqua = readFileSync(
+    resolve(__dirname, '../../app/hub/acqualatina/misuratori/page.tsx'),
+    'utf8',
+  );
+  const registro = readFileSync(resolve(__dirname, './registro.ts'), 'utf8');
+  const rottaAcea = readFileSync(
+    resolve(__dirname, '../../app/api/misuratori/pallet/route.ts'),
+    'utf8',
+  );
+
+  it('il pallet è acceso su ENTRAMBI i registri', () => {
+    for (const [nome, src] of [['ACEA', paginaAcea], ['AcquaLatina', paginaAcqua]] as const) {
+      expect(src, `${nome} deve mostrare il pallet`).toMatch(/mostraPallet(?!=\{false\})/);
+      expect(src, `${nome} non deve spegnerlo`).not.toMatch(/mostraPallet=\{false\}/);
+    }
+  });
+
+  it('la rotta ACEA esiste e passa dalla funzione condivisa', () => {
+    expect(rottaAcea).toMatch(/assegnaPallet\('misuratori_rimossi'/);
+    expect(rottaAcea).toMatch(/from '@\/lib\/misuratori\/registro'/);
+  });
+
+  it('la PATCH non rifiuta più il pallet sul registro ACEA', () => {
+    // Prima rispondeva 400 «pallet non previsto su questo registro»: giusto quando la colonna
+    // non c'era, un muro adesso che c'è.
+    expect(registro).not.toMatch(/pallet non previsto su questo registro/);
+  });
+
+  it('la SELECT chiede il pallet su entrambe le tabelle, e il PDR solo dove esiste', () => {
+    // Chiedere una colonna che la tabella non ha fa fallire la query INTERA, non solo il campo.
+    const fn = registro.match(/function colonne\([\s\S]*?\n\}/)?.[0] ?? '';
+    expect(fn).toMatch(/pdr, pallet/);
+    expect(fn).toMatch(/COLONNE_COMUNI\}, pallet/);
+  });
 });

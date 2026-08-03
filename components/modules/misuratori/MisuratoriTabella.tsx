@@ -15,9 +15,10 @@ interface Props {
   /** Colonna PDR: il registro AcquaLatina non ne ha una (misuratori d'acqua). */
   mostraPdr?: boolean;
   /**
-   * Colonna Pallet + spunte di selezione (solo AcquaLatina): a cesta piena si selezionano i
-   * misuratori che ci sono finiti dentro e si assegna loro il numero del pallet, in blocco
-   * dalla barra del client. Senza questa prop la tabella resta quella di sempre.
+   * Colonna Pallet + spunte di selezione: a cesta piena si selezionano i misuratori che ci sono
+   * finiti dentro e si assegna loro il numero del pallet, in blocco dalla barra del client —
+   * oppure si scrive nella cella, una riga alla volta. Attiva su ENTRAMBE le commesse dal
+   * 2026-08-03. Senza questa prop la tabella resta quella di sempre.
    */
   mostraPallet?: boolean;
   /** Id selezionati, posseduti dal client (la barra di assegnazione vive lì). */
