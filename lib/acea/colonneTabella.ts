@@ -90,6 +90,16 @@ export type RigaTabella = {
    * non essere mai successo. Opzionale: il registro c'era prima che questa colonna esistesse.
    */
   eseguito?: string | null;
+  /**
+   * LA MATRICOLA DEL MISURATORE INSTALLATO, come l'ha scritta (o scansionata) l'operatore:
+   * `rapportino_voci.risposte.matricola_nuova`, la stessa risposta del flusso AcquaLatina.
+   *
+   * Non è `matricola`, che è quella del contatore DA SOSTITUIRE e arriva dal master: qui le due
+   * stanno affiancate perché la domanda dell'ufficio è esattamente il passaggio da una all'altra
+   * («su quell'ODL cosa ci abbiamo messo?»). Prima di questa colonna la risposta esisteva solo
+   * dentro il rapportino, una voce alla volta. Opzionale, come `eseguito`.
+   */
+  matricola_nuova?: string | null;
 };
 
 export type ChiaveColonna =
@@ -98,7 +108,7 @@ export type ChiaveColonna =
   | 'impianto' | 'famiglia' | 'tipo_ordine' | 'operatore_cognome' | 'data_completamento' | 'esito'
   | 'valore_netto' | 'codice_sla' | 'priorita_testo' | 'centro_lavoro' | 'cardine_al'
   | 'saracinesca' | 'odl_saracinesca' | 'stato_saracinesca' | 'note'
-  | 'nominativo' | 'recapito';
+  | 'nominativo' | 'recapito' | 'matricola_nuova';
 
 /**
  * Filtro disponibile nell'intestazione della colonna, come l'AutoFiltro di Excel.
@@ -235,6 +245,16 @@ export const COLONNE_ACQUALATINA: DefColonna[] = [
   { chiave: 'odl', intestazione: 'ODL', predefinita: true, mono: true, larghezza: 110, filtro: F.odl },
   { chiave: 'impianto', intestazione: 'Cod. fornitura', predefinita: true, mono: true, larghezza: 130, filtro: F.impianto },
   { chiave: 'matricola', intestazione: 'Matricola', predefinita: true, mono: true, larghezza: 150, filtro: F.matricola },
+  /*
+    La matricola del misuratore INSTALLATO, subito accanto a quella da sostituire: è il passaggio
+    che questa commessa registra, e finché è vissuto solo dentro il rapportino la si poteva leggere
+    solo una voce alla volta.
+
+    Senza imbuto e senza ordinamento, come «Eseguito» nelle massive: il valore non è nel registro
+    ma nelle risposte dei rapportini, e un filtro che agisse sulle sole righe scese direbbe una
+    bugia sul conteggio.
+  */
+  { chiave: 'matricola_nuova', intestazione: 'Matricola nuova', predefinita: true, mono: true, larghezza: 150 },
   { chiave: 'nominativo', intestazione: 'Nome utente', predefinita: true, larghezza: 200, filtro: F.nominativo },
   { chiave: 'indirizzo', intestazione: 'Indirizzo', predefinita: true, larghezza: 260, filtro: F.indirizzo },
   // Il recapito non porta l'imbuto: un numero di telefono non si filtra «per contenuto», e
