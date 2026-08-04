@@ -360,6 +360,29 @@ export async function sincronizzaRapportini(
       ({ data: existingVoci } = await db.from('rapportino_voci')
         .select('task_id, risposte, raw_json').eq('rapportino_id', rapId).eq('manuale', false));
     }
+    /*
+      G1 (guardia commessa) — le voci SUPERSTITI degli altri motori su questo stesso
+      rapportino (origine 'acea' o 'manuale': quelle che il delete qui sotto non tocca).
+      Un task già coperto da una di loro NON deve rigenerare una voce 'task': con i task
+      della commessa il match è esatto (`Task.id = task_id` della voce acea), l'unità
+      ODL(+matricola) fa da cintura. Le voci restano acea, le risposte restano intatte,
+      zero doppioni. Stesso filtro (negato) del delete: se la migration `origine` manca,
+      si ripiega su `manuale != false`.
+    */
+    let vociAltrui: VoceAltrui[] = [];
+    {
+      const selAltrui = await db.from('rapportino_voci')
+        .select('task_id, odl, matricola')
+        .eq('rapportino_id', rapId)
+        .neq(filtroMotore.campo, filtroMotore.valore);
+      if (!selAltrui.error) vociAltrui = (selAltrui.data ?? []) as VoceAltrui[];
+    }
+    // Cintura cross-rapportino, per soli id `acea:*` (deterministici): un task della commessa
+    // rendicontato nel rapportino misto di un altro piano non va duplicato nemmeno qui.
+    const aceaAltrove = taskAceaAltrove.get(String(op.staff_id));
+    const tasksNonRendicontati = filtraTaskRendicontati(tasksOp, vociAltrui)
+      .filter((t) => !(aceaAltrove?.has(String(t.id ?? '')) ?? false));
+
     const existingRows = (existingVoci as Array<{ task_id: string; risposte: Record<string, unknown> | null; raw_json: unknown }>) ?? [];
     const existingTaskIds = new Set(existingRows.map((v) => v.task_id));
     const prevNuovoByTask = new Map<string, boolean>(
@@ -372,7 +395,7 @@ export async function sincronizzaRapportini(
       existingRows.filter((v) => Object.keys(v.risposte ?? {}).length > 0).map((v) => v.task_id),
     );
     const { salta, odlBloccati: bloccatiOp } = taskDaSaltare({
-      tasks: (((op.tasks as Array<{ id?: unknown; odl?: string | null }>) ?? [])).map((t) => ({
+      tasks: tasksNonRendicontati.map((t) => ({
         id: String(t.id ?? ''),
         odl: t.odl ?? null,
       })),
@@ -384,7 +407,7 @@ export async function sincronizzaRapportini(
     // Ordine voci = ordine del file master (task.ordine/id "row-N"), NON la posizione nella rotta
     // ottimizzata: il rapportino segue la sequenza del master. La mappa (op.tasks) resta invariata.
     const ranks = rankOrdineDaFile((op.tasks as Array<{ id: string; ordine?: number }>) ?? []);
-    const fromTasks = ((op.tasks as unknown[]) ?? [])
+    const fromTasks = (tasksNonRendicontati as unknown[])
       .filter((t) => !salta.has(String((t as { id?: unknown }).id ?? '')))
       .map((t, i) => taskToVoce(t, ranks[(t as { id?: string }).id ?? ''] ?? i + 1));
     const existingAsVoci: Voce[] = existingRows.map((v) => ({ task_id: v.task_id, ordine: 0, raw_json: {}, risposte: v.risposte ?? {} }));
@@ -435,6 +458,11 @@ export async function sincronizzaRapportini(
       if (eVoci) return { ok: false, status: 500, error: eVoci.message };
     }
     out.push({ staff_id: op.staff_id, staff_name: op.staff_name ?? null, token: token!, url: `${baseUrl}/r/${token}` });
+  }
+
+  if (g2Saltati.length > 0) {
+    const msg = `Rapportino non creato per ${g2Saltati.join(', ')}: lavoro della commessa già rendicontato nel rapportino del giorno su un altro piano.`;
+    interventiWarning = interventiWarning ? `${interventiWarning} | ${msg}` : msg;
   }
 
   return {

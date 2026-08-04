@@ -9,6 +9,7 @@ import { labelOdlBloccato } from '@/lib/interventi/odlPositivi';
 import { partizionaConflitti } from '@/lib/agente/partizionaConflitti';
 import { costruisciLogRows } from '@/lib/agente/costruisciLogRows';
 import { caricaRapportiniEsistenti } from '@/lib/agente/caricaRapportiniEsistenti';
+import { pianoResiduoEliminabile } from '@/lib/interventi/pianoResiduo';
 import { attoreDa } from '@/lib/audit/registra';
 import type { RapEsistente } from '@/utils/rapportini/rilevaConflitti';
 
@@ -85,11 +86,15 @@ export async function POST(req: Request) {
       const righeFile = risolte.filter((r) => r.file === file);
       const piani = raggruppaPerPiano(righeFile, cfg.attivita, territorio);
       for (const p of piani) {
-        // anti-duplicato: elimina piani residui SENZA rapportini per (data, territorio)
+        // anti-duplicato: elimina piani residui SENZA rapportini per (data, territorio).
+        // Un piano che ospita interventi del REGISTRO (created_from_mappa=false, es. commessa
+        // pianificata e non ancora generata) NON è un residuo: la Mappa non saprebbe
+        // ricrearli dai task — stesso criterio del POST /api/mappa/piani.
         const { data: esistenti } = await supabaseAdmin.from('mappa_piani').select('id').eq('data', p.data).eq('territorio', p.territorio);
         for (const ex of (esistenti ?? []) as Array<{ id: string }>) {
           const { count } = await supabaseAdmin.from('rapportini').select('id', { count: 'exact', head: true }).eq('piano_id', ex.id);
-          if (count === 0) {
+          const { count: nRegistro } = await supabaseAdmin.from('interventi').select('id', { count: 'exact', head: true }).eq('piano_id', ex.id).eq('created_from_mappa', false);
+          if (pianoResiduoEliminabile(count ?? 0, nRegistro ?? 0)) {
             await supabaseAdmin.from('interventi').delete().eq('piano_id', ex.id);
             await supabaseAdmin.from('mappa_piani').delete().eq('id', ex.id);
           }
@@ -128,8 +133,15 @@ export async function POST(req: Request) {
         if (!res.ok) {
           const { count: nRap } = await supabaseAdmin.from('rapportini').select('id', { count: 'exact', head: true }).eq('piano_id', pianoId);
           if (nRap === 0) {
-            await supabaseAdmin.from('interventi').delete().eq('piano_id', pianoId);
-            await supabaseAdmin.from('mappa_piani').delete().eq('id', pianoId);
+            // Rollback del SOLO lavoro di questa run: gli interventi del registro
+            // (created_from_mappa=false) eventualmente agganciati nel frattempo non si
+            // toccano, e se ci sono il piano resta in piedi a ospitarli (la delete del
+            // piano li sgancerebbe via FK, ma un piano vero non è un artefatto da rollback).
+            const { count: nRegistro } = await supabaseAdmin.from('interventi').select('id', { count: 'exact', head: true }).eq('piano_id', pianoId).eq('created_from_mappa', false);
+            await supabaseAdmin.from('interventi').delete().eq('piano_id', pianoId).eq('created_from_mappa', true);
+            if (pianoResiduoEliminabile(nRap ?? 0, nRegistro ?? 0)) {
+              await supabaseAdmin.from('mappa_piani').delete().eq('id', pianoId);
+            }
           }
           avvisi.push(`Rapportini ${p.territorio} ${p.data}: ${res.error ?? 'conflitto'} (status ${res.status}).`);
           continue;

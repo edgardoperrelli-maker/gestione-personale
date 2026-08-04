@@ -2,6 +2,7 @@ import 'server-only';
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireAdmin } from '@/lib/apiAuth';
+import { sincronizzaOperatorePiano } from '@/lib/acea/pianoCommessa';
 
 export const runtime = 'nodejs';
 
@@ -44,31 +45,37 @@ export async function POST(req: Request) {
     const azioni = ((op.dettaglio as { azioni?: AzioneLog[] })?.azioni ?? []) as AzioneLog[];
     const idInterventi = azioni.map((a) => a.intervento_id).filter(Boolean) as string[];
 
-    // Stato attuale: un intervento completato dopo l'assegnazione non va toccato.
-    const statoAttuale = new Map<string, string>();
+    // Stato attuale: un intervento completato dopo l'assegnazione non va toccato. `piano_id` e
+    // `staff_id` servono a rinfrescare i task JSONB dei piani toccati dopo il ripristino.
+    const statoAttuale = new Map<string, { stato: string; piano_id: string | null; staff_id: string | null }>();
     for (let i = 0; i < idInterventi.length; i += 200) {
       const blocco = idInterventi.slice(i, i + 200);
       const { data: righe, error } = await supabaseAdmin
         .from('interventi')
-        .select('id, stato')
+        .select('id, stato, piano_id, staff_id')
         .in('id', blocco);
       if (error) throw error;
-      for (const r of (righe ?? []) as Array<{ id: string; stato: string }>) {
-        statoAttuale.set(r.id, r.stato);
+      for (const r of (righe ?? []) as Array<{ id: string; stato: string; piano_id: string | null; staff_id: string | null }>) {
+        statoAttuale.set(r.id, { stato: r.stato, piano_id: r.piano_id ?? null, staff_id: r.staff_id ?? null });
       }
     }
 
     let eliminati = 0;
     let ripristinati = 0;
     const protetti: string[] = [];
+    // Coppie (piano, operatore) che perdono un intervento: i loro task `acea:*` vanno rinfrescati.
+    const coppieDaRinfrescare = new Set<string>();
 
     for (const a of azioni) {
       if (!a.intervento_id) continue;
-      const stato = statoAttuale.get(a.intervento_id);
-      if (stato === undefined) continue;           // già sparito: niente da fare
-      if (stato === 'completato') {
+      const attuale = statoAttuale.get(a.intervento_id);
+      if (attuale === undefined) continue;         // già sparito: niente da fare
+      if (attuale.stato === 'completato') {
         protetti.push(a.odl);
         continue;
+      }
+      if (attuale.piano_id && attuale.staff_id) {
+        coppieDaRinfrescare.add(`${attuale.piano_id}|${attuale.staff_id}`);
       }
       if (a.azione === 'creato') {
         const { error } = await supabaseAdmin.from('interventi').delete().eq('id', a.intervento_id);
@@ -77,11 +84,27 @@ export async function POST(req: Request) {
       } else if (a.prima) {
         const { error } = await supabaseAdmin
           .from('interventi')
-          .update({ data: a.prima.data, staff_id: a.prima.staff_id })
+          .update({
+            data: a.prima.data, staff_id: a.prima.staff_id,
+            // Il piano del giorno di PRIMA non è nel log dell'operazione: si sgancia
+            // (piano_id null) e la prossima pianificazione/generazione lo ri-adotta sul
+            // piano giusto. Meglio sganciato che appeso al piano del giorno sbagliato.
+            piano_id: null,
+          })
           .eq('id', a.intervento_id);
         if (error) throw error;
         ripristinati++;
       }
+    }
+
+    // I task JSONB delle coppie toccate: senza questo rinfresco il piano mostrerebbe ancora
+    // le attività appena annullate/spostate. Best-effort: la prossima generazione rapportini
+    // (passo di adozione) ripete comunque la stessa scrittura.
+    for (const coppia of coppieDaRinfrescare) {
+      const [pid, sid] = coppia.split('|');
+      if (!pid || !sid) continue;
+      const sync = await sincronizzaOperatorePiano(supabaseAdmin, pid, sid);
+      if (!sync.ok) console.error('[acea/pianifica/annulla] riga operatore non sincronizzata:', pid, sid, sync.error);
     }
 
     const { error: eUpd } = await supabaseAdmin

@@ -36,6 +36,16 @@ describe('vociDaAggiungere', () => {
     expect(vociDaAggiungere([int({ id: 'a' })], gia).daAggiungere).toEqual([]);
   });
 
+  it('il ponte inverso: una voce origine=task con task_id acea:<id> (rigenerata dalla Mappa da un task del piano commessa) è «già presente»', () => {
+    // Con l'unificazione i piani commessa hanno task `acea:*` in mappa_piani_operatori: se
+    // la Mappa li avesse trasformati in voci 'task', questo motore non deve duplicarle —
+    // il match è sul task_id deterministico, l'origine della voce non conta.
+    const gia = [voce({ task_id: taskIdAcea('a'), intervento_id: null, odl: null, ordine: 1 })];
+    const r = vociDaAggiungere([int({ id: 'a' })], gia);
+    expect(r.daAggiungere).toEqual([]);
+    expect(r.giaPresenti).toBe(1);
+  });
+
   it('non duplica un ODL che il vecchio flusso da master ha già messo come voce da task', () => {
     // Il caso della transizione: stesso ODL, altra origine, nessun collegamento all'intervento.
     const gia = [voce({ task_id: 'row-7', intervento_id: 'altro', odl: '912215286', ordine: 7 })];
