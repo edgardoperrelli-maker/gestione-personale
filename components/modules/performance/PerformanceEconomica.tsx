@@ -102,29 +102,6 @@ export default function PerformanceEconomica() {
   const presetTrimestre = () => setRange(`${now.getFullYear()}-${pad(now.getMonth() - (now.getMonth() % 3) + 1)}-01`, today);
   const presetAnno = () => setRange(`${now.getFullYear()}-01-01`, today);
 
-  // "Allinea da ACEA": comanda l'agente a rileggere i master. DUNNING (limitazioni con ordine) oppure
-  // TUTTI i comuni delle limitazioni massive (Labico + Zagarolo, e ogni comune futuro). L'agente esegue
-  // al prossimo giro (stesso flag di "Richiedi stato ACEA"); poi ricarica la foglietta per vedere i dati.
-  const [allineaMsg, setAllineaMsg] = useState<string | null>(null);
-  const allinea = async (target: 'dunning' | 'TUTTI') => {
-    setAllineaMsg('Invio richiesta…');
-    try {
-      const res = await fetch('/api/admin/agente/acea-stato', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ target }),
-      });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? `HTTP ${res.status}`);
-      setAllineaMsg(
-        target === 'TUTTI'
-          ? 'Richiesto: l’agente allineerà i master delle limitazioni massive (tutti i comuni) al prossimo giro.'
-          : 'Richiesto: l’agente leggerà il master DUNNING al prossimo giro.',
-      );
-    } catch (e) {
-      setAllineaMsg(e instanceof Error ? e.message : 'Errore richiesta allineamento.');
-    }
-  };
-
   const exportUrl = `/api/admin/acea/produzione/export?from=${from}&to=${to}&committente=${vista}`;
   const invalid = Boolean(from && to && from > to);
 
@@ -138,18 +115,12 @@ export default function PerformanceEconomica() {
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-base font-semibold text-[var(--brand-text-main)]">Produzione economica</h2>
         <div className="flex flex-wrap items-center gap-2">
-          {/* Master e listino sono roba ACEA: nella vista AcquaLatina sparirebbero comandi che lì
-              non hanno un effetto. */}
+          {/* Il listino è roba ACEA: nella vista AcquaLatina sparirebbe un comando che lì non ha
+              un effetto. */}
           {vista !== 'acqualatina' && (
-            <>
-              <span className="text-[11px] text-[var(--brand-text-subtle)]">Allinea master:</span>
-              <Button type="button" variant="ghost" size="sm" onClick={() => allinea('dunning')}>Dunning</Button>
-              <Button type="button" variant="ghost" size="sm" onClick={() => allinea('TUTTI')}>Limitazioni massive</Button>
-              <span className="mx-1 h-4 w-px bg-[var(--brand-border)]" aria-hidden />
-              <Button type="button" variant="ghost" size="sm" onClick={() => setEditorOpen((v) => !v)}>
-                {editorOpen ? 'Chiudi listino' : 'Listino tariffe ACEA'}
-              </Button>
-            </>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setEditorOpen((v) => !v)}>
+              {editorOpen ? 'Chiudi listino' : 'Listino tariffe ACEA'}
+            </Button>
           )}
           <a
             href={invalid ? undefined : exportUrl}
@@ -174,8 +145,6 @@ export default function PerformanceEconomica() {
           </a>
         </div>
       </div>
-      {allineaMsg && <p className="mb-2 text-xs text-[var(--brand-text-muted)]">{allineaMsg}</p>}
-
       {editorOpen && vista !== 'acqualatina' && (
         <div className="mb-4 rounded-xl bg-[var(--brand-surface-muted)] p-3">
           <h3 className="mb-2 text-[13px] font-medium text-[var(--brand-text-main)]">Listino tariffe ACEA per voce (con validità)</h3>
@@ -337,13 +306,24 @@ export default function PerformanceEconomica() {
                 <Badge key={c} variant="warning">{AUDIT_LABEL[c]}: {num(dati.auditSummary[c])}</Badge>
               ))}
             </div>
-            {(!dati.registroPopolato || !dati.portalePopolato) && (
+            {!dati.registroPopolato && (
               <p className="mb-2 text-xs text-[var(--brand-text-muted)]">
-                L’audit DB↔registro↔portale è limitato finché mancano le due colonne di riscontro. Il
-                registro ordini si popola con l’import del Cruscotto nel modulo ACEA; lo snapshot del
-                portale con il giro «Richiedi stato ACEA» dell’agente. Poi ricarica.
+                L’audit DB↔registro↔portale è limitato finché manca la colonna del registro: si
+                popola con l’import del Cruscotto nel modulo ACEA, poi ricarica.
               </p>
             )}
+            {/*
+              La colonna del portale è FERMA, non vuota: la scriveva l'agente Playwright, ritirato
+              il 04/08/2026. L'avviso non può stare dietro `!portalePopolato` — lo snapshot ha
+              righe, quindi quella condizione sarebbe falsa per sempre e il messaggio non
+              comparirebbe mai, proprio mentre il problema peggiora a ogni ordine chiuso.
+            */}
+            <p className="mb-2 text-xs text-[var(--status-warn)]">
+              La colonna «portale» dell’audit è ferma all’ultima lettura dell’agente Playwright,
+              ritirato il 04/08/2026. Gli ordini chiusi dopo quella data risultano «non
+              consuntivati sul portale» perché nessuno aggiorna più quel confronto, non perché ci
+              sia una discrepanza reale. Vale anche per Pre-SAL e Fuori SAL.
+            </p>
             {dati.audit.length > 0 && (
               <div className="max-h-72 overflow-auto">
                 <table className="w-full text-xs">

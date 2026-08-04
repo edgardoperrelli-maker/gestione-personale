@@ -309,6 +309,10 @@
 - [ ] **`requireAdmin` per ogni route API** (getUser+profiles = 2 round-trip):
       al mount di Assegnazione AI partono ~10 round-trip di sola auth → cache
       per-request o verifica del ruolo dal JWT (`app_metadata`).
+      **Decaduta (2026-08-04)**: il mount di Assegnazione AI che la motivava non esiste più — il
+      modulo è stato ritirato insieme all'agente Playwright. Il costo di `requireAdmin` per
+      route resta un problema generale dell'app, ma senza quel caso concreto va rimisurato
+      altrove prima di riprenderlo.
 - [ ] **Middleware**: `auth.getUser()` fa una chiamata di rete per OGNI
       navigazione. File protetto da AGENTS.md (§11.1): serve istruzione esplicita
       per intervenire (opzione: validazione JWT locale, refresh solo se scaduto).
@@ -324,6 +328,8 @@
       stop lato client (`AssegnaOdl.tsx` — `fatto` hardcoded a false). Nota: dopo il
       fix dello storico giri ogni refresh è ora ~0.3ms sul DB invece di ~125ms, quindi
       il polling non è più costoso; resta da dargli comunque una condizione di stop.
+      **Decaduta (2026-08-04)**: il modulo Assegnazione AI è stato ritirato insieme
+      all'agente Playwright — `AssegnaOdl.tsx` non esiste più, niente da fare qui.
 - [ ] **Hotel calendar**: query `staff` nel bootstrap mai usata dal client;
       realtime che rifà il full refetch a ogni evento.
 - [ ] **Ricerca storico interventi**: 6 × `ilike '%q%'` (36ms medi) → indici GIN

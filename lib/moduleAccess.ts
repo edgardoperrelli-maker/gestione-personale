@@ -24,8 +24,6 @@ export type AppModuleKey =
   | 'appuntamenti'
   | 'misuratori'
   | 'acqualatina'
-  | 'agente'
-  | 'assegnazione-ai'
   | 'performance'
   | 'impostazioni';
 
@@ -40,7 +38,7 @@ export type AppModuleDefinition = {
   matchPrefixes?: string[];
   /** Modulo "sensibile": escluso dai default operatore + badge in UI. NON è un gate di accesso. */
   adminOnly?: boolean;
-  /** Gate FORTE di ruolo: l'accesso richiede ruolo admin. Es. `impostazioni`, `agente`. */
+  /** Gate FORTE di ruolo: l'accesso richiede ruolo admin. Es. `impostazioni`. */
   requiresAdminRole?: boolean;
 };
 
@@ -197,26 +195,6 @@ export const APP_MODULES: AppModuleDefinition[] = [
     section: 'modules',
     group: 'operativita',
     matchPrefixes: ['/hub/misuratori'],
-    adminOnly: true,
-  },
-  {
-    key: 'agente',
-    href: '/hub/agente',
-    label: 'Agente',
-    description: 'Pianificazione e feedback sync limitazioni massive',
-    section: 'modules',
-    group: 'analisi',
-    matchPrefixes: ['/hub/agente'],
-    adminOnly: true,
-  },
-  {
-    key: 'assegnazione-ai',
-    href: '/hub/assegnazione-ai',
-    label: 'Assegnazione AI',
-    description: 'Pianificazione assistita dagli interventi letti dal file',
-    section: 'modules',
-    group: 'pianificazione',
-    matchPrefixes: ['/hub/assegnazione-ai'],
     adminOnly: true,
   },
   {

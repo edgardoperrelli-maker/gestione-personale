@@ -7,7 +7,7 @@ import {
   confrontaEsitiSito, parseEsecuzioni, type RigaRegistroPerConfronto,
 } from '@/lib/acqualatina/confrontoEsiti';
 import { riconciliaChiusureAcqualatina } from '@/lib/acqualatina/riconciliaRegistro';
-import { partiRoma } from '@/lib/agente/orarioRoma';
+import { partiRoma } from '@/lib/orarioRoma';
 
 export const runtime = 'nodejs';
 

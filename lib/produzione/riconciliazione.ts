@@ -7,8 +7,13 @@
   La colonna di mezzo era il MASTER — la fotografia dei file SharePoint che un agente leggeva da
   un PC acceso in ufficio. Dal 2026-08-03 è il REGISTRO del modulo ACEA (`acea_ordini`), che dice
   le stesse cose, si aggiorna con l'import ufficiale del Cruscotto e non dipende da nessuna
-  macchina. L'agente resta vivo solo per Playwright, che è l'unico a sapere cosa ACEA ha davvero
-  contabilizzato — quella colonna, la terza, non si tocca.
+  macchina.
+
+  ⚠️ La TERZA colonna (`acea_portale_snapshot`, cosa ACEA ha consuntivato) la scriveva quello
+  stesso agente, ritirato il 04/08/2026: da allora ha solo lettori ed è FERMA, non vuota. Le
+  classi che confrontano col portale — POSITIVO_DB_NON_COMPLETATO_PORTALE in testa — segnalano
+  quindi il ritardo dello snapshot, non una discrepanza reale. Chi rimette in piedi quel
+  confronto deve prima ridarle uno scrittore.
 */
 
 export type ClasseDiscrepanza =

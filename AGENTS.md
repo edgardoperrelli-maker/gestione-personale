@@ -160,8 +160,8 @@ type ValidRole = 'admin' | 'operatore';
 // AssignableRole aggiunge 'admin_plus' (super-admin: premialità, utenze).
 
 // La lista completa dei moduli (14+: dashboard, mappa, appuntamenti,
-// assegnazione-ai, hotel-calendar, interventi, consuntivazione, live,
-// lista-attesa, misuratori, agente, performance, impostazioni, …) vive in
+// hotel-calendar, interventi, consuntivazione, live, lista-attesa,
+// misuratori, acqualatina, performance, impostazioni, …) vive in
 // APP_MODULES (lib/moduleAccess.ts) — quella è la fonte di verità, con i
 // gruppi sidebar (Pianificazione · Operatività · Analisi · Sistema).
 type AppModuleKey = (typeof APP_MODULES)[number]['key'];
@@ -407,11 +407,13 @@ Helper puri in `lib/acea/top.ts`. Spec:
 Le "limitazioni massive" sono un programma ACEA **per comune**. Regola cardine (data-driven,
 **mai hardcodare un comune**). Oggi i comuni attivi sono **Labico** e **Zagarolo**.
 
-### Il comune È il file master
-I comuni massive = i file MASTER scansionati dall'agente (`agente_file_colonne.is_master`,
-es. `LABICO.xlsx` → `LABICO`). Fonte unica: `comuniMaster()` (`lib/agente/comuni.ts`) e, lato
-Produzione economica, `caricaComuniMassive()` (`lib/produzione/comuniMassive.ts`). **Aggiungere
-un comune = aggiungere un master nella cartella**, nessuna modifica al codice.
+### Il comune viene dal REGISTRO
+I comuni massive = i comuni con almeno un ordine `famiglia = 'massive'` in `acea_ordini`. Fonte
+unica: `comuniMassiveDaRegistro()` (`lib/acea/comuniMassive.ts`) e, lato Produzione economica,
+`caricaComuniMassive()` (`lib/produzione/comuniMassive.ts`). **Aggiungere un comune = importarne
+gli ordini dal modulo ACEA**, nessuna modifica al codice.
+Fino al 04/08/2026 la fonte erano i file master scansionati dall'agente Playwright; è sparita col
+ritiro dell'agente.
 
 ### Classificazione in Produzione economica (`lib/produzione/attivitaCanonica.ts`)
 - La riclassificazione committente (gas `acea`→`italgas`, massive→`acea`) vive **QUI**, non nel DB.
@@ -424,19 +426,10 @@ un comune = aggiungere un master nella cartella**, nessuna modifica al codice.
 - Saracinesca (`saracinescaProdotta`): **comune-agnostica**. Verità = colonna `esito` del master
   massive (Labico/Zagarolo la hanno); il DUNNING no → fallback sul positivo del DB.
 
-### Allineamento agente dalla Produzione economica
-Il bottone **"Limitazioni massive"** accoda `target='TUTTI'` a `/api/admin/agente/acea-stato`
-(`forza_acea_stato=true`, `acea_target='TUTTI'`, flag one-shot). Un solo giro Playwright: l'export
-viene riversato su TUTTI i master massive (`risolviMaster`) e ne pusha lo snapshot (audit 3 vie).
-`acea-stato` accetta `dunning | TUTTI | <COMUNE>`. Il controllo per singolo comune resta sulla
-pagina **Agente**. **Non reintrodurre** un bottone per-comune ("Zagarolo") in Produzione economica.
-Traccia del giro: `agente_run` = un `acea-stato` + un `acea-master` **per ogni** master del target
-(con `TUTTI`, due `acea-master` ravvicinati).
-
-### tools/limitazioni-sync (agente standalone `.mjs`)
-`comuneDaFile` usa `path.win32.basename/extname`: i master vivono su SharePoint con path Windows
-(`C:\...\LABICO.xlsx`) ma test/CI girano su POSIX; con `node:path` posix il path non verrebbe
-spezzato. Vale per qualunque parsing di path Windows in questo tool.
+### Niente comandi verso l'agente (ritirato il 04/08/2026)
+La Produzione economica non arma più giri: i bottoni «Allinea master: Dunning / Limitazioni
+massive» sono spariti con l'agente Playwright. I dati arrivano dall'**import del modulo ACEA**,
+che porta il file nuovo e completo a ogni giro. **Non reintrodurre** bottoni di allineamento.
 
 ### Invariante
 Non disattivare la voce tassonomia `LIMITAZIONI MASSIVE`: l'export
