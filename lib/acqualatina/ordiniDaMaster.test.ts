@@ -110,16 +110,22 @@ describe('ordiniDaMaster — additivo e difensivo', () => {
     expect(normMatricola('mtr-001')).toBe(normMatricola('MTR001'));
   });
 
-  it('righe senza ODL o matricola e doppioni interni al file si scartano contandoli', () => {
+  it('righe senza ODL e doppioni interni al file si scartano contandoli', () => {
     const { nuovi, scartate } = ordiniDaMaster([
       riga({ id: 'r1', odl: '  ' }),
-      riga({ id: 'r2', matricola: '' }),
       riga({ id: 'r3' }),
       riga({ id: 'r4' }),      // doppione interno di r3 (stessa coppia)
     ], []);
-    expect(scartate).toBe(3);
+    expect(scartate).toBe(2);
     expect(nuovi).toHaveLength(1);
     expect(nuovi[0].master_riga_id).toBe('r3');
+  });
+
+  it('una riga senza matricola NON si scarta: entra a matricola vuota (i battenti non la portano)', () => {
+    const { nuovi, scartate } = ordiniDaMaster([riga({ id: 'r2', matricola: '' })], []);
+    expect(scartate).toBe(0);
+    expect(nuovi).toHaveLength(1);
+    expect(nuovi[0]).toMatchObject({ matricola: '', matricola_norm: '', numero_operazione: '1' });
   });
 
   it('porta con sé via/civico spezzati e la provenienza dal master', () => {
@@ -153,64 +159,120 @@ describe('ordiniDaMaster — additivo e difensivo', () => {
   });
 });
 
-describe('arricchimenti: il master riempie i vuoti delle righe già a registro', () => {
+describe('correzioni: il master ha ragione sull\'anagrafica delle righe già a registro', () => {
   /*
-    «Additivo» ha sempre voluto dire «non tocco le righe presenti», ed è la regola che protegge
-    la pianificazione. Ma vale per i dati che la riga HA: su un campo VUOTO non c'è niente da
-    proteggere, e la regola stretta rendeva inutile il gesto naturale — ricaricare il master
-    quando arriva più completo. È il caso reale del file di Terracina, entrato quando il parser
-    non leggeva ancora cod. fornitura, nome utente e recapito.
+    Fino al 04/08/2026 si riempivano solo i VUOTI. Ma la correzione vera viaggia al contrario:
+    l'export del committente È l'anagrafica giusta (decisione utente 04/08), e proteggere il
+    valore vecchio significava correggere due volte a mano — sul registro e sugli interventi.
+    Il file che NON porta un dato continua a non cancellare niente; la matricola non si
+    sovrascrive mai (è l'identità della riga), può solo essere adottata da una riga senza.
   */
   const presente = (over: Partial<OrdineEsistente> = {}): OrdineEsistente => ({
     odl: '100001', numero_operazione: '1', matricola: 'MTR001', ...over,
   });
 
   it('riempie il campo vuoto della riga presente', () => {
-    const { nuovi, arricchimenti, giaPresenti } = ordiniDaMaster(
-      [riga({ id: 'r1', impianto: '19633002', nominativo: 'ROSSI MARIO' })],
+    const { nuovi, correzioni, giaPresenti } = ordiniDaMaster(
+      [riga({ id: 'r1', indirizzo: null, comune: null, impianto: '19633002', nominativo: 'ROSSI MARIO' })],
       [presente()],
     );
     expect(nuovi).toEqual([]);
     expect(giaPresenti).toBe(1);
-    expect(arricchimenti).toEqual([
+    expect(correzioni).toEqual([
       { odl: '100001', numero_operazione: '1', patch: { impianto: '19633002', nominativo: 'ROSSI MARIO' } },
     ]);
   });
 
-  it('NON sovrascrive un dato che la riga ha già', () => {
-    // Un impianto corretto a mano in ufficio non deve poter essere schiacciato da un
-    // ricaricamento del master: ricaricare un file è un'operazione di back office normale.
-    const { arricchimenti } = ordiniDaMaster(
-      [riga({ id: 'r1', impianto: '99999999', nominativo: 'ROSSI MARIO' })],
-      [presente({ impianto: '19633002' })],
+  it('SOVRASCRIVE il dato difforme: il file del committente è la fonte', () => {
+    const { correzioni } = ordiniDaMaster(
+      [riga({ id: 'r1', indirizzo: 'VIA STRISCIA 1401', comune: null })],
+      [presente({ via: 'STRADA DELLA STRISCIA', civico: '1401' })],
     );
-    expect(arricchimenti).toEqual([
-      { odl: '100001', numero_operazione: '1', patch: { nominativo: 'ROSSI MARIO' } },
+    expect(correzioni).toEqual([
+      { odl: '100001', numero_operazione: '1', patch: { via: 'VIA STRISCIA' } },
     ]);
   });
 
-  it('niente da riempire, nessun arricchimento: il secondo giro è a vuoto', () => {
-    const master = [riga({ id: 'r1', impianto: '19633002', nominativo: 'ROSSI MARIO', recapito: '333' })];
+  it('una differenza di solo maiuscole o spazi non è una correzione', () => {
+    const { correzioni } = ordiniDaMaster(
+      [riga({ id: 'r1', indirizzo: null, comune: null, nominativo: '  rossi   MARIO ' })],
+      [presente({ nominativo: 'ROSSI MARIO' })],
+    );
+    expect(correzioni).toEqual([]);
+  });
+
+  it('niente di difforme, nessuna correzione: il secondo giro è a vuoto', () => {
+    const master = [riga({ id: 'r1', indirizzo: null, comune: null, impianto: '19633002', nominativo: 'ROSSI MARIO', recapito: '333' })];
     const dopo = presente({ impianto: '19633002', nominativo: 'ROSSI MARIO', recapito: '333' });
-    expect(ordiniDaMaster(master, [dopo]).arricchimenti).toEqual([]);
+    expect(ordiniDaMaster(master, [dopo]).correzioni).toEqual([]);
   });
 
   it('una cella vuota nel master non cancella niente', () => {
     // Il file che non porta il dato non è il file che dice «questo dato non c'è».
-    const { arricchimenti } = ordiniDaMaster(
-      [riga({ id: 'r1', impianto: '  ', nominativo: null })],
-      [presente({ impianto: '19633002' })],
+    const { correzioni } = ordiniDaMaster(
+      [riga({ id: 'r1', indirizzo: '', comune: null, impianto: '  ', nominativo: null })],
+      [presente({ impianto: '19633002', via: 'VIA LARGA', civico: '7' })],
     );
-    expect(arricchimenti).toEqual([]);
+    expect(correzioni).toEqual([]);
   });
 
   it("punta al numero operazione della riga presente, non a uno ricalcolato", () => {
     // La chiave `odl|numero_operazione` è in giro (selezioni, appunti, log operazioni): la
     // update deve colpire la riga che esiste, non quella che si sarebbe numerata oggi.
-    const { arricchimenti } = ordiniDaMaster(
-      [riga({ id: 'r1', matricola: 'MTR009', impianto: '19633002' })],
+    const { correzioni } = ordiniDaMaster(
+      [riga({ id: 'r1', matricola: 'MTR009', comune: null, indirizzo: null, impianto: '19633002' })],
       [presente({ numero_operazione: '4', matricola: 'MTR009' })],
     );
-    expect(arricchimenti[0]).toMatchObject({ numero_operazione: '4' });
+    expect(correzioni[0]).toMatchObject({ numero_operazione: '4' });
+  });
+});
+
+describe('righe senza matricola contro il registro (i battenti del sito)', () => {
+  const presente = (over: Partial<OrdineEsistente> = {}): OrdineEsistente => ({
+    odl: '100001', numero_operazione: '1', matricola: 'MTR001', ...over,
+  });
+
+  it("l'ODL già a registro: la riga corregge TUTTE le sue operazioni, senza inserire", () => {
+    const { nuovi, correzioni, giaPresenti } = ordiniDaMaster(
+      [riga({ id: 'r1', matricola: '', indirizzo: null, comune: 'PONTINIA', nominativo: 'VERDI ANNA' })],
+      [
+        presente({ comune: 'TERRACINA' }),
+        presente({ numero_operazione: '2', matricola: 'MTR002', comune: 'TERRACINA' }),
+      ],
+    );
+    expect(nuovi).toEqual([]);
+    expect(giaPresenti).toBe(1);
+    expect(correzioni).toEqual([
+      { odl: '100001', numero_operazione: '1', patch: { comune: 'PONTINIA', nominativo: 'VERDI ANNA' } },
+      { odl: '100001', numero_operazione: '2', patch: { comune: 'PONTINIA', nominativo: 'VERDI ANNA' } },
+    ]);
+  });
+
+  it('la riga entrata senza matricola ADOTTA la prima che un file le porta', () => {
+    // Battente prima (senza matricole), master classico poi: la matricola nuova non deve
+    // sdoppiare il punto — è la stessa riga di lavoro, completata dal file più ricco.
+    const { nuovi, correzioni } = ordiniDaMaster(
+      [riga({ id: 'r1', matricola: 'MTR777', indirizzo: null, comune: null })],
+      [presente({ matricola: '' })],
+    );
+    expect(nuovi).toEqual([]);
+    expect(correzioni).toEqual([
+      { odl: '100001', numero_operazione: '1', patch: { matricola: 'MTR777', matricola_norm: 'MTR777' } },
+    ]);
+  });
+
+  it('due matricole nuove, una sola riga vuota: la prima adotta, la seconda è una riga nuova', () => {
+    const { nuovi, correzioni } = ordiniDaMaster(
+      [
+        riga({ id: 'r1', matricola: 'MTR777', indirizzo: null, comune: null }),
+        riga({ id: 'r2', matricola: 'MTR888', indirizzo: null, comune: null }),
+      ],
+      [presente({ matricola: '' })],
+    );
+    expect(correzioni).toEqual([
+      { odl: '100001', numero_operazione: '1', patch: { matricola: 'MTR777', matricola_norm: 'MTR777' } },
+    ]);
+    expect(nuovi).toHaveLength(1);
+    expect(nuovi[0]).toMatchObject({ matricola: 'MTR888', numero_operazione: '2' });
   });
 });

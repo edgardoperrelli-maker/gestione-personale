@@ -3,10 +3,16 @@ import { NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireAdmin } from '@/lib/apiAuth';
-import { parseMasterUpload } from '@/lib/attivita/masterUpload';
-import { chiaveRiga, righeNuoveMaster } from '@/lib/attivita/righeNuoveMaster';
+import { parseMasterUpload, type RigaMasterUpload } from '@/lib/attivita/masterUpload';
+import { chiaveOdl, chiaveRiga, righeNuoveMaster } from '@/lib/attivita/righeNuoveMaster';
+// La stessa normalizzazione con cui il sync decide se una correzione è vera: due giudizi
+// diversi qui e là farebbero contare «aggiornata» una riga che al registro non cambia niente.
+import { normAnagrafica } from '@/lib/acqualatina/ordiniDaMaster';
 
 export const runtime = 'nodejs';
+// Un file corretto al primo caricamento può aggiornare migliaia di righe di catalogo:
+// il minuto di default non basta. Stesso tetto di acea/import.
+export const maxDuration = 300;
 
 const BATCH = 500;
 const COMMITTENTI = ['acea', 'italgas', 'acqualatina', 'altro'] as const;
@@ -137,7 +143,12 @@ export async function POST(req: Request) {
   // esserci fino a 5 contatori di un condominio, e confrontare il solo ordine ne butterebbe
   // via 133 sul master di Terracina — contatori veri, che sparirebbero dal censimento
   // (vedi righeNuoveMaster.ts).
-  const chiaviEsistenti = new Set<string>();
+  type RigaCatalogo = {
+    id: string; odl: string | null; matricola: string | null; impianto: string | null;
+    indirizzo: string | null; cap: string | null; comune: string | null;
+    operazione: string | null; nominativo: string | null; recapito: string | null;
+  };
+  const righeCatalogo: RigaCatalogo[] = [];
   {
     const { data: attivi } = await supabaseAdmin
       .from('template_master')
@@ -149,18 +160,82 @@ export async function POST(req: Request) {
       for (let from = 0; ; from += 1000) {
         const { data, error } = await supabaseAdmin
           .from('template_master_righe')
-          .select('odl, matricola')
+          .select('id, odl, matricola, impianto, indirizzo, cap, comune, operazione, nominativo, recapito')
           .in('master_id', ids)
           .range(from, from + 999);
         if (error) break; // best-effort: senza catalogo si ricade sul comportamento storico
-        const batch = (data ?? []) as Array<{ odl: string | null; matricola: string | null }>;
-        for (const r of batch) chiaviEsistenti.add(chiaveRiga(r));
+        const batch = (data ?? []) as RigaCatalogo[];
+        righeCatalogo.push(...batch);
         if (batch.length < 1000) break;
       }
     }
   }
+  const chiaviEsistenti = new Set<string>(righeCatalogo.map((r) => chiaveRiga(r)));
+  const catalogoPerOdl = new Map<string, RigaCatalogo[]>();
+  const catalogoPerChiave = new Map<string, RigaCatalogo>();
+  for (const r of righeCatalogo) {
+    const k = chiaveOdl(r.odl);
+    if (k === '') continue;
+    catalogoPerOdl.set(k, [...(catalogoPerOdl.get(k) ?? []), r]);
+    catalogoPerChiave.set(chiaveRiga(r), r);
+  }
 
-  const filtro = righeNuoveMaster(parsed.righe, chiaviEsistenti);
+  /*
+    Le righe del file SENZA matricola il cui ODL è già a catalogo non sono righe nuove: sono
+    lo stesso punto, portato da un file più povero (il battente del sito non ha matricole).
+    Lasciarle passare da `righeNuoveMaster` — che confronta la coppia (ODL, matricola), quindi
+    «ODL|» contro «ODL|MTR…» — creerebbe un doppione a matricola vuota per OGNI riga del
+    battente: 4.203 punti sdoppiati al primo caricamento. Restano fuori dall'inserimento e
+    lavorano solo come veicolo di correzioni, qui sotto.
+  */
+  const daInserire = parsed.righe.filter(
+    (r) => !(chiaveOdl(r.matricola) === ''
+      && catalogoPerOdl.has(chiaveOdl(r.odl))
+      && !chiaviEsistenti.has(chiaveRiga(r))),
+  );
+  const soloCorrezioni = parsed.righe.length - daInserire.length;
+
+  const filtro = righeNuoveMaster(daInserire, chiaviEsistenti);
+
+  /*
+    L'ANAGRAFICA delle righe già a catalogo si allinea al file: dal 04/08 il master
+    sovrascrive il difforme (decisione utente: l'export del committente è la fonte), non è più
+    solo «righe nuove». Senza questo passaggio la correzione non avrebbe strada: il filtro qui
+    sopra scarta le righe già viste, e il sync legge il catalogo — un file corretto ricaricato
+    non cambierebbe niente. Campo vuoto nel file = dato non portato: non cancella mai.
+    La matricola non si tocca: è metà dell'identità della riga.
+  */
+  const CAMPI_CORREZIONE = ['impianto', 'indirizzo', 'cap', 'comune', 'operazione', 'nominativo', 'recapito'] as const;
+  const patchPerRiga = new Map<string, Partial<Record<(typeof CAMPI_CORREZIONE)[number], string>>>();
+  for (const r of parsed.righe) {
+    const perChiave = catalogoPerChiave.get(chiaveRiga(r));
+    const bersagli = perChiave
+      ? [perChiave]
+      : chiaveOdl(r.matricola) === '' ? (catalogoPerOdl.get(chiaveOdl(r.odl)) ?? []) : [];
+    for (const b of bersagli) {
+      const patch = patchPerRiga.get(b.id) ?? {};
+      for (const campo of CAMPI_CORREZIONE) {
+        const dalFile = normAnagrafica(r[campo as keyof RigaMasterUpload]);
+        if (dalFile === '' || campo in patch) continue;
+        if (dalFile !== normAnagrafica(b[campo])) {
+          patch[campo] = String(r[campo as keyof RigaMasterUpload]).replace(/\s+/g, ' ').trim();
+        }
+      }
+      if (Object.keys(patch).length > 0) patchPerRiga.set(b.id, patch);
+    }
+  }
+  let aggiornate = 0;
+  {
+    const daAggiornare = [...patchPerRiga.entries()];
+    const CONCORRENZA = 20;
+    for (let i = 0; i < daAggiornare.length; i += CONCORRENZA) {
+      const esiti = await Promise.all(daAggiornare.slice(i, i + CONCORRENZA).map(async ([id, patch]) => {
+        const { error } = await supabaseAdmin.from('template_master_righe').update(patch).eq('id', id);
+        return error ? 0 : 1;
+      }));
+      aggiornate += esiti.reduce((a: number, b) => a + b, 0);
+    }
+  }
 
   // Niente di nuovo: non si crea un master vuoto che sporcherebbe l'elenco. Si dice cosa e'
   // successo, che e' l'informazione utile ("l'ho gia'" non e' un errore).
@@ -171,8 +246,9 @@ export async function POST(req: Request) {
       righe: 0,
       totale: parsed.totale,
       scartate: parsed.scartate,
-      giaPresenti: filtro.giaPresenti,
+      giaPresenti: filtro.giaPresenti + soloCorrezioni,
       doppieNelFile: filtro.doppieNelFile,
+      aggiornate,
       impianti: null,
     });
   }
@@ -218,8 +294,9 @@ export async function POST(req: Request) {
     righe: filtro.nuove.length,
     totale: parsed.totale,
     scartate: parsed.scartate,
-    giaPresenti: filtro.giaPresenti,
+    giaPresenti: filtro.giaPresenti + soloCorrezioni,
     doppieNelFile: filtro.doppieNelFile,
+    aggiornate,
     impianti,
   });
 }

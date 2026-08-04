@@ -14,8 +14,9 @@
 //     (`civico_num` è generata dal civico), e un indirizzo lasciato intero ordinerebbe
 //     «VIA ROMA 10» prima di «VIA ROMA 9».
 //
-// Additivo per costruzione: la funzione restituisce solo le righe NUOVE. Le presenti non si
-// toccano mai — lì sopra vive la pianificazione dell'ufficio.
+// Additivo sugli STATI, correttivo sull'ANAGRAFICA: le righe nuove entrano, e sulle presenti
+// il master sovrascrive i campi anagrafici difformi (mai stati, pianificazione o matricola —
+// vedi `EsitoSync.correzioni`). Niente si cancella mai per assenza dal file.
 
 export type RigaMaster = {
   /** `template_master_righe.id`: la provenienza si conserva sulla riga di registro. */
@@ -45,21 +46,29 @@ export type OrdineEsistente = {
   odl: string;
   numero_operazione: string;
   matricola: string | null;
-  /** L'anagrafica che la riga ha GIÀ: decide se c'è un vuoto da riempire. */
+  /** L'anagrafica che la riga ha GIÀ: il confronto decide se il master la corregge. */
   impianto?: string | null;
   nominativo?: string | null;
   recapito?: string | null;
+  comune?: string | null;
+  cap?: string | null;
+  via?: string | null;
+  civico?: string | null;
 };
 
-/** I tre campi che un master può riempire su una riga già a registro. */
-export type CampoAnagrafica = 'impianto' | 'nominativo' | 'recapito';
-const CAMPI_ANAGRAFICA: readonly CampoAnagrafica[] = ['impianto', 'nominativo', 'recapito'];
+/** I campi che un master può correggere su una riga già a registro. */
+export type CampoAnagrafica =
+  | 'impianto' | 'nominativo' | 'recapito' | 'comune' | 'cap' | 'via' | 'civico';
 
-/** Una riga già a registro a cui il master aggiunge un dato che le mancava. */
-export type Arricchimento = {
+/**
+ * Una riga già a registro che il master aggiorna: anagrafica difforme, e/o la matricola
+ * che una riga entrata senza (i battenti del sito non la portano) adotta dal primo file
+ * che gliela dà.
+ */
+export type Correzione = {
   odl: string;
   numero_operazione: string;
-  patch: Partial<Record<CampoAnagrafica, string>>;
+  patch: Partial<Record<CampoAnagrafica | 'matricola' | 'matricola_norm', string>>;
 };
 
 export type NuovoOrdine = {
@@ -80,19 +89,24 @@ export type NuovoOrdine = {
 export type EsitoSync = {
   nuovi: NuovoOrdine[];
   /**
-   * Righe già a registro a cui il master aggiunge un dato che mancava.
+   * Righe già a registro che il master AGGIORNA.
    *
-   * «Additivo» ha sempre voluto dire «non tocco le righe presenti», ed è la regola che protegge
-   * la pianificazione. Ma vale per i dati che la riga HA: su un campo VUOTO non c'è niente da
-   * proteggere, e la regola stretta trasformava il ricaricamento del master — il gesto normale
-   * quando il file arriva più completo — in un'operazione che non serviva a niente. È successo:
-   * le 4.196 righe di luglio sono entrate senza cod. fornitura, e il sync non aveva modo di
-   * portarglielo. Si riempie SOLO il vuoto: un dato corretto in ufficio non si sovrascrive mai.
+   * Fino al 04/08/2026 il sync riempiva solo i campi VUOTI: un dato corretto in ufficio non
+   * si toccava. Ma la correzione vera viaggia in senso opposto — l'export del committente È
+   * l'anagrafica giusta (decisione utente 04/08: «l'import del master deve sovrascrivere i
+   * dati»), e tenere il valore vecchio significava correggere a mano due volte, sul registro
+   * e sugli interventi. Ora un campo NON VUOTO del file che differisce dal registro lo
+   * sovrascrive; un campo vuoto continua a non cancellare niente.
+   *
+   * La MATRICOLA resta fuori dalla sovrascrittura: è l'identità della riga (indice unico su
+   * odl + matricola_norm), e una matricola «diversa» non è una correzione, è un'altra riga.
+   * L'unico movimento ammesso è l'ADOZIONE: la riga entrata senza matricola (i battenti del
+   * sito non la portano) prende la prima che un file le dà.
    */
-  arricchimenti: Arricchimento[];
-  /** Coppie (ODL, matricola) già a registro: la misura dell'idempotenza. */
+  correzioni: Correzione[];
+  /** Righe del file già a registro (per coppia ODL+matricola, o per ODL se senza matricola). */
   giaPresenti: number;
-  /** Righe del master inutilizzabili (senza ODL o matricola) o duplicate nel file stesso. */
+  /** Righe del master inutilizzabili (senza ODL) o duplicate nel file stesso. */
   scartate: number;
 };
 
@@ -122,9 +136,37 @@ export function spezzaIndirizzo(
   return { via, civico: m[2] };
 }
 
+/** Normalizzazione per il CONFRONTO anagrafico (non per la scrittura): maiuscolo, spazi
+ *  collassati. Una differenza di solo case o spaziatura non è una correzione da scrivere. */
+export function normAnagrafica(v: string | null | undefined): string {
+  return String(v ?? '').replace(/\s+/g, ' ').trim().toUpperCase();
+}
+
+/** I campi difformi che il file sovrascrive sulla riga presente. Il file che non porta un
+ *  dato (campo vuoto) non cancella mai niente; via e civico si confrontano già spezzati. */
+function patchAnagrafica(r: RigaMaster, presente: OrdineEsistente): Correzione['patch'] {
+  const { via, civico } = spezzaIndirizzo(r.indirizzo);
+  const confronti: ReadonlyArray<[CampoAnagrafica, string | null | undefined, string | null | undefined]> = [
+    ['impianto', r.impianto, presente.impianto],
+    ['nominativo', r.nominativo, presente.nominativo],
+    ['recapito', r.recapito, presente.recapito],
+    ['comune', r.comune, presente.comune],
+    ['cap', r.cap, presente.cap],
+    ['via', via, presente.via],
+    ['civico', civico, presente.civico],
+  ];
+  const patch: Correzione['patch'] = {};
+  for (const [campo, dalFile, aRegistro] of confronti) {
+    const nf = normAnagrafica(dalFile);
+    if (nf === '' || nf === normAnagrafica(aRegistro)) continue;
+    patch[campo] = String(dalFile).replace(/\s+/g, ' ').trim();
+  }
+  return patch;
+}
+
 /**
- * Le righe NUOVE da inserire a registro (con il loro numero operazione) e i VUOTI che il master
- * può riempire su quelle già presenti.
+ * Le righe NUOVE da inserire a registro (con il loro numero operazione) e le CORREZIONI da
+ * scrivere su quelle già presenti.
  *
  * Regole di numerazione, nell'ordine:
  *  - le righe esistenti dello stesso ODL riservano i loro numeri: MAI rinumerare — la chiave
@@ -132,27 +174,27 @@ export function spezzaIndirizzo(
  *  - le matricole nuove si ordinano alfabeticamente (normalizzate) e prendono i numeri liberi a
  *    salire dal massimo esistente: due sync con lo stesso file producono le stesse chiavi.
  *
- * Gli arricchimenti sono l'unica cosa che tocca una riga presente, e toccano SOLO i suoi campi
- * vuoti: la pianificazione, le note, gli stati restano intatti — rieseguire il sync sullo stesso
- * file produce zero arricchimenti al secondo giro.
+ * Le correzioni sono l'unica cosa che tocca una riga presente, e toccano SOLO l'anagrafica
+ * (mai stati, pianificazione, note): rieseguire il sync sullo stesso file produce zero
+ * correzioni al secondo giro.
+ *
+ * Righe SENZA matricola (i battenti del sito): l'identità degrada all'ODL. Se l'ODL è già a
+ * registro la riga è un veicolo di correzioni per TUTTE le sue operazioni; se non c'è entra
+ * come riga nuova a matricola vuota, che un master futuro potrà far adottare.
  */
 export function ordiniDaMaster(
   righe: readonly RigaMaster[],
   esistenti: readonly OrdineEsistente[],
 ): EsitoSync {
-  // Cosa c'è già, per ODL: le matricole presenti e il numero più alto assegnato.
-  const perOdl = new Map<string, { matricole: Set<string>; maxNumero: number }>();
-  // La riga presente, per coppia (ODL, matricola): serve a vedere quali campi le mancano.
-  const perChiave = new Map<string, OrdineEsistente>();
+  // Cosa c'è già, per ODL: le righe, le matricole presenti e il numero più alto assegnato.
+  const perOdl = new Map<string, { righe: OrdineEsistente[]; matricole: Set<string>; maxNumero: number }>();
   for (const e of esistenti) {
     const odl = e.odl.trim();
     if (odl === '') continue;
-    const v = perOdl.get(odl) ?? { matricole: new Set<string>(), maxNumero: 0 };
+    const v = perOdl.get(odl) ?? { righe: [], matricole: new Set<string>(), maxNumero: 0 };
+    v.righe.push(e);
     const m = normMatricola(e.matricola);
-    if (m !== '') {
-      v.matricole.add(m);
-      perChiave.set(`${odl}#${m}`, e);
-    }
+    if (m !== '') v.matricole.add(m);
     const n = Number.parseInt(e.numero_operazione, 10);
     if (Number.isFinite(n) && n > v.maxNumero) v.maxNumero = n;
     perOdl.set(odl, v);
@@ -160,15 +202,25 @@ export function ordiniDaMaster(
 
   // Le candidate valide e non ancora presenti, deduplicate anche DENTRO il file.
   const candidate = new Map<string, RigaMaster[]>();
-  const arricchimenti: Arricchimento[] = [];
+  const correzioni: Correzione[] = [];
   let giaPresenti = 0;
   let scartate = 0;
   const vistoNelFile = new Set<string>();
+  // Le righe senza matricola già adottanti in questo giro: una riga vuota adotta UNA matricola.
+  const adottate = new Set<OrdineEsistente>();
+
+  const correggi = (r: RigaMaster, presente: OrdineEsistente, extra?: Correzione['patch']) => {
+    const patch = { ...patchAnagrafica(r, presente), ...extra };
+    if (Object.keys(patch).length > 0) {
+      correzioni.push({ odl: presente.odl.trim(), numero_operazione: presente.numero_operazione, patch });
+    }
+  };
+
   for (const r of righe) {
     const odl = String(r.odl ?? '').trim();
     const matricola = String(r.matricola ?? '').trim();
     const norm = normMatricola(matricola);
-    if (odl === '' || norm === '') {
+    if (odl === '') {
       scartate++;
       continue;
     }
@@ -178,20 +230,32 @@ export function ordiniDaMaster(
       continue;
     }
     vistoNelFile.add(chiave);
-    if (perOdl.get(odl)?.matricole.has(norm)) {
-      giaPresenti++;
-      const presente = perChiave.get(chiave);
-      if (presente) {
-        const patch: Partial<Record<CampoAnagrafica, string>> = {};
-        for (const campo of CAMPI_ANAGRAFICA) {
-          const dalFile = String(r[campo] ?? '').trim();
-          if (dalFile !== '' && String(presente[campo] ?? '').trim() === '') patch[campo] = dalFile;
-        }
-        if (Object.keys(patch).length > 0) {
-          arricchimenti.push({ odl, numero_operazione: presente.numero_operazione, patch });
-        }
+    const gruppo = perOdl.get(odl);
+    if (gruppo) {
+      if (norm === '') {
+        // Senza matricola l'identità è l'ODL, che c'è già: la riga corregge tutte le sue
+        // operazioni (l'anagrafica dell'utenza è una) e non inserisce niente.
+        giaPresenti++;
+        for (const e of gruppo.righe) correggi(r, e);
+        continue;
       }
-      continue;
+      if (gruppo.matricole.has(norm)) {
+        giaPresenti++;
+        const presente = gruppo.righe.find((e) => normMatricola(e.matricola) === norm);
+        if (presente) correggi(r, presente);
+        continue;
+      }
+      // Matricola nuova su un ODL noto: se c'è una riga entrata senza matricola, la ADOTTA —
+      // è la stessa riga di lavoro, arrivata prima da un file più povero. Inserirne una
+      // seconda sdoppierebbe il punto.
+      const vuota = gruppo.righe.find((e) => normMatricola(e.matricola) === '' && !adottate.has(e));
+      if (vuota) {
+        adottate.add(vuota);
+        gruppo.matricole.add(norm);
+        giaPresenti++;
+        correggi(r, vuota, { matricola, matricola_norm: norm });
+        continue;
+      }
     }
     candidate.set(odl, [...(candidate.get(odl) ?? []), r]);
   }
@@ -221,5 +285,5 @@ export function ordiniDaMaster(
     }
   }
 
-  return { nuovi, arricchimenti, giaPresenti, scartate };
+  return { nuovi, correzioni, giaPresenti, scartate };
 }

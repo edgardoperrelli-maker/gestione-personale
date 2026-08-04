@@ -75,7 +75,112 @@ const PATTERN: Record<Campo, RegExp> = {
   recapito: /recapito|telefono|cellulare|^tel$/,
 };
 
-function normHeader(v: unknown): string {
+/**
+ * Le colonne del BATTENTE — l'export ODL del sito AcquaLatina (file «1BATTENTE_ODL_…», foglio
+ * OdL). Riconosciute per nome ESATTO normalizzato, non coi pattern generici, per tre trappole
+ * vere di quel file:
+ *  - «Codice OdL» (SCL289991: il codice interno del loro scheduler) casca nel pattern /odl/
+ *    PRIMA di «Codice Esterno», che è il numero d'ordine vero — quello che il registro chiama
+ *    `odl` e con cui il file degli esiti si aggancia;
+ *  - «Indirizzo utente normalizzato» casca in /indirizzo/ ed è sporco («VIA MAZZINI 81
+ *    (no Norm. 81)»): la via buona è «Indirizzo Utente», con civico e suffisso in colonne loro;
+ *  - l'impianto non ha una colonna sua: sta dentro «Utenza/impianto» come «27410580 - NOME».
+ * Il file non porta matricole: l'identità qui è il solo ODL, e le matricole restano quelle
+ * che il registro già conosce.
+ */
+const COLONNE_BATTENTE = {
+  odl: 'codiceesterno',
+  utenza: 'utenzaimpianto',
+  nominativo: 'ragionesociale',
+  comune: 'comuneutente',
+  via: 'indirizzoutente',
+  civico: 'civico',
+  suffisso: 'suffissocivico',
+  recapito: 'telefono',
+} as const;
+
+type ColonnaBattente = keyof typeof COLONNE_BATTENTE;
+
+/** Indici delle colonne battente, o null se la riga non è l'header di un battente:
+ *  la firma del formato è la coppia («Codice Esterno», «Utenza/impianto»), che nessun
+ *  altro file in uso ha. */
+function mappaBattente(header: unknown[]): Partial<Record<ColonnaBattente, number>> | null {
+  const idx: Partial<Record<ColonnaBattente, number>> = {};
+  header.forEach((h, i) => {
+    const n = normHeader(h);
+    if (!n) return;
+    (Object.keys(COLONNE_BATTENTE) as ColonnaBattente[]).forEach((c) => {
+      if (idx[c] === undefined && n === COLONNE_BATTENTE[c]) idx[c] = i;
+    });
+  });
+  return idx.odl !== undefined && idx.utenza !== undefined ? idx : null;
+}
+
+/**
+ * «27410580 - BOSCHETTO LUCIA» → impianto e nominativo. L'impianto è SEMPRE il codice
+ * numerico (parola del committente); un valore senza separatore ma tutto cifre è un impianto
+ * senza intestatario, qualunque altra forma non è decifrabile e non si inventa niente.
+ */
+export function spartiUtenzaImpianto(v: unknown): { impianto: string; nominativo: string } {
+  const testo = cell(v);
+  const m = /^(\d+)\s*-\s*(.*)$/.exec(testo);
+  if (m) return { impianto: m[1], nominativo: m[2].trim() };
+  if (/^\d+$/.test(testo)) return { impianto: testo, nominativo: '' };
+  return { impianto: '', nominativo: '' };
+}
+
+/**
+ * L'escaping SQL-style che il battente si porta dietro: «D''ONOFRIO» per D'ONOFRIO,
+ * «''''HAPPY GELO''''» per "HAPPY GELO" (misurato sul file reale: 97 nominativi e 13 vie).
+ * Senza questo passaggio l'import — che dal 04/08 sovrascrive il difforme — «correggerebbe»
+ * al contrario, riscrivendo il registro con i valori storpiati. L'ordine conta: prima il
+ * quadruplo, poi il doppio.
+ */
+function deApostrofa(v: string): string {
+  return v.replace(/''''/g, '"').replace(/''/g, "'");
+}
+
+function parseBattente(
+  rows: unknown[][],
+  headerIdx: number,
+  idx: Partial<Record<ColonnaBattente, number>>,
+): ParseMasterResult {
+  const get = (row: unknown[], c: ColonnaBattente): string =>
+    idx[c] === undefined ? '' : cell(row[idx[c] as number]);
+  const dataRows = rows.slice(headerIdx + 1)
+    .filter((r) => Array.isArray(r) && r.some((c) => cell(c) !== ''));
+  const righe: RigaMasterUpload[] = [];
+  let scartate = 0;
+  for (const row of dataRows) {
+    const odl = get(row, 'odl');
+    if (!odl) { scartate++; continue; }
+    const utenza = spartiUtenzaImpianto(row[idx.utenza as number]);
+    // Civico «0» = non ce l'ha (convenzione del file); il suffisso («INT», «PT») si attacca
+    // col «/», la stessa forma dei civici già a registro («58/PT»).
+    const civico = get(row, 'civico').replace(/^0$/, '');
+    const suffisso = get(row, 'suffisso');
+    const civicoPieno = civico ? (suffisso ? `${civico}/${suffisso}` : civico) : '';
+    const via = deApostrofa(get(row, 'via'));
+    // «---» e «0» sono i due modi del file di dire «niente telefono» (1.703 e 8 righe).
+    const recapito = get(row, 'recapito').replace(/^(?:-+|0)$/, '');
+    righe.push({
+      odl,
+      matricola: '',
+      impianto: utenza.impianto,
+      indirizzo: [via, civicoPieno].filter(Boolean).join(' '),
+      cap: '',
+      comune: get(row, 'comune'),
+      operazione: '',
+      nominativo: deApostrofa(get(row, 'nominativo') || utenza.nominativo),
+      recapito,
+    });
+  }
+  return { righe, totale: dataRows.length, scartate };
+}
+
+/** Intestazione normalizzata (minuscolo, senza accenti né non-alfanumerici): la usa anche il
+ *  parser degli esiti AcquaLatina, che risolve le colonne per nome allo stesso modo. */
+export function normHeader(v: unknown): string {
   return String(v ?? '')
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
@@ -122,6 +227,26 @@ export function trovaHeaderMaster(rows: unknown[][], maxScan = 15): number {
  * - Lancia Error se la colonna ODL/ORDINE non si trova.
  */
 export function parseMasterUpload(rows: unknown[][]): ParseMasterResult {
+  const lim = Math.min(15, rows?.length ?? 0);
+  for (let i = 0; i < lim; i++) {
+    const header = (rows[i] ?? []).map(normHeader);
+    /*
+      Il file ESECUZIONI del sito (gli esiti) si RIFIUTA prima di ogni parsing: caricato come
+      master il 04/08 è passato dal percorso generico — /odl/ ha agganciato il «Codice Odl»
+      interno (SCL…) — e 359 ordini fantasma sono entrati a registro. La colonna «Codice
+      Esterno dell'OdL» esiste solo in quell'export, ed è la firma con cui lo si ferma qui,
+      col nome del posto giusto.
+    */
+    if (header.includes('codiceesternodellodl')) {
+      throw new Error(
+        'Questo è il file degli ESITI del sito (ESECUZIONI): va caricato nel «Confronto esiti col sito», non come master.',
+      );
+    }
+    // Il battente si riconosce PRIMA del percorso generico: sui suoi header i pattern generici
+    // aggancerebbero le colonne sbagliate (vedi COLONNE_BATTENTE), e in silenzio.
+    const idx = mappaBattente(rows[i] ?? []);
+    if (idx) return parseBattente(rows, i, idx);
+  }
   const headerIdx = trovaHeaderMaster(rows ?? []);
   if (headerIdx === -1) {
     throw new Error('Colonna ODL/ORDINE non trovata nel file.');

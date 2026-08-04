@@ -35,12 +35,75 @@ export type InterventoConcluso = {
   eseguito?: string | null;
 };
 
+/** Un intervento SENZA il collegamento: `ordine_id` mai scritto. Anche APERTO — l'aggancio
+ *  serve pure a lui: senza, le correzioni anagrafiche del sync non lo raggiungono e la
+ *  tabella del registro non lo mostra fra Esecutore/Data pianificata. */
+export type InterventoSciolto = {
+  id: string;
+  odl: string | null;
+  matricola_contatore: string | null;
+  data: string | null;
+  esito: string | null;
+  stato?: string | null;
+};
+
+/** La riga di registro come serve all'aggancio: identità e matricola normalizzata. */
+export type RigaPerAggancio = {
+  id: string;
+  odl: string;
+  matricola_norm: string | null;
+};
+
+/** Come `normMatricola` di ordiniDaMaster: qui per non importare il modulo del sync intero. */
+const normMatr = (m: string | null | undefined): string =>
+  String(m ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+/**
+ * Gli agganci mancanti: quale riga di registro appartiene a un intervento concluso senza
+ * `ordine_id`.
+ *
+ * Il collegamento lo scrive la pianificazione alla creazione — ma non tutti gli interventi
+ * nascono da lì: quelli del vecchio percorso su file (e le ricostruzioni) sono nati senza, e
+ * per la riconciliazione erano invisibili. Il caso vero è il 12379075 del 03/08: eseguito
+ * positivo dall'operatore, riga di registro rimasta «Aperta», e il confronto col sito che lo
+ * segnala fra i «manca il nostro esito» — 77 interventi così alla prima misura (04/08).
+ *
+ * La regola è prudente: si aggancia per ODL solo quando la scelta è OBBLIGATA — l'ODL ha una
+ * riga sola, oppure la matricola dell'intervento ne indica esattamente una. Un ODL
+ * multi-contatore senza matricola che decida resta sciolto: meglio un aggancio in meno di un
+ * esito scritto sul contatore sbagliato.
+ */
+export function agganciPerOdl(
+  sciolti: readonly InterventoSciolto[],
+  righe: readonly RigaPerAggancio[],
+): Array<{ interventoId: string; ordineId: string }> {
+  const perOdl = new Map<string, RigaPerAggancio[]>();
+  for (const r of righe) {
+    const odl = r.odl.trim();
+    if (odl === '') continue;
+    perOdl.set(odl, [...(perOdl.get(odl) ?? []), r]);
+  }
+  const agganci: Array<{ interventoId: string; ordineId: string }> = [];
+  for (const s of sciolti) {
+    const candidate = perOdl.get(String(s.odl ?? '').trim()) ?? [];
+    let scelta: RigaPerAggancio | null = candidate.length === 1 ? candidate[0] : null;
+    if (!scelta && candidate.length > 1) {
+      const m = normMatr(s.matricola_contatore);
+      const stesse = m === '' ? [] : candidate.filter((c) => normMatr(c.matricola_norm) === m);
+      if (stesse.length === 1) scelta = stesse[0];
+    }
+    if (scelta) agganci.push({ interventoId: s.id, ordineId: scelta.id });
+  }
+  return agganci;
+}
+
 /** Le colonne di stato della riga di registro, riscritte in blocco. */
 export type PatchRiga = {
   aperto: boolean;
   stato: string;
   stato_desc: string;
-  esito_positivo: boolean;
+  /** `null` solo sulla RIAPERTURA: la riga torna «mai esitata», non «esitata negativa». */
+  esito_positivo: boolean | null;
   data_completamento: string | null;
 };
 
@@ -159,6 +222,62 @@ const PATCH_PER_ESITO: Record<EsitoRiga, (data: string | null) => PatchRiga> = {
   chiusa_non_eseguita: PATCH_CHIUSA_NON_ESEGUITA,
   aperta_non_eseguita: () => PATCH_NON_ESEGUITA,
 };
+
+/**
+ * La patch che RIAPRE una riga chiusa positiva rimasta senza il suo intervento positivo.
+ *
+ * Torna «Aperta», come mai lavorata: se dell'ordine resta un'uscita negativa, il gruppo
+ * negativo della stessa riconciliazione la rimarca subito «Aperta — non eseguita» (la
+ * riapertura gira PRIMA dei gruppi, apposta).
+ */
+export const PATCH_RIAPERTA: PatchRiga = {
+  aperto: true,
+  stato: 'APERTO',
+  stato_desc: STATO_APERTA,
+  esito_positivo: null,
+  data_completamento: null,
+};
+
+/**
+ * Le righe chiuse positive da RIAPRIRE: quelle il cui ordine non ha più NESSUN intervento
+ * completato con esito positivo.
+ *
+ * È la seconda metà di «il positivo è definitivo». La guardia dei gruppi impedisce a
+ * un'uscita successiva di contraddire una chiusa positiva — giusto: il lavoro fatto resta
+ * fatto. Ma quando l'ufficio CORREGGE l'esito dell'intervento (il positivo era un errore di
+ * consuntivazione, 04/08/2026), il lavoro fatto non c'è mai stato: la riga chiusa non ha più
+ * niente dietro, e senza questa lista la correzione andava rifatta a mano sul registro —
+ * la doppia modifica che il modulo interventi doveva evitare.
+ *
+ * «NESSUN positivo» e non «l'intervento corretto»: su un'unità con più uscite (ripasso
+ * negativo poi positivo) basta un positivo superstite a tenere la riga chiusa.
+ */
+export function idsDaRiaprire(
+  chiusePositive: readonly string[],
+  conclusi: readonly InterventoConcluso[],
+): string[] {
+  const positivi = new Set(
+    conclusi.filter((c) => c.ordine_id && c.esito === 'eseguito_positivo').map((c) => c.ordine_id),
+  );
+  return chiusePositive.filter((id) => !positivi.has(id));
+}
+
+/**
+ * Le righe «Aperta — non eseguita» da RIPORTARE ad «Aperta»: quelle il cui ordine non ha più
+ * NESSUN intervento concluso, di nessun esito.
+ *
+ * Il marchio «non eseguita» racconta un'uscita a vuoto. Se quell'uscita viene azzerata,
+ * annullata o cancellata dal modulo interventi, il racconto non ha più niente dietro — e
+ * l'imbuto «da ripassare» terrebbe in coda una riga mai davvero visitata. Simmetrica di
+ * `idsDaRiaprire`, che fa lo stesso servizio alle chiuse positive.
+ */
+export function idsSenzaConcluso(
+  nonEseguite: readonly string[],
+  conclusi: readonly InterventoConcluso[],
+): string[] {
+  const toccate = new Set(conclusi.filter((c) => c.ordine_id).map((c) => c.ordine_id));
+  return nonEseguite.filter((id) => !toccate.has(id));
+}
 
 /**
  * Gli aggiornamenti da scrivere sul registro, raggruppati per (giorno, esito).

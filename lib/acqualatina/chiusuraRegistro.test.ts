@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  esitoRiga, gruppiChiusura, NO_CHIUDE_DAL,
+  agganciPerOdl, esitoRiga, gruppiChiusura, idsDaRiaprire, idsSenzaConcluso, NO_CHIUDE_DAL,
   STATO_APERTA_NON_ESEGUITA, STATO_CHIUSA_ESEGUITA, STATO_CHIUSA_NON_ESEGUITA,
   type InterventoConcluso,
 } from './chiusuraRegistro';
@@ -86,6 +86,75 @@ describe('gruppiChiusura — raggruppamento', () => {
       [STATO_APERTA_NON_ESEGUITA, 'aperta_non_eseguita'],
       [STATO_CHIUSA_ESEGUITA, 'positivo'],
     ]);
+  });
+});
+
+describe('idsDaRiaprire — la seconda metà di «il positivo è definitivo»', () => {
+  /*
+    La guardia dei gruppi impedisce a un'uscita successiva di contraddire una chiusa positiva.
+    Ma quando l'ufficio CORREGGE l'esito (il positivo era un errore di consuntivazione), il
+    lavoro fatto non c'è mai stato: la riga chiusa non ha più niente dietro e deve riaprirsi
+    da sola — senza questa lista la correzione andava rifatta a mano sul registro.
+  */
+  it('riapre la chiusa positiva il cui ordine non ha più nessun intervento positivo', () => {
+    expect(idsDaRiaprire(['ord-1'], [negativo({ ordine_id: 'ord-1' })])).toEqual(['ord-1']);
+  });
+
+  it('anche senza più NESSUN intervento (annullato o cancellato): il lavoro dichiarato è sparito', () => {
+    expect(idsDaRiaprire(['ord-1'], [])).toEqual(['ord-1']);
+  });
+
+  it('un positivo superstite tiene la riga chiusa: il ripasso riuscito non si riapre', () => {
+    expect(idsDaRiaprire(['ord-1'], [
+      negativo({ ordine_id: 'ord-1', data: '2026-08-01' }),
+      concluso({ ordine_id: 'ord-1', data: '2026-08-02' }),
+    ])).toEqual([]);
+  });
+
+  it('guarda solo l\'ordine della riga: i positivi degli altri ordini non la salvano', () => {
+    expect(idsDaRiaprire(['ord-1', 'ord-2'], [concluso({ ordine_id: 'ord-2' })]))
+      .toEqual(['ord-1']);
+  });
+});
+
+describe('agganciPerOdl — il collegamento che si ripara da solo', () => {
+  const riga = (id: string, odl: string, matricola_norm: string | null = null) =>
+    ({ id, odl, matricola_norm });
+  const sciolto = (id: string, odl: string | null, matricola: string | null = null) =>
+    ({ id, odl, matricola_contatore: matricola, data: '2026-08-03', esito: 'eseguito_positivo' });
+
+  it("l'ODL con una riga sola aggancia senza bisogno della matricola", () => {
+    expect(agganciPerOdl([sciolto('i1', '100001')], [riga('o1', '100001')]))
+      .toEqual([{ interventoId: 'i1', ordineId: 'o1' }]);
+  });
+
+  it('multi-contatore: aggancia solo se la matricola ne indica esattamente una', () => {
+    const righe = [riga('o1', '100001', 'MTR001'), riga('o2', '100001', 'MTR002')];
+    expect(agganciPerOdl([sciolto('i1', '100001', 'mtr-002')], righe))
+      .toEqual([{ interventoId: 'i1', ordineId: 'o2' }]);
+    // Senza matricola la scelta non è obbligata: meglio nessun aggancio di uno sbagliato.
+    expect(agganciPerOdl([sciolto('i2', '100001')], righe)).toEqual([]);
+  });
+
+  it('ODL sconosciuto al registro o assente: resta sciolto', () => {
+    expect(agganciPerOdl(
+      [sciolto('i1', '999999'), sciolto('i2', null)],
+      [riga('o1', '100001')],
+    )).toEqual([]);
+  });
+});
+
+describe('idsSenzaConcluso — la «non eseguita» senza più niente dietro torna «Aperta»', () => {
+  it("ripulisce la riga il cui unico negativo è stato azzerato o cancellato", () => {
+    expect(idsSenzaConcluso(['ord-1'], [])).toEqual(['ord-1']);
+  });
+  it('un concluso QUALSIASI (anche negativo) tiene il marchio: l\'uscita a vuoto è vera', () => {
+    expect(idsSenzaConcluso(['ord-1'], [negativo({ ordine_id: 'ord-1' })])).toEqual([]);
+    expect(idsSenzaConcluso(['ord-1'], [concluso({ ordine_id: 'ord-1' })])).toEqual([]);
+  });
+  it('guarda solo il proprio ordine', () => {
+    expect(idsSenzaConcluso(['ord-1', 'ord-2'], [negativo({ ordine_id: 'ord-2' })]))
+      .toEqual(['ord-1']);
   });
 });
 

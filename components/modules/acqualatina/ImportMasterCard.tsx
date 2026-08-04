@@ -19,12 +19,14 @@ type EsitoMaster = {
   scartate: number;
   giaPresenti: number;
   doppieNelFile: number;
+  aggiornate?: number;
   error?: string;
 };
 
 type EsitoSync = {
   inseriti: number;
-  arricchiti: number;
+  corrette: number;
+  interventiAggiornati: number;
   giaPresenti: number;
   scartate: number;
   error?: string;
@@ -135,9 +137,10 @@ export default function ImportMasterCard({ onImportato }: { onImportato?: () => 
       <div>
         <h2 className="text-sm font-semibold text-[var(--brand-text-main)]">Import master AcquaLatina</h2>
         <p className="mt-0.5 text-xs text-[var(--brand-text-muted)]">
-          Carica qui il file del committente senza modificarlo. Le righe già viste vengono saltate
-          e gli ordini nuovi entrano subito nel registro: le righe già pianificate non si toccano,
-          e niente esce mai dal registro perché è sparito dal file.
+          Carica qui il file del committente senza modificarlo (va bene anche il battente del
+          sito). Gli ordini nuovi entrano subito nel registro; sulle righe già presenti il file
+          corregge l&apos;anagrafica difforme e la porta anche sugli interventi aperti — stati e
+          pianificazione non si toccano, e niente esce mai dal registro perché è sparito dal file.
         </p>
       </div>
 
@@ -171,7 +174,12 @@ export default function ImportMasterCard({ onImportato }: { onImportato?: () => 
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <StatTile size="sm" label="Righe lette" value={esitoMaster.totale} />
             <StatTile size="sm" label="Nuove" value={esitoMaster.righe} tone={esitoMaster.righe > 0 ? 'ok' : 'neutral'} />
-            <StatTile size="sm" label="Già presenti" value={esitoMaster.giaPresenti} />
+            <StatTile
+              size="sm"
+              label="Già presenti"
+              value={esitoMaster.giaPresenti}
+              note={(esitoMaster.aggiornate ?? 0) > 0 ? `${esitoMaster.aggiornate} corrette dal file` : undefined}
+            />
             <StatTile
               size="sm"
               label="Scartate"
@@ -188,7 +196,13 @@ export default function ImportMasterCard({ onImportato }: { onImportato?: () => 
           <h3 className="text-xs font-semibold text-[var(--brand-text-muted)]">Dal master al registro</h3>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <StatTile size="sm" label="Ordini nuovi" value={esitoSync.inseriti} tone={esitoSync.inseriti > 0 ? 'ok' : 'neutral'} />
-            <StatTile size="sm" label="Anagrafiche completate" value={esitoSync.arricchiti} />
+            <StatTile
+              size="sm"
+              label="Anagrafiche corrette"
+              value={esitoSync.corrette}
+              tone={esitoSync.corrette > 0 ? 'ok' : 'neutral'}
+              note={esitoSync.interventiAggiornati > 0 ? `${esitoSync.interventiAggiornati} interventi aperti allineati` : undefined}
+            />
             <StatTile size="sm" label="Già a registro" value={esitoSync.giaPresenti} />
             <StatTile
               size="sm"

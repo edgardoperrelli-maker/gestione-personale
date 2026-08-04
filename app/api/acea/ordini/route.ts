@@ -16,7 +16,9 @@ import { odlConSaracinescaDichiarata } from '@/lib/acea/caricaSaracinesche';
 import { comuniMassiveAperti } from '@/lib/acea/caricaComuniMassive';
 import { contaSenzaData, type InterventoDellOdl } from '@/lib/acea/codaRiaperture';
 import { PROFILO_COMMESSA } from '@/lib/acea/famiglia';
-import { gruppiChiusura, type InterventoConcluso } from '@/lib/acqualatina/chiusuraRegistro';
+// La chiusura del registro dai nostri rapportini: le regole in chiusuraRegistro.ts,
+// l'applicazione in riconciliaRegistro.ts — condivisa col confronto esiti del sito.
+import { riconciliaChiusureAcqualatina } from '@/lib/acqualatina/riconciliaRegistro';
 // La stessa normalizzazione della colonna «Eseguito» del modulo Interventi: una sola regola per
 // due schermate che parlano dello stesso lavoro.
 import { siNo } from '@/lib/interventi/storico/normalizza';
@@ -313,114 +315,6 @@ async function indicePianificazione(f: FiltriOrdini): Promise<IndicePianificazio
   return indice;
 }
 
-/*
-  ---- Chiusura AcquaLatina: dai rapportini al registro --------------------------------------
-
-  ACEA chiude gli ordini con l'export del Cruscotto; AcquaLatina non ci rimanda niente, quindi
-  la chiusura la scrive il NOSTRO motore: un intervento della commessa `completato` (rapportino
-  consegnato con esito) porta lo stato sulla sua riga di registro — per `ordine_id`, che è il
-  collegamento che la pianificazione scrive alla creazione, quindi regge anche gli ODL
-  multi-matricola.
-
-  CHIUDE solo il positivo: un'uscita negativa lascia la riga aperta, perché il contatore è ancora
-  lì da sostituire. La regola sta tutta in `gruppiChiusura`, insieme al perché.
-
-  Gira qui, sulla strada della lettura, e non in un cron: la tabella è il momento in cui la
-  chiusura si guarda. Throttling a un minuto e best-effort — una riconciliazione in ritardo di
-  un giro è un dato vecchio di un minuto, una che blocca la lettura è il registro rotto.
-*/
-const TTL_RICONCILIAZIONE_MS = 60_000;
-let riconciliazioneAcquaAt = 0;
-
-async function chiudiOrdiniAcqualatinaCompletati(): Promise<void> {
-  const ora = Date.now();
-  if (ora - riconciliazioneAcquaAt < TTL_RICONCILIAZIONE_MS) return;
-  riconciliazioneAcquaAt = ora;
-
-  /*
-    Gli interventi conclusi, e l'`id` di ciascuno accanto — serve a ripescare la risposta della sua
-    voce. `completati` e `idInterventi` si riempiono nello STESSO ciclo e restano allineati per
-    indice: l'aggancio si costruisce in un punto solo, non si ricostruisce dopo.
-  */
-  const completati: InterventoConcluso[] = [];
-  const idInterventi: string[] = [];
-  for (let offset = 0; ; offset += PAGINA_SCAN) {
-    const { data, error } = await supabaseAdmin
-      .from('interventi')
-      .select('id, ordine_id, data, esito')
-      .eq('committente', 'acqualatina')
-      .eq('stato', 'completato')
-      .not('ordine_id', 'is', null)
-      .range(offset, offset + PAGINA_SCAN - 1);
-    if (error) throw error;
-    const blocco = (data ?? []) as Array<InterventoConcluso & { id: string }>;
-    for (const i of blocco) {
-      completati.push({ ordine_id: i.ordine_id, data: i.data, esito: i.esito });
-      idInterventi.push(i.id);
-    }
-    if (blocco.length < PAGINA_SCAN) break;
-  }
-  if (completati.length === 0) return;
-
-  /*
-    L'esito SCRITTO NELLA VOCE, per gli interventi appena letti.
-
-    `interventi.esito` distingue solo il positivo da tutto il resto: NO e NESSUN PASSAGGIO gli
-    arrivano identici, e la regola di questa commessa vive proprio in quella differenza — il NO è
-    definitivo, il «nessun passaggio» è un giro che non c'è stato. La risposta vera sta in
-    `rapportino_voci.risposte.eseguito`, la stessa che la tabella mostra in colonna.
-
-    Best-effort: se la lettura salta si resta alla regola vecchia (chiude solo il positivo) invece
-    di far fallire la riconciliazione. Una riga chiusa in ritardo si recupera al giro dopo, una
-    tabella che non si apre no.
-  */
-  const eseguitoPerIntervento = new Map<string, string>();
-  try {
-    for (let i = 0; i < idInterventi.length; i += 200) {
-      const { data, error } = await supabaseAdmin
-        .from('rapportino_voci')
-        .select('intervento_id, risposte')
-        .in('intervento_id', idInterventi.slice(i, i + 200));
-      if (error) throw error;
-      for (const v of (data ?? []) as Array<{ intervento_id: string | null; risposte: Record<string, unknown> | null }>) {
-        if (!v.intervento_id || eseguitoPerIntervento.has(v.intervento_id)) continue;
-        const risposta = String((v.risposte ?? {})['eseguito'] ?? '').trim();
-        if (risposta !== '') eseguitoPerIntervento.set(v.intervento_id, risposta);
-      }
-    }
-  } catch (e) {
-    console.error('[acea/ordini] esiti delle voci non letti, chiusura sul solo positivo:', e);
-  }
-
-  const conEsito: InterventoConcluso[] = completati.map((c, i) => ({
-    ...c,
-    eseguito: eseguitoPerIntervento.get(idInterventi[i]) ?? null,
-  }));
-
-  for (const g of gruppiChiusura(conEsito)) {
-    for (let i = 0; i < g.ids.length; i += 200) {
-      /*
-        UNA guardia sola: non contraddire il positivo, che è definitivo.
-
-        Il vecchio ramo negativo riapriva le righe `esito_positivo=false AND aperto=false` — la
-        riparazione delle 12 righe del 03/08, che ha già fatto il suo lavoro. Con la regola nuova
-        quella combinazione è una riga chiusa dal NO, e riaprirla a ogni giro metterebbe le due
-        regole a rincorrersi.
-
-        Le poche righe negative si riscrivono a ogni riconciliazione con gli stessi valori: è una
-        `update` a vuoto su una decina di righe al minuto, e vale il prezzo di far vincere sempre
-        l'ultima uscita invece di dover indovinare quali righe hanno già lo stato giusto.
-      */
-      const { error } = await supabaseAdmin
-        .from('acqualatina_ordini')
-        .update(g.patch)
-        .in('id', g.ids.slice(i, i + 200))
-        .not('esito_positivo', 'is', true);
-      if (error) throw error;
-    }
-  }
-}
-
 /**
  * Le attivazioni APERTE senza una data di pianificazione: il triangolo rosso sulla scheda.
  *
@@ -595,7 +489,7 @@ export async function GET(req: Request) {
     // La chiusura acqualatina si riconcilia PRIMA di leggere: la pagina deve mostrare chiuso
     // ciò che i rapportini hanno chiuso. Throttled e best-effort (vedi la funzione).
     if (acqua) {
-      await chiudiOrdiniAcqualatinaCompletati().catch((e) => {
+      await riconciliaChiusureAcqualatina().catch((e) => {
         console.error('[acea/ordini] chiusure acqualatina non riconciliate:', e);
       });
     }

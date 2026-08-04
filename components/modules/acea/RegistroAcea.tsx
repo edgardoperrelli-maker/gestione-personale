@@ -66,7 +66,6 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
   /** La modale dei rapportini: l'unica via dal registro, si sovrappone e la selezione resta. */
   const [rapportiniAperti, setRapportiniAperti] = useState(false);
   /** Sync dal master (solo acqualatina): il registro si alimenta da lì, non da un export ACEA. */
-  const [sincronizzando, setSincronizzando] = useState(false);
 
   const {
     filtri, setFiltri, righe, totale, oggi, caricando, errore, opzioni, altre, tutteCaricate,
@@ -363,46 +362,6 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
     }
   }, [righe, tutteCaricate, query, totale, colonneVisibili, famiglia, filtri, oggi]);
 
-  /**
-   * Aggiorna il registro acqualatina dal master caricato in Impostazioni → Template master.
-   *
-   * Additivo e idempotente: le righe nuove entrano, quelle già presenti conservano la loro
-   * pianificazione — il master può solo RIEMPIRNE i campi anagrafici vuoti (cod. fornitura,
-   * nome utente, recapito). È il gesto per quando l'ufficio carica il file del mese nuovo, e
-   * anche per quando ricarica lo stesso file perché arrivato più completo.
-   */
-  const sincronizzaDalMaster = useCallback(async () => {
-    setSincronizzando(true);
-    try {
-      const res = await fetch('/api/acqualatina/ordini/sync', { method: 'POST' });
-      const body = (await res.json()) as {
-        inseriti?: number; arricchiti?: number; giaPresenti?: number; scartate?: number;
-        master?: string[]; error?: string;
-      };
-      if (!res.ok) {
-        toast.error(body.error ?? 'Aggiornamento dal master non riuscito.');
-        return;
-      }
-      const inseriti = body.inseriti ?? 0;
-      const arricchiti = body.arricchiti ?? 0;
-      // Le righe completate si dicono a parte: un «nessuna riga nuova» dopo aver ricaricato un
-      // master più ricco farebbe credere che il file non sia servito a niente.
-      const completate = arricchiti > 0 ? `, ${numero(arricchiti)} completate` : '';
-      toast.success(
-        inseriti > 0
-          ? `${numero(inseriti)} righe nuove dal master (${numero(body.giaPresenti ?? 0)} già presenti${completate}).`
-          : arricchiti > 0
-            ? `Nessuna riga nuova; ${numero(arricchiti)} righe completate col dato che mancava.`
-            : 'Registro già allineato al master: nessuna riga nuova.',
-      );
-      if (inseriti > 0 || arricchiti > 0) ricarica();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Aggiornamento dal master non riuscito.');
-    } finally {
-      setSincronizzando(false);
-    }
-  }, [ricarica]);
-
   if (errore) {
     /*
       Token di stato, non di superficie: `--brand-surface-muted` vale esattamente quanto
@@ -529,38 +488,26 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
           */}
           {/* Comandi del MODO VISTA: si ritirano quando c'è una selezione (vedi la testa della riga). */}
           {selezionate.length === 0 && (
-            famiglia === 'acqualatina' ? (
-              /*
-                Qui il registro non si alimenta da un export ACEA ma dal MASTER del committente
-                (Impostazioni → Template master): il comando tira dentro le righe nuove del file
-                del mese, senza toccare quelle già presenti.
-              */
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => void sincronizzaDalMaster()}
-                loading={sincronizzando}
-                title="Tira dentro dal master le righe che il registro non ha ancora (additivo: non tocca le esistenti)"
-              >
-                {!sincronizzando && <Upload size={14} aria-hidden="true" />}
-                {sincronizzando ? 'Aggiorno…' : 'Aggiorna dal master'}
-              </Button>
-            ) : (
-              /*
-                Unico comando della riga a non passare dal primitivo, perche' e` un `<a>` e
-                `Button` rende solo `<button>`. Le classi ricalcano `Button variant="outline"
-                size="sm"` e vanno tenute allineate a quelle: `px-3` e `gap-2` come il
-                primitivo, non `px-2.5` e `gap-1.5` — con quelli era 2px per lato piu` stretto
-                dei vicini identici.
-              */
-              <a
-                href="/hub/acea/strumenti#import"
-                className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[var(--brand-border-strong)] bg-[var(--brand-surface)] px-3 py-1.5 text-xs font-medium text-[var(--brand-text-main)] transition-colors hover:bg-[var(--brand-surface-muted)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
-              >
-                <Upload size={14} aria-hidden="true" />
-                Importa export
-              </a>
-            )
+            /*
+              Lo STESSO gesto su tutte e due le famiglie (decisione utente 04/08: via «Aggiorna
+              dal master», che chiedeva un file già caricato altrove): «Importa export» porta
+              alla card di import degli Strumenti della commessa, dove si carica il file del
+              committente e il registro si allinea in un colpo — cambia solo il file che ci si
+              carica (l'export ACEA di là, il master/battente AcquaLatina di qua).
+
+              Unico comando della riga a non passare dal primitivo, perche' e` un `<a>` e
+              `Button` rende solo `<button>`. Le classi ricalcano `Button variant="outline"
+              size="sm"` e vanno tenute allineate a quelle: `px-3` e `gap-2` come il
+              primitivo, non `px-2.5` e `gap-1.5` — con quelli era 2px per lato piu` stretto
+              dei vicini identici.
+            */
+            <a
+              href={famiglia === 'acqualatina' ? '/hub/acqualatina/strumenti#import' : '/hub/acea/strumenti#import'}
+              className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[var(--brand-border-strong)] bg-[var(--brand-surface)] px-3 py-1.5 text-xs font-medium text-[var(--brand-text-main)] transition-colors hover:bg-[var(--brand-surface-muted)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+            >
+              <Upload size={14} aria-hidden="true" />
+              Importa export
+            </a>
           )}
 
           {/*

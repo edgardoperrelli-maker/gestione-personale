@@ -54,8 +54,15 @@ export async function DELETE(req: Request) {
 
     // 2b) Elimina gli interventi di questo operatore in questo piano, così spariscono dalla
     // torre (interventi.piano_id ha ON DELETE SET NULL: serve cancellarli esplicitamente).
+    // I TERMINALI restano: un completato è lavoro consegnato — cancellarlo riaprirebbe la
+    // riga di registro acqualatina e lascerebbe orfana la rimozione misuratore. `nCompletati`
+    // qui sopra continua a dire nel log quanti ne sopravvivono.
     const { error: eInt } = await supabaseAdmin
-      .from('interventi').delete().eq('piano_id', pianoId).eq('staff_id', staffId);
+      .from('interventi')
+      .delete()
+      .eq('piano_id', pianoId)
+      .eq('staff_id', staffId)
+      .not('stato', 'in', '(completato,annullato)');
     if (eInt) throw new Error(eInt.message);
 
     // 3) Azzera il contatore nel cronoprogramma
