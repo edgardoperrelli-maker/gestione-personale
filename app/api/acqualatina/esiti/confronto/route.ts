@@ -6,6 +6,7 @@ import { requireAdmin } from '@/lib/apiAuth';
 import {
   confrontaEsitiSito, parseEsecuzioni, type RigaRegistroPerConfronto,
 } from '@/lib/acqualatina/confrontoEsiti';
+import { riconciliaChiusureAcqualatina } from '@/lib/acqualatina/riconciliaRegistro';
 
 export const runtime = 'nodejs';
 
@@ -62,6 +63,16 @@ export async function POST(req: Request) {
 
   try {
     const { righe, totale } = parseEsecuzioni(rows);
+
+    /*
+      Il registro si riconcilia PRIMA di leggerlo, come sulla tabella: un confronto su righe
+      non ancora riconciliate accusa «manca il nostro esito» a lavoro già consegnato — è
+      successo il 04/08, 77 interventi eseguiti ma non ancora agganciati, e il contatore
+      fermo a 84 qualunque cosa si facesse. Best-effort e throttled (vedi la funzione).
+    */
+    await riconciliaChiusureAcqualatina().catch((e) => {
+      console.error('[acqualatina/esiti/confronto] riconciliazione non riuscita:', e);
+    });
 
     const registro: RigaRegistroPerConfronto[] = [];
     for (let offset = 0; ; offset += PAGINA) {
