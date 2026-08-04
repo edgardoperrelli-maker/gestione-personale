@@ -199,8 +199,17 @@ export type EsitoSincronizzaOperatore = { ok: true } | { ok: false; error: strin
  *  - la riga resta anche a 0 task — è il comportamento di un piano Excel svuotato, e toglierla
  *    con un rapportino presente innescherebbe `orphanRapportini`;
  *  - si escludono gli interventi `created_from_mappa=true` (posseduti dalla Mappa: sono GIÀ
- *    nei task del piano), gli annullati e i manuali dal «+» (nel percorso Excel il «+» non
- *    diventa mai un task: produce solo la voce).
+ *    nei task del piano), gli annullati e i manuali dal «+».
+ *
+ * SCELTA DICHIARATA sugli interventi `origine='manuale'`: nel motore di riferimento (piano
+ * Excel) il lavoro aggiunto dal «+» NON diventa mai un task del piano — produce solo la voce
+ * del rapportino e l'intervento di registro. La parità richiesta («identico al motore del
+ * template manuale di Excel») impone lo stesso qui. Conseguenza visibile e ACCETTATA: la
+ * vista pianifica conta i task, il riepilogo conta le voci, quindi un operatore il cui lavoro
+ * è tutto dal «+» compare con (0) attività in pianifica e N interventi nel riepilogo — su
+ * ENTRAMBI i percorsi, esattamente come su un piano Excel dove l'operatore ha solo voci
+ * manuali. Trasformare i manuali in task `acea:*` romperebbe la parità e riaprirebbe il
+ * rischio doppioni (la voce manuale non porta il task_id, G1 non la aggancerebbe).
  */
 export async function sincronizzaOperatorePiano(
   db: SupabaseClient,

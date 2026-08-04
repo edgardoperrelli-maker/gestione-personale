@@ -438,40 +438,52 @@ export async function sincronizzaRapportini(
       ({ data: existingVoci } = await db.from('rapportino_voci')
         .select('task_id, risposte, raw_json').eq('rapportino_id', rapId).eq('manuale', false));
     }
-    /*
-      G1 (guardia commessa) — le voci SUPERSTITI degli altri motori su questo stesso
-      rapportino (origine 'acea' o 'manuale': quelle che il delete qui sotto non tocca).
-      Un task già coperto da una di loro NON deve rigenerare una voce 'task': con i task
-      della commessa il match è esatto (`Task.id = task_id` della voce acea), l'unità
-      ODL(+matricola) fa da cintura. Le voci restano acea, le risposte restano intatte,
-      zero doppioni. Stesso filtro (negato) del delete: se la migration `origine` manca,
-      si ripiega su `manuale != false`.
-    */
-    let vociAltrui: VoceAltrui[] = [];
-    {
-      const selAltrui = await db.from('rapportino_voci')
-        .select('task_id, odl, matricola')
-        .eq('rapportino_id', rapId)
-        .neq(filtroMotore.campo, filtroMotore.valore);
-      if (!selAltrui.error) vociAltrui = (selAltrui.data ?? []) as VoceAltrui[];
-    }
-    // Cintura cross-rapportino, per soli id `acea:*` (deterministici): un task della commessa
-    // rendicontato nel rapportino misto di un altro piano non va duplicato nemmeno qui.
-    const aceaAltrove = taskAceaAltrove.get(String(op.staff_id));
-    const tasksNonRendicontati = filtraTaskRendicontati(tasksOp, vociAltrui)
-      .filter((t) => !(aceaAltrove?.has(String(t.id ?? '')) ?? false));
-
     const existingRows = (existingVoci as Array<{ task_id: string; risposte: Record<string, unknown> | null; raw_json: unknown }>) ?? [];
     const existingTaskIds = new Set(existingRows.map((v) => v.task_id));
     const prevNuovoByTask = new Map<string, boolean>(
       existingRows.map((v) => [v.task_id, Boolean((v.raw_json as { _nuovo?: unknown } | null)?._nuovo)]),
     );
     const rapPreesisteva = Boolean(existing?.id);
-    // ODL già positivi altrove o duplicati nel piano → la voce NON si genera. Una voce già
-    // compilata non si tocca mai (rigenerare un piano storico non cancella lavoro registrato).
+    // Voci da-task già COMPILATE: non si toccano mai (rigenerare un piano storico non
+    // cancella lavoro registrato). Il set serve sia a G1 (un task compilato non si filtra:
+    // filtrarlo = cancellare la voce senza ricrearla) sia a taskDaSaltare qui sotto.
     const compilate = new Set(
       existingRows.filter((v) => Object.keys(v.risposte ?? {}).length > 0).map((v) => v.task_id),
     );
+
+    /*
+      G1 (guardia commessa) — le voci SUPERSTITI degli altri motori su questo stesso
+      rapportino (origine 'acea' o 'manuale': quelle che il delete qui sotto non tocca).
+      Un task già coperto da una di loro NON deve rigenerare una voce 'task': con i task
+      della commessa il match è esatto (`Task.id = task_id` della voce acea), l'unità
+      ODL(+matricola) fa da cintura per le SOLE voci acea — una voce manuale può condividere
+      l'ODL con un task Excel legittimo, e filtrarlo cancellerebbe la sua voce compilata
+      (regressione FIRENZE/PERUGIA/LAZIO). Le voci restano acea, le risposte restano
+      intatte, zero doppioni. Stesso filtro (negato) del delete: se la migration `origine`
+      manca, si ripiega su `manuale != false` — e senza colonna `origine` non esistono voci
+      acea, quindi la cintura ODL resta correttamente spenta.
+    */
+    let vociAltrui: VoceAltrui[] = [];
+    {
+      const colonneAltrui = filtroMotore.campo === 'origine' ? 'task_id, odl, matricola, origine' : 'task_id, odl, matricola';
+      const selAltrui = await db.from('rapportino_voci')
+        .select(colonneAltrui)
+        .eq('rapportino_id', rapId)
+        .neq(filtroMotore.campo, filtroMotore.valore);
+      if (!selAltrui.error) vociAltrui = ((selAltrui.data ?? []) as unknown) as VoceAltrui[];
+    }
+    // Cinture cross-rapportino, per soli id `acea:*` (deterministici): un task della commessa
+    // già rendicontato nel rapportino misto di un altro piano (taskAceaAltrove) o nel
+    // rapportino di un ALTRO operatore di questo stesso piano (aceaStaffByTask, task spostato
+    // in pianifica) non va duplicato.
+    const aceaAltrove = taskAceaAltrove.get(String(op.staff_id));
+    const tasksNonRendicontati = filtraTaskRendicontati(tasksOp, vociAltrui, { taskConRisposte: compilate })
+      .filter((t) => {
+        const id = String(t.id ?? '');
+        if (aceaAltrove?.has(id)) return false;
+        const owners = aceaStaffByTask.get(id);
+        return !(owners && [...owners].some((s) => s !== String(op.staff_id)));
+      });
     const { salta, odlBloccati: bloccatiOp } = taskDaSaltare({
       tasks: tasksNonRendicontati.map((t) => ({
         id: String(t.id ?? ''),
@@ -540,6 +552,13 @@ export async function sincronizzaRapportini(
 
   if (g2Saltati.length > 0) {
     const msg = `Rapportino non creato per ${g2Saltati.join(', ')}: lavoro della commessa già rendicontato nel rapportino del giorno su un altro piano.`;
+    interventiWarning = interventiWarning ? `${interventiWarning} | ${msg}` : msg;
+  }
+  if (orfaniProtetti.length > 0) {
+    // Non è un errore: è la guardia che ha impedito una cancellazione. Ma l'anomalia
+    // (operatore fuori dal piano con un rapportino ancora dentro) va detta, non taciuta.
+    const nomi = orfaniProtetti.map((p) => p.staff_name ?? p.staff_id).join(', ');
+    const msg = `Rapportino di ${nomi} NON eliminato: l'operatore non è più nel piano ma il rapportino è inviato o contiene voci di altri moduli (commessa/+). Verificare la pianificazione.`;
     interventiWarning = interventiWarning ? `${interventiWarning} | ${msg}` : msg;
   }
 
