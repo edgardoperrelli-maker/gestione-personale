@@ -313,6 +313,31 @@ Filtri puri condivisi in `lib/misuratori/riferimenti.ts`. La colonna viaggia fra
 di `selectDegradante`: mai nella select principale, o un deploy prima della migration spegne il
 registro intero.
 
+### AcquaLatina: la scheda segue l'ESITO del rapportino
+La vista `AcquaLatina › Pianificazione` mostra la colonna **Esito** — la risposta `eseguito` della
+voce — e non lo stato derivato: quello diceva «Aperta» su quasi tutte le righe, e chi cercava com'era
+finita un'uscita non la trovava lì. La scheda la segue:
+
+| Esito | Stato scritto | Scheda |
+|---|---|---|
+| `SI` | `Chiusa — eseguita` | Chiusi |
+| `NO` | `Chiusa — non eseguita` | Chiusi |
+| `NESSUN PASSAGGIO` | `Aperta — non eseguita` | Da lavorare |
+
+⚠️ **`NO` ≠ `NESSUN PASSAGGIO`, e la differenza È la regola.** Su questa commessa il NO è
+definitivo (contatore non più presente, impianto dismesso, rifiuto); il «nessun passaggio» è un giro
+che non c'è stato, e il contatore è ancora lì. Chiudere anche quest'ultimo è l'errore del 03/08 —
+12 righe di lavoro vero dichiarate concluse e non più riassegnabili.
+
+La distinzione **non è in `interventi.esito`**, che conosce solo il positivo: la riconciliazione
+legge `rapportino_voci.risposte.eseguito` (best-effort — se la lettura salta si torna a chiudere sul
+solo positivo). Il `NO` chiude solo dalle uscite del **`NO_CHIUDE_DAL`** in poi, barriera che
+protegge le righe esitate prima che la regola esistesse.
+
+⚠️ La guardia della `update` è **solo** «non contraddire il positivo». Quella vecchia riapriva le
+righe `esito_positivo=false AND aperto=false`: con la regola nuova è la combinazione di una riga
+chiusa dal NO, e la riaprirebbe a ogni giro.
+
 ### ODL TOP (registro ordini ACEA)
 ACEA segnala certe attività come **TOP**. Il flag è `acea_ordini.top` (booleano): lo marca
 l'ufficio **in blocco** dalla selezione della tabella (`POST /api/acea/ordini/top`,
