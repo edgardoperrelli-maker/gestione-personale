@@ -227,10 +227,23 @@ export function trovaHeaderMaster(rows: unknown[][], maxScan = 15): number {
  * - Lancia Error se la colonna ODL/ORDINE non si trova.
  */
 export function parseMasterUpload(rows: unknown[][]): ParseMasterResult {
-  // Il battente si riconosce PRIMA del percorso generico: sui suoi header i pattern generici
-  // aggancerebbero le colonne sbagliate (vedi COLONNE_BATTENTE), e in silenzio.
   const lim = Math.min(15, rows?.length ?? 0);
   for (let i = 0; i < lim; i++) {
+    const header = (rows[i] ?? []).map(normHeader);
+    /*
+      Il file ESECUZIONI del sito (gli esiti) si RIFIUTA prima di ogni parsing: caricato come
+      master il 04/08 è passato dal percorso generico — /odl/ ha agganciato il «Codice Odl»
+      interno (SCL…) — e 359 ordini fantasma sono entrati a registro. La colonna «Codice
+      Esterno dell'OdL» esiste solo in quell'export, ed è la firma con cui lo si ferma qui,
+      col nome del posto giusto.
+    */
+    if (header.includes('codiceesternodellodl')) {
+      throw new Error(
+        'Questo è il file degli ESITI del sito (ESECUZIONI): va caricato nel «Confronto esiti col sito», non come master.',
+      );
+    }
+    // Il battente si riconosce PRIMA del percorso generico: sui suoi header i pattern generici
+    // aggancerebbero le colonne sbagliate (vedi COLONNE_BATTENTE), e in silenzio.
     const idx = mappaBattente(rows[i] ?? []);
     if (idx) return parseBattente(rows, i, idx);
   }

@@ -205,6 +205,18 @@ describe('parseMasterUpload — battente AcquaLatina', () => {
   });
 });
 
+describe('parseMasterUpload — il file degli esiti non è un master', () => {
+  it("rifiuta l'export ESECUZIONI indicando il posto giusto", () => {
+    // Caricato come master il 04/08: /odl/ agganciava il «Codice Odl» interno (SCL…) e 359
+    // ordini fantasma sono entrati a registro. La colonna «Codice Esterno dell'OdL» esiste
+    // solo in quell'export: è la firma del rifiuto.
+    expect(() => parseMasterUpload([
+      ['Codice Odl', "Codice Esterno dell'OdL", 'Codice Cliente', 'Esito'],
+      ['SCL289994', '12378834', '27410580', 'EFFETTUATO NO ANOMALIE'],
+    ])).toThrow(/Confronto esiti/);
+  });
+});
+
 describe('spartiUtenzaImpianto', () => {
   it('spacca impianto e nominativo sul « - »', () => {
     expect(spartiUtenzaImpianto('19054032 - SANTE DIONISIO-SANTI ANTONIA .'))
