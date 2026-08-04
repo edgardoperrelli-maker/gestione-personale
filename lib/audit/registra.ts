@@ -32,7 +32,10 @@ export type NomeAzione =
   | 'piano.residuo.elimina'
   | 'piano.operatore.rimuovi'
   | 'rapportino.orfano.elimina'
-  | 'rapportino.conflitto.sostituisci';
+  | 'rapportino.conflitto.sostituisci'
+  // Non distrugge niente, ma «chi ha messo TOP su questo ordine?» è una domanda che arriva
+  // giorni dopo, e senza una riga qui la risposta sarebbe di nuovo «non si può sapere».
+  | 'ordine.top';
 
 export type AttoreAudit = {
   id: string | null;

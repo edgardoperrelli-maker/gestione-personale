@@ -54,7 +54,9 @@ describe('ordinaTopPrima', () => {
   });
 
   it('senza TOP non cambia niente, e non muta la lista in ingresso', () => {
-    const righe = [{ id: 'a' }, { id: 'b' }];
+    // Tipata a mano: con un literal senza `top` TypeScript inferisce il generico dal vincolo
+    // invece che dalla riga, e perde `id`.
+    const righe: { id: string; top?: boolean }[] = [{ id: 'a' }, { id: 'b' }];
     const fuori = ordinaTopPrima(righe);
     expect(fuori.map((r) => r.id)).toEqual(['a', 'b']);
     expect(fuori).not.toBe(righe);
