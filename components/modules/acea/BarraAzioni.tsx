@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { CalendarCheck, ClipboardCopy, Star, TriangleAlert, Undo2, X } from 'lucide-react';
+import { CalendarCheck, ClipboardCopy, Star, StarOff, TriangleAlert, Undo2, X } from 'lucide-react';
 import Button from '@/components/Button';
 import Select from '@/components/ui/Select';
 import { toast } from '@/components/ui/Toast';
@@ -330,33 +330,65 @@ export default function BarraAzioni({
           </Button>
 
           {/*
-            Copia le righe spuntate, che è la cosa per cui prima bisognava per forza passare da
-            qui: si assegnava soltanto. Il Ctrl+C fa lo stesso, ma da solo non si trova — la barra
-            diceva «40 righe selezionate» senza dire che si potevano portare via.
+            LE SECONDARIE SONO A SOLA ICONA, la primaria no.
+
+            Questa barra vive dentro la riga dei comandi, che è `flex-wrap`, ed è il gruppo più
+            largo della riga (vedi il commento su «Colonne (15)» in `RegistroAcea`): con quattro
+            etichette per esteso in coda la riga andava a capo, e su uno schermo stretto la barra
+            finiva staccata dai comandi che la governano. Le quattro etichette pesavano ~190px,
+            cioè da sole il salto di riga.
+
+            Cosa resta scritto e cosa no: il PERCORSO PRIMARIO — quante righe, che giorno, chi,
+            «Pianifica» — resta per esteso, perché è quello che si legge scegliendo. Le azioni di
+            contorno diventano icona + `aria-label`/`title`: si riconoscono a colpo d'occhio una
+            volta imparate, e chi non le ha imparate le scopre col tooltip.
+
+            «Segna TOP» tiene la parola perché TOP è un termine di ACEA, non un'icona nota: una
+            stella sola non dice CHE COSA marca. «Togli TOP» invece è la stella barrata accanto
+            alla stella piena — la coppia si legge da sé, e il gesto di disfare resta a un clic
+            di distanza da quello di fare, che è il punto (una marcatura sbagliata deve costare
+            quanto è costata farla).
           */}
-          <Button variant="outline" size="sm" onClick={() => void onCopiaRighe()}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void onCopiaRighe()}
+            aria-label="Copia righe"
+            title="Copia le righe spuntate (come Ctrl+C)"
+          >
             <ClipboardCopy size={14} aria-hidden="true" />
-            Copia righe
           </Button>
 
-          {/*
-            Il TOP di ACEA. Vive qui e non in una cella cliccabile perché il gesto vero è
-            «questi ordini sono prioritari»: arrivano in lista, si cercano e si marcano insieme.
-            Il «Togli» sta accanto al «Segna» e non altrove: una marcatura sbagliata deve costare
-            quanto è costata farla.
-          */}
-          <Button variant="outline" size="sm" onClick={() => void segnaTop(true)} loading={marcandoTop}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void segnaTop(true)}
+            loading={marcandoTop}
+            title="Segna gli ordini spuntati come TOP (prioritari per ACEA)"
+          >
             <Star size={14} aria-hidden="true" />
             Segna TOP
           </Button>
 
-          <Button variant="ghost" size="sm" onClick={() => void segnaTop(false)} loading={marcandoTop}>
-            Togli TOP
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => void segnaTop(false)}
+            loading={marcandoTop}
+            aria-label="Togli TOP"
+            title="Togli il TOP dagli ordini spuntati"
+          >
+            <StarOff size={14} aria-hidden="true" />
           </Button>
 
-          <Button variant="ghost" size="sm" onClick={onAnnullaSelezione}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onAnnullaSelezione}
+            aria-label="Deseleziona"
+            title="Deseleziona tutte le righe"
+          >
             <X size={14} aria-hidden="true" />
-            Deseleziona
           </Button>
 
           {/*

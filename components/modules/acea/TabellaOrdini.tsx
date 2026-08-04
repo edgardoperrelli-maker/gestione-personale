@@ -924,7 +924,10 @@ export default function TabellaOrdini({
                         */}
                         {c.chiave === 'odl' && top && (
                           <span
-                            className="mr-1.5 rounded-[var(--radius-sm)] bg-[var(--status-warn)] px-1 py-0.5 text-[11px] font-bold uppercase tracking-wide text-white"
+                            /* `--on-warning` e non `text-white`: DESIGN.md §3 vuole il testo sui
+                               fill pieni su token, così il giorno che il fondo cambia il testo lo
+                               segue da solo. Oggi vale bianco, ma è un token, non una costante. */
+                            className="mr-1.5 rounded-[var(--radius-sm)] bg-[var(--status-warn)] px-1 py-0.5 text-[11px] font-bold uppercase tracking-wide text-[var(--on-warning)]"
                             title="Segnalato TOP da ACEA: da lavorare per primo"
                           >TOP</span>
                         )}
