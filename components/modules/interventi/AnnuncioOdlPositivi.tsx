@@ -63,7 +63,6 @@ export default function AnnuncioOdlPositivi({ open, onClose }: { open: boolean; 
             <p className="text-xs leading-snug text-[var(--brand-text-muted)]">
               In <b className="text-[var(--brand-text-main)]">Pianificazione</b> il banner rosso compare appena carichi i lavori, prima ancora di salvare.
               Al <b className="text-[var(--brand-text-main)]">salvataggio</b> l&rsquo;avviso &ldquo;Torre: N interventi generati&rdquo; elenca gli ODL esclusi.
-              In <b className="text-[var(--brand-text-main)]">Assegnazione AI</b> gli esclusi compaiono tra gli avvisi a fine assegnazione.
             </p>
           </div>
         </section>

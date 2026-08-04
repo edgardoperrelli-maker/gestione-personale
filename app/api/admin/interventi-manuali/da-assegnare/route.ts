@@ -38,7 +38,8 @@ export async function GET(req: Request) {
     .select(COLONNE)
     .eq('stato', 'approvato')
     .is('assegnato_committente_at', null)
-    // Solo i committenti che si assegnano a mano: su ACEA lo fa l'agente del Cruscotto.
+    // Solo i committenti che si assegnano a mano: su ACEA lo faceva l'agente del Cruscotto,
+    // fermo dal 29/06 e ritirato del tutto il 04/08/2026.
     .in('committente', COMMITTENTI_ASSEGNAZIONE_MANUALE)
     // Le richieste di Pronto Intervento vivono solo nel modulo P.I.
     .neq('fonte', 'pronto_intervento');

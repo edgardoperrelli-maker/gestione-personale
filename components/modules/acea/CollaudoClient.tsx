@@ -259,6 +259,21 @@ export default function CollaudoClient() {
 
   return (
     <div className="space-y-4">
+      {/*
+        Questa pagina è nata per il cut-over al registro, prima che esistesse il registro: il
+        confronto che doveva decidere era quello col portale, tenuto vivo dall'agente Playwright.
+        L'agente è ritirato dal 04/08/2026 e quella colonna non riceve più letture — senza questo
+        avviso il semaforo rosso qui sotto si legge come "l'import sbaglia" quando invece dice
+        solo "lo snapshot è vecchio".
+      */}
+      <div className="rounded-[var(--radius-lg)] border border-[var(--status-warn)]/40 bg-[var(--status-warn-soft)] p-3 text-sm text-[var(--brand-text-main)]">
+        Questo collaudo è nato prima del cut-over al registro del modulo ACEA, quando il confronto
+        decisivo era quello con lo snapshot del portale. L’agente Playwright che lo aggiornava è
+        stato ritirato il 04/08/2026: quella colonna è ferma all’ultima lettura, non vuota. Un
+        semaforo rosso qui sotto segnala quindi il ritardo dello snapshot, non un errore
+        dell’import.
+      </div>
+
       <Card className="p-4">
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-sm font-semibold text-[var(--brand-text-main)]">Stato del registro</h2>
@@ -300,8 +315,10 @@ export default function CollaudoClient() {
             <BloccoConfronto
               titolo="Modulo contro Cruscotto"
               spiegazione={
-                'È il confronto che decide: la stessa fonte da cui arriva l’export, letta in modo '
-                + 'indipendente dall’agente. Se non coincidono, l’import sbaglia.'
+                'Era il confronto che decideva, prima del cut-over al registro: la stessa fonte da '
+                + 'cui arriva l’export, letta in modo indipendente dall’agente. L’agente è fermo dal '
+                + '04/08/2026: una differenza qui segnala più probabilmente lo snapshot invecchiato '
+                + 'che un errore dell’import.'
                 + (r.portale.raccoltoIl ? ` Lettura del ${dataOra(r.portale.raccoltoIl)}.` : '')
               }
               c={r.portale}
@@ -357,8 +374,10 @@ export default function CollaudoClient() {
           </span>
         </h2>
         <p className="mt-1 text-xs text-[var(--brand-text-muted)]">
-          Sono i must-have concordati: finché non sono tutti provati sui dati veri, il master resta
-          acceso. Le spunte restano su questo browser.
+          Erano i must-have concordati prima di spegnere il master: si spuntavano provandoli sui
+          dati veri. Il master è comunque fermo dal 04/08/2026 — l’agente che lo teneva vivo è
+          stato ritirato — quindi qui restano da spuntare per completezza, non per decidere
+          l’accensione di niente. Le spunte restano su questo browser.
         </p>
         <ul className="mt-3 space-y-1.5">
           {CANCELLI.map((c) => (
