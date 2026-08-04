@@ -110,6 +110,17 @@ describe('confrontaEsitiSito', () => {
     expect(chiuso.inLavorazioneOggi).toBe(0);
   });
 
+  it('una chiusura di OGGI non è ancora «mancante sul sito»: la giornata non è finita', () => {
+    const out = confrontaEsitiSito(
+      [],
+      [registro({ data_completamento: '2026-08-04' }), registro({ odl: '100002', data_completamento: '2026-08-03' })],
+      new Set(),
+      '2026-08-04',
+    );
+    expect(out.mancantiSulSito.map((m) => m.odl)).toEqual(['100002']);
+    expect(out.chiusiOggi).toBe(1);
+  });
+
   it("l'ODL del file che il registro non conosce finisce fra gli sconosciuti", () => {
     const out = confrontaEsitiSito([esec({ odl: '999999' })], [registro()]);
     expect(out.sconosciuti).toEqual(['999999']);

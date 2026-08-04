@@ -49,6 +49,7 @@ export default function ConfrontoEsitiCard() {
         ['Manca il nostro esito (sito effettuato, noi aperti)', esito.daChiudereDaNoi.length],
         ['In lavorazione oggi (esclusi dalle code)', esito.inLavorazioneOggi],
         ['Da registrare sul sito (noi chiusi, sito senza esito)', esito.mancantiSulSito.length],
+        ['Chiusi oggi, si registrano a fine giornata (esclusi dalla coda)', esito.chiusiOggi],
         ['Non esitati dal sito', esito.nonEsitatiSito],
         ['Sconosciuti al registro', esito.sconosciuti.length],
         ['Impianti difformi', esito.impiantiDifformi.length],
@@ -191,6 +192,7 @@ export default function ConfrontoEsitiCard() {
               label="Da registrare sul sito"
               value={esito.mancantiSulSito.length}
               tone={esito.mancantiSulSito.length > 0 ? 'warn' : 'neutral'}
+              note={esito.chiusiOggi > 0 ? `+${esito.chiusiOggi} chiusi oggi: si registrano a fine giornata` : undefined}
             />
             <StatTile size="sm" label="Non esitati dal sito" value={esito.nonEsitatiSito} />
             <StatTile

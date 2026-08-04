@@ -70,6 +70,12 @@ export type ConfrontoEsiti = {
   inLavorazioneOggi: number;
   /** Registro chiuso positivo, sito senza esito (o senza proprio l'ODL): manca la registrazione sul sito. */
   mancantiSulSito: VoceMancanteSito[];
+  /**
+   * Chiusi da noi OGGI e non ancora sul sito: non sono una mancanza, la giornata non è
+   * finita — la registrazione arriva a fine turno. Contati e basta, fuori dalla coda,
+   * per la stessa ragione di `inLavorazioneOggi`.
+   */
+  chiusiOggi: number;
   /** Righe del file senza esito: gli ODL che il sito stesso dà ancora da fare. */
   nonEsitatiSito: number;
   /** ODL del file che il registro non conosce: o master mai caricato, o ODL di un altro lotto. */
@@ -144,6 +150,8 @@ export function confrontaEsitiSito(
   registro: readonly RigaRegistroPerConfronto[],
   /** Gli ODL con un intervento della giornata ancora aperto: esclusi dalle code, solo contati. */
   inLavorazione: ReadonlySet<string> = new Set(),
+  /** Il giorno della lettura (ISO): le chiusure di questo giorno non sono ancora «mancanti sul sito». */
+  oggi: string | null = null,
 ): ConfrontoEsiti {
   const perOdlRegistro = new Map<string, RigaRegistroPerConfronto[]>();
   for (const r of registro) {
@@ -197,10 +205,15 @@ export function confrontaEsitiSito(
     manca dal file, o c'è ma senza esito. È la coda «da registrare sul sito» dell'ufficio.
   */
   const mancantiSulSito: VoceMancanteSito[] = [];
+  let chiusiOggi = 0;
   for (const [odl, righe] of perOdlRegistro) {
     if (esitatiSito.has(odl)) continue;
     const chiusa = righe.find((r) => !r.aperto && r.esito_positivo === true);
     if (!chiusa) continue;
+    if (oggi !== null && (chiusa.data_completamento ?? '') >= oggi) {
+      chiusiOggi++;
+      continue;
+    }
     mancantiSulSito.push({
       odl,
       chiusaIl: chiusa.data_completamento,
@@ -212,7 +225,7 @@ export function confrontaEsitiSito(
   daChiudereDaNoi.sort((a, b) => a.dataSito.localeCompare(b.dataSito) || a.odl.localeCompare(b.odl));
 
   return {
-    allineati, daChiudereDaNoi, inLavorazioneOggi, mancantiSulSito, nonEsitatiSito,
-    sconosciuti, impiantiDifformi, totaleFile: file.length,
+    allineati, daChiudereDaNoi, inLavorazioneOggi, mancantiSulSito, chiusiOggi,
+    nonEsitatiSito, sconosciuti, impiantiDifformi, totaleFile: file.length,
   };
 }

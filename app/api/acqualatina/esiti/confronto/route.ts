@@ -113,7 +113,7 @@ export async function POST(req: Request) {
       if (blocco.length < PAGINA) break;
     }
 
-    const confronto = confrontaEsitiSito(righe, registro, inLavorazione);
+    const confronto = confrontaEsitiSito(righe, registro, inLavorazione, oggi);
     return NextResponse.json(
       { ...confronto, righeFile: totale },
       { headers: { 'Cache-Control': 'no-store' } },
