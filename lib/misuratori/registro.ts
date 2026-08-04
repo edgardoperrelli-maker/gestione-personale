@@ -41,6 +41,16 @@ function colonneOpzionali(tabella: TabellaRegistro): string[] {
   return tabella === 'misuratori_rimossi' ? ['pallet'] : ['pallet', 'cesta'];
 }
 
+/** Lo stato attuale della riga. `null` se non esiste: nessun chiamante deve dedurre niente. */
+async function statoAttuale(tabella: TabellaRegistro, id: string): Promise<StatoMisuratore | null> {
+  const { data } = await supabaseAdmin
+    .from(tabella)
+    .select('stato')
+    .eq('id', id)
+    .maybeSingle();
+  return (data as { stato: StatoMisuratore } | null)?.stato ?? null;
+}
+
 /** GET del registro con i filtri di modulo (data, stato, comune, esecutore). */
 export async function leggiRegistro(tabella: TabellaRegistro, url: string) {
   const { searchParams } = new URL(url);
@@ -94,13 +104,9 @@ export async function aggiornaRegistro(
     }
     const ruolo = (appMetadata as { role?: unknown } | null | undefined)?.role;
     if (resolveAssignableRole(null, ruolo as never) !== 'admin_plus') {
-      const { data: corrente } = await supabaseAdmin
-        .from(tabella)
-        .select('stato')
-        .eq('id', id)
-        .maybeSingle();
-      if (corrente) {
-        const currIdx = (STATI_MISURATORE as readonly string[]).indexOf(corrente.stato);
+      const attuale = await statoAttuale(tabella, id);
+      if (attuale) {
+        const currIdx = (STATI_MISURATORE as readonly string[]).indexOf(attuale);
         const newIdx = (STATI_MISURATORE as readonly string[]).indexOf(body.stato as string);
         if (newIdx < currIdx) {
           return NextResponse.json(
@@ -145,14 +151,10 @@ export async function aggiornaRegistro(
       disfare la propria scrittura, e chiedere un admin lascerebbe il buco aperto nel frattempo.
     */
     if (!('stato' in patch)) {
-      const { data: riga } = await supabaseAdmin
-        .from(tabella)
-        .select('stato')
-        .eq('id', id)
-        .maybeSingle();
       // Riga inesistente: niente stato implicito, e l'UPDATE più sotto non aggancerà niente.
-      const implicito = riga
-        ? statoDopoCesta((riga as { stato: StatoMisuratore }).stato, patch.cesta as string | null)
+      const attuale = await statoAttuale(tabella, id);
+      const implicito = attuale
+        ? statoDopoCesta(attuale, patch.cesta as string | null)
         : null;
       if (implicito) patch.stato = implicito;
     }
@@ -179,7 +181,7 @@ export async function aggiornaRegistro(
     L'eco dei campi scritti. Il registro NON rifà la fetch quando il salvataggio riesce (scelta
     voluta: si aggiorna in ottimistica), quindi senza questa risposta lo stato mosso dalla cesta
     — e la cesta tolta dalla regressione — resterebbero invisibili fino al ricaricamento.
-    Additiva: il registro ACEA passa dallo stesso handler e semplicemente non li riceve mai.
+    Additiva: il registro ACEA passa dallo stesso handler e semplicemente non riceve mai la cesta.
   */
   const risposta: Record<string, unknown> = { ok: true };
   if (patch.stato !== undefined) risposta.stato = patch.stato;
