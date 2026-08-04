@@ -73,38 +73,51 @@ describe('registro misuratori AcquaLatina — migrazione', () => {
   });
 });
 
-describe('registro misuratori AcquaLatina — pallet (migrazione 20260731190000)', () => {
-  const sqlPallet = readFileSync(
-    resolve(__dirname, '../../supabase/migrations/20260731190000_acqualatina_misuratori_pallet.sql'),
+describe('un solo riferimento di magazzino (migrazione 20260804090000)', () => {
+  /*
+    Cesta e pallet erano la stessa cosa con due nomi: un contenitore numerato con cui la
+    riconsegna viaggia. Il modello a due gradini descriveva un ciclo che il magazzino non fa,
+    e questa migration lo chiude — mentre il pallet era ancora a ZERO righe su entrambi i
+    registri, cioè finché la fusione era una rinomina e non una migrazione di dati.
+  */
+  const sql = readFileSync(
+    resolve(__dirname, '../../supabase/migrations/20260804090000_cesta_unico_riferimento.sql'),
     'utf8',
   );
+  const soloSql = sql.replace(/--[^\n]*/g, ''); // i commenti raccontano la storia e citano i nomi vecchi
 
-  it('la colonna è TEXT e nullable: il riferimento lo scrive l\'ufficio, l\'assenza è «in cesta»', () => {
-    expect(sqlPallet).toMatch(/add column if not exists pallet text/i);
-    expect(sqlPallet).not.toMatch(/pallet\s+(integer|int|bigint)/i);
-    expect(sqlPallet).not.toMatch(/pallet[^\n]*not null/i);
+  it('su ACEA la colonna si RINOMINA: è la stessa, non una nuova', () => {
+    // Rinominare invece di aggiungere-e-cancellare tiene i privilegi, i default e — se un
+    // giorno ci fosse — il contenuto. Qui è vuota, ma il gesto giusto è gratis.
+    expect(soloSql).toMatch(/alter table public\.misuratori_rimossi rename column pallet to cesta/i);
   });
 
-  it('tocca SOLO la tabella AcquaLatina: ogni registro ha la SUA colonna', () => {
-    /*
-      L'invariante non è più «il pallet è di AcquaLatina» — dal 2026-08-03 ce l'hanno entrambi
-      (20260803140000), perché il ciclo fisico si è rivelato lo stesso e il pallet era solo
-      arrivato prima di qua. Quello che resta vero, ed è la cosa che questo test protegge, è
-      che ogni migrazione tocca la SUA tabella: due colonne gemelle, non una condivisa.
-    */
-    expect(sqlPallet).toMatch(/alter table public\.acqualatina_misuratori_rimossi/i);
-    expect(sqlPallet).not.toMatch(/alter table public\.misuratori_rimossi\b/i);
+  it('la rinomina è idempotente e non presume lo stato di partenza', () => {
+    // Un database dove la colonna è già `cesta` (o dove non c'è mai stato niente) non deve
+    // far fallire la migration: il `do $$` guarda information_schema prima di toccare.
+    expect(soloSql).toMatch(/information_schema\.columns/i);
+    expect(soloSql).toMatch(/add column if not exists cesta text/i);
+  });
 
-    const sqlAcea = readFileSync(
-      resolve(__dirname, '../../supabase/migrations/20260803135000_acea_misuratori_pallet.sql'),
-      'utf8',
-    ).replace(/--[^\n]*/g, ''); // i commenti citano l'altra tabella: si spogliano prima
-    expect(sqlAcea).toMatch(/alter table public\.misuratori_rimossi\b/i);
-    expect(sqlAcea).not.toMatch(/alter table public\.acqualatina_misuratori_rimossi/i);
-    // Stessa forma della gemella: text, nullable, additiva.
-    expect(sqlAcea).toMatch(/add column if not exists pallet text/i);
-    expect(sqlAcea).not.toMatch(/pallet\s+(integer|int|bigint)/i);
-    expect(sqlAcea).not.toMatch(/pallet[^\n]*not null/i);
+  it('su AcquaLatina il pallet si elimina, ma solo se è davvero vuoto', () => {
+    // La guardia è il punto: se fra la scrittura e l'applicazione qualcuno avesse impallettato
+    // davvero, la migration si ferma invece di buttare via i numeri.
+    expect(soloSql).toMatch(/raise exception/i);
+    expect(soloSql).toMatch(/where pallet is not null/i);
+    expect(soloSql).toMatch(/alter table public\.acqualatina_misuratori_rimossi\s+drop column if exists pallet/i);
+  });
+
+  it('la cesta di AcquaLatina non si tocca: è quella scritta dagli operatori', () => {
+    expect(soloSql).not.toMatch(/acqualatina_misuratori_rimossi[\s\S]*?drop column if exists cesta/i);
+    expect(soloSql).not.toMatch(/rename column cesta/i);
+  });
+
+  it("l'indice per «cosa c'è nella cesta 3?» c'è anche su ACEA, ed è parziale", () => {
+    // Le righe ancora in furgone (cesta null) sono la maggioranza e non hanno niente da dire
+    // a questa domanda: stessa forma dell'indice gemello su AcquaLatina.
+    const idx = soloSql.match(/create index if not exists misuratori_rimossi_cesta_idx[\s\S]*?;/i)?.[0] ?? '';
+    expect(idx).not.toBe('');
+    expect(idx).toMatch(/where cesta is not null/i);
   });
 });
 

@@ -28,14 +28,11 @@ export interface MisuratoreRimosso {
   matricola: string;
   pdr: string | null;
   /**
-   * Numero del pallet di riferimento: assegnato in blocco quando la cesta si riempie, è il
-   * riferimento con cui la riconsegna viaggia. `null` = ancora in cesta.
-   */
-  pallet?: string | null;
-  /**
-   * Numero della cesta di magazzino (solo registro AcquaLatina): lo dichiara l'OPERATORE
-   * all'invio del rapportino, quando scarica i contatori. È il gradino prima del pallet.
-   * `null` = ancora da scaricare (e infatti si accompagna a `da_consegnare_deposito`).
+   * Numero della cesta di magazzino: il contenitore numerato in cui i contatori smontati si
+   * scaricano, ed è quello con cui la riconsegna al committente viaggia — cesta e pallet erano
+   * due nomi della stessa cosa, dal 2026-08-04 il riferimento è UNO.
+   * Su AcquaLatina la dichiara l'OPERATORE all'invio del rapportino; su ACEA la scrive l'ufficio.
+   * `null` = non ancora scaricato (e su AcquaLatina si accompagna a `da_consegnare_deposito`).
    */
   cesta?: string | null;
   stato: StatoMisuratore;
