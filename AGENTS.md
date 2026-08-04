@@ -273,6 +273,18 @@ Solo interventi ACEA con `esito = 'eseguito_positivo'`, `matricola` presente e
 `intervento_tipo` classificato come rimozione da `isRimozioneTipo`
 (`lib/interventi/rimozioneMisuratore.ts`).
 
+### L'attività dell'ordine la dichiara ACEA (regola chiave)
+`intervento_tipo` **decide un magazzino**, quindi non può restare la fotografia del testo che
+l'attività aveva sulla mappa il giorno della pianificazione — l'ODL cambia (il moroso paga, ACEA
+lo riapre e la rimozione misuratore diventa riattivazione fornitura) e la rigenerazione del piano
+**non riallinea gli interventi in stato terminale** (`planInterventiForPiano`: li preserva e ne
+occupa la chiave). L'import del Cruscotto lo riporta all'attività corrente
+(`lib/acea/attivitaDaImport.ts`, passo 5-quater di `app/api/acea/import`) e poi **ricalcola il
+registro**, perché il registro è derivato. Tre cancelli, tutti "non indovinare": ODL con
+operazioni discordi fermi, attività fuori tassonomia mai scritta, **`lim_massive` escluso** (è un
+canale con canonica propria — vedi §14 e migration 20260722140000). Recupero del pregresso:
+migration `20260804090000` (93 interventi, 5 righe di registro uscite).
+
 ### Esclusione rimozioni ABUSIVE (regola chiave)
 Le "Rimozione impianto/allaccio/contatore abusivo" **non entrano MAI** nel registro:
 il misuratore rimosso da un impianto abusivo non entra nei nostri magazzini.
