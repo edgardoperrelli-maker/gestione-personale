@@ -576,6 +576,18 @@ export default function TabellaOrdini({
                 la spunta vince sul rossastro (è il gesto in corso), il tooltip resta.
               */
               const revoca = eRevocaDaVerificare(r);
+              /*
+                ORDINE TOP: riga ambra, col badge accanto all'ODL.
+
+                Ambra e non rossa: nel dunning il rosso è già revoca da verificare e scadenza
+                superata, e un terzo significato sullo stesso colore non si distingue più. Il
+                badge testuale accompagna sempre la tinta — un colore da solo non è
+                un'informazione per chi non lo vede.
+
+                La revoca resta PRIMA nella catena: «questa riga forse non va lavorata affatto»
+                batte «va lavorata per prima».
+              */
+              const top = r.top === true;
               return (
                 <div
                   key={row.id}
@@ -588,7 +600,9 @@ export default function TabellaOrdini({
                       ? 'bg-[var(--brand-primary-soft)]'
                       : revoca
                         ? 'bg-[var(--status-ko-soft)]'
-                        : 'hover:bg-[var(--brand-surface-muted)]'
+                        : top
+                          ? 'bg-[var(--status-warn-soft)]'
+                          : 'hover:bg-[var(--brand-surface-muted)]'
                   }`}
                   style={{ height: vi.size, transform: `translateY(${vi.start}px)` }}
                 >
@@ -902,6 +916,17 @@ export default function TabellaOrdini({
                             />
                             <span className="sr-only">{AVVISO_MATRICOLA_TRONCA}{' '}</span>
                           </>
+                        )}
+                        {/*
+                          Il badge TOP davanti all'ODL: è testo, non solo tinta. L'ambra della
+                          riga da sola direbbe poco — nella colonna Scadenza significa già
+                          «scade oggi» — e non direbbe niente a chi i colori non li distingue.
+                        */}
+                        {c.chiave === 'odl' && top && (
+                          <span
+                            className="mr-1.5 rounded-[var(--radius-sm)] bg-[var(--status-warn)] px-1 py-0.5 text-[11px] font-bold uppercase tracking-wide text-white"
+                            title="Segnalato TOP da ACEA: da lavorare per primo"
+                          >TOP</span>
                         )}
                         {c.chiave === 'eseguito'
                           ? <SegnoEseguito valore={testo} />

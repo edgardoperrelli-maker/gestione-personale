@@ -20,7 +20,7 @@ import type { MotivoIncompleto } from '@/utils/rapportini/voceMancante';
  * vedi utils/rapportini/rigaLista). `matricola`/`via`/`odl` restano per la ricerca, che cerca
  * nel dato e non in ciò che è a schermo.
  */
-export type RigaVoce = { index: number; titolo: string; sub: string; meta?: string; stato: StatoVoce; nuovo?: boolean; annullato?: boolean; /** Avviso "ODL già positivo il … (…)": voce bloccata, non compilabile. */ bloccoPositivo?: string; nota?: string; notaCollega?: boolean; badge?: { label: string; tono: 'attesa' | 'rifiutato' } | null; matricola?: string; via?: string; odl?: string };
+export type RigaVoce = { index: number; titolo: string; sub: string; meta?: string; stato: StatoVoce; nuovo?: boolean; annullato?: boolean; /** Avviso "ODL già positivo il … (…)": voce bloccata, non compilabile. */ bloccoPositivo?: string; nota?: string; /** Segnalato TOP da ACEA: pill in riga, e la riga sale in cima alla lista. */ top?: boolean; notaCollega?: boolean; badge?: { label: string; tono: 'attesa' | 'rifiutato' } | null; matricola?: string; via?: string; odl?: string };
 export type Filtro = 'tutti' | 'dafare' | 'completati';
 
 /** Chip di stato della riga: reso col primitivo Badge, toni d'intento --status-* (DESIGN.md §3). */
@@ -40,6 +40,8 @@ const PILL = 'shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold';
 const PILL_BLOCCO = 'bg-[var(--status-ko)] text-[var(--on-danger)]';
 const PILL_ATTESA = 'bg-[var(--warning-soft)] text-[var(--brand-text-main)]';
 const PILL_RIFIUTATO = 'bg-[var(--status-ko-soft)] text-[var(--status-ko)]';
+/** TOP: ambra piena, non soft — è la prima cosa che deve staccarsi scorrendo la lista. */
+const PILL_TOP = 'bg-[var(--status-warn)] text-white';
 
 const FILTRI: [Filtro, string][] = [['tutti', 'Tutti'], ['dafare', 'Da fare'], ['completati', 'Completati']];
 
@@ -71,6 +73,12 @@ export function RigaVoceCard({ riga: r, onApri }: { riga: RigaVoce; onApri: (ind
       <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full font-mono text-xs font-semibold tabular-nums ${num}`}>{r.index + 1}</span>
       <span className={`min-w-0 flex-1 ${spenta ? 'opacity-70' : ''}`}>
         <span className="flex min-w-0 flex-wrap items-center gap-1.5">
+          {/* Prima di tutte le altre: è il motivo per cui questa riga sta in cima. */}
+          {r.top && (
+            <span className={`${PILL} ${PILL_TOP}`} title="Segnalato TOP da ACEA: da fare per primo">
+              TOP
+            </span>
+          )}
           {r.annullato && (
             <span className={`${PILL} ${PILL_BLOCCO}`}>
               Annullato

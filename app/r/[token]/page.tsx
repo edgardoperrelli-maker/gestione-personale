@@ -9,6 +9,7 @@ import { resolveListaCampi, type ListaCampi } from '@/utils/rapportini/rigaLista
 import { selectDegradante } from '@/lib/rapportini/colonneOpzionali';
 import { perimetroCensimento, type CommittenteCensimento } from '@/lib/rapportini/perimetroCensimento';
 import { notaUfficioFromRaw } from '@/utils/rapportini/notaUfficio';
+import { normOdlTop, odlTop } from '@/lib/acea/top';
 import { caricaNotePrecedenti } from '@/lib/interventi/caricaNotePrecedenti';
 import type { NotaPrecedente } from '@/lib/interventi/notePrecedenti';
 import { caricaPositiviInfo, type PositivoDettaglio } from '@/lib/interventi/caricaOdlPositivi';
@@ -255,6 +256,36 @@ export default async function RapportinoPublicPage({
     righe = (righeRows ?? []) as typeof righe;
   }
 
+  /*
+    Gli ODL segnalati TOP da ACEA, letti ADESSO dal registro.
+
+    Non viaggiano dentro la voce come la nota dell'ufficio, e di proposito: l'ufficio marca un
+    ordine anche a giro già partito, e un valore fotografato all'ingresso non si aggiornerebbe
+    mai. Lettura accessoria e best-effort come le note tramandate — se salta, niente badge e il
+    rapportino resta compilabile: un'evidenza non può impedire a un operatore di lavorare.
+  */
+  const odlDaEvidenziare = new Set<string>();
+  {
+    const odlVoci = [...new Set(
+      (vociRows ?? [])
+        .map((v) => normOdlTop((v as VoceRow).odl))
+        .filter((o) => o !== ''),
+    )];
+    if (odlVoci.length > 0) {
+      const { data: righeTop, error: eTop } = await supabaseAdmin
+        .from('acea_ordini')
+        .select('odl, top')
+        .in('odl', odlVoci)
+        .eq('top', true);
+      if (eTop) console.error('[r/token] ODL TOP non letti:', eTop);
+      else {
+        for (const o of odlTop((righeTop ?? []) as { odl: string | null; top?: boolean }[])) {
+          odlDaEvidenziare.add(o);
+        }
+      }
+    }
+  }
+
   const richiesteIds = (vociRows ?? [])
     .map((v) => (v as { richiesta_id?: string | null }).richiesta_id)
     .filter((x): x is string => Boolean(x));
@@ -295,6 +326,7 @@ export default async function RapportinoPublicPage({
     diametro: diametroFromRaw(v.raw_json),
     notaUfficio: notaUfficioFromRaw(v.raw_json),
     notePrecedenti: notePrecedentiByVoce.get(v.id),
+    top: odlDaEvidenziare.has(normOdlTop(v.odl)),
     nuovo: Boolean((v.raw_json as { _nuovo?: unknown } | null)?._nuovo),
     annullato: Boolean((v.raw_json as { _annullato?: unknown } | null)?._annullato),
     bloccoPositivo: bloccoByVoce.has(v.id)

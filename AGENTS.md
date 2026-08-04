@@ -313,6 +313,37 @@ Filtri puri condivisi in `lib/misuratori/riferimenti.ts`. La colonna viaggia fra
 di `selectDegradante`: mai nella select principale, o un deploy prima della migration spegne il
 registro intero.
 
+### ODL TOP (registro ordini ACEA)
+ACEA segnala certe attività come **TOP**. Il flag è `acea_ordini.top` (booleano): lo marca
+l'ufficio **in blocco** dalla selezione della tabella (`POST /api/acea/ordini/top`,
+`requireAdmin`, tracciato in `audit_azioni` come `ordine.top`). Nessuna cella cliccabile: un
+secondo modo di scrivere lo stesso campo si paga in codice e diverge alla prima modifica.
+
+⚠️ La colonna esiste su **entrambe** le tabelle del registro (`acea_ordini` e
+`acqualatina_ordini`): `app/api/acea/ordini/route.ts` le legge con **una sola** lista di colonne,
+e metterla solo su una spegne l'altra.
+
+`top` sta nella **select principale**, non fra le opzionali di `selectDegradante` come la `cesta`
+qui sopra — e non è una svista. La degradazione serve a sopravvivere a un deploy che precede la
+migration; qui l'ordine è invertito apposta, perché la migration è **additiva** e quindi si applica
+PRIMA senza rompere il codice vecchio, che semplicemente non la nomina. La regola vera è quella:
+**additiva → prima la migration; distruttiva → prima il deploy** (vedi la fusione cesta/pallet del
+04/08, dove l'ordine sbagliato ha svuotato per un'ora la colonna Cesta in produzione).
+
+L'operatore lo legge **live**: `app/r/[token]/page.tsx` risolve gli ODL delle sue voci contro il
+registro a ogni caricamento, così un ordine marcato a giro già partito si vede subito. Non è
+fotografato in `raw_json` come la nota dell'ufficio, proprio per questo. Lettura best-effort:
+se salta, niente badge e il rapportino resta compilabile.
+
+Resa: **badge testuale + ambra**, mai rosso — nel dunning il rosso è già revoca da verificare e
+scadenza superata, e il colore da solo non è un'informazione per chi non lo vede. Le voci TOP
+vanno **in cima** alla lista dell'operatore, con ordinamento **stabile** (dentro il gruppo resta
+l'ordine geografico del giro) e `index` invariato, perché si riordina la lista e non i dati.
+Regola per gli ODL multi-operazione: **almeno una riga TOP ⇒ voce TOP**.
+
+Helper puri in `lib/acea/top.ts`. Spec:
+`docs/superpowers/specs/2026-08-04-acea-odl-top-design.md`.
+
 ---
 
 ## 14. LIMITAZIONI MASSIVE MULTI-COMUNE + PRODUZIONE ECONOMICA — REGOLE
