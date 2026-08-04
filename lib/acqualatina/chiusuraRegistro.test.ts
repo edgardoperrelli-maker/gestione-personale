@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  gruppiChiusura, idsDaRiaprire, STATO_APERTA_NON_ESEGUITA, STATO_CHIUSA_ESEGUITA,
-  type InterventoConcluso,
+  agganciPerOdl, gruppiChiusura, idsDaRiaprire, STATO_APERTA_NON_ESEGUITA,
+  STATO_CHIUSA_ESEGUITA, type InterventoConcluso,
 } from './chiusuraRegistro';
 
 const concluso = (over: Partial<InterventoConcluso> = {}): InterventoConcluso => ({
@@ -113,5 +113,32 @@ describe('idsDaRiaprire — la seconda metà di «il positivo è definitivo»', 
   it('guarda solo l\'ordine della riga: i positivi degli altri ordini non la salvano', () => {
     expect(idsDaRiaprire(['ord-1', 'ord-2'], [concluso({ ordine_id: 'ord-2' })]))
       .toEqual(['ord-1']);
+  });
+});
+
+describe('agganciPerOdl — il collegamento che si ripara da solo', () => {
+  const riga = (id: string, odl: string, matricola_norm: string | null = null) =>
+    ({ id, odl, matricola_norm });
+  const sciolto = (id: string, odl: string | null, matricola: string | null = null) =>
+    ({ id, odl, matricola_contatore: matricola, data: '2026-08-03', esito: 'eseguito_positivo' });
+
+  it("l'ODL con una riga sola aggancia senza bisogno della matricola", () => {
+    expect(agganciPerOdl([sciolto('i1', '100001')], [riga('o1', '100001')]))
+      .toEqual([{ interventoId: 'i1', ordineId: 'o1' }]);
+  });
+
+  it('multi-contatore: aggancia solo se la matricola ne indica esattamente una', () => {
+    const righe = [riga('o1', '100001', 'MTR001'), riga('o2', '100001', 'MTR002')];
+    expect(agganciPerOdl([sciolto('i1', '100001', 'mtr-002')], righe))
+      .toEqual([{ interventoId: 'i1', ordineId: 'o2' }]);
+    // Senza matricola la scelta non è obbligata: meglio nessun aggancio di uno sbagliato.
+    expect(agganciPerOdl([sciolto('i2', '100001')], righe)).toEqual([]);
+  });
+
+  it('ODL sconosciuto al registro o assente: resta sciolto', () => {
+    expect(agganciPerOdl(
+      [sciolto('i1', '999999'), sciolto('i2', null)],
+      [riga('o1', '100001')],
+    )).toEqual([]);
   });
 });

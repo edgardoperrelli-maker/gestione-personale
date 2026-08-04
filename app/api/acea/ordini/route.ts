@@ -16,7 +16,10 @@ import { odlConSaracinescaDichiarata } from '@/lib/acea/caricaSaracinesche';
 import { comuniMassiveAperti } from '@/lib/acea/caricaComuniMassive';
 import { contaSenzaData, type InterventoDellOdl } from '@/lib/acea/codaRiaperture';
 import { PROFILO_COMMESSA } from '@/lib/acea/famiglia';
-import { PATCH_RIAPERTA, gruppiChiusura, idsDaRiaprire, type InterventoConcluso } from '@/lib/acqualatina/chiusuraRegistro';
+import {
+  PATCH_RIAPERTA, agganciPerOdl, gruppiChiusura, idsDaRiaprire,
+  type InterventoConcluso, type InterventoSciolto, type RigaPerAggancio,
+} from '@/lib/acqualatina/chiusuraRegistro';
 // La stessa normalizzazione della colonna «Eseguito» del modulo Interventi: una sola regola per
 // due schermate che parlano dello stesso lavoro.
 import { siNo } from '@/lib/interventi/storico/normalizza';
@@ -352,6 +355,60 @@ async function chiudiOrdiniAcqualatinaCompletati(): Promise<void> {
     const blocco = (data ?? []) as InterventoConcluso[];
     completati.push(...blocco);
     if (blocco.length < PAGINA_SCAN) break;
+  }
+
+  /*
+    L'AGGANCIO che si ripara da solo. Non tutti gli interventi nascono dalla pianificazione
+    che scrive `ordine_id`: quelli del vecchio percorso su file sono nati senza, eseguiti sul
+    campo e invisibili a questa riconciliazione — 77 il 04/08, con le loro righe di registro
+    ferme su «Aperta» e il confronto col sito a segnalarle. La regola dell'aggancio (per ODL,
+    solo a scelta obbligata) sta in `agganciPerOdl`; qui si scrive il collegamento e i
+    riparati entrano SUBITO fra i completati, così la stessa passata chiude le loro righe.
+    Idempotente: un intervento agganciato non è più sciolto, al giro dopo non compare.
+  */
+  const sciolti: InterventoSciolto[] = [];
+  for (let offset = 0; ; offset += PAGINA_SCAN) {
+    const { data, error } = await supabaseAdmin
+      .from('interventi')
+      .select('id, odl, matricola_contatore, data, esito')
+      .eq('committente', 'acqualatina')
+      .eq('stato', 'completato')
+      .is('ordine_id', null)
+      .range(offset, offset + PAGINA_SCAN - 1);
+    if (error) throw error;
+    const blocco = (data ?? []) as InterventoSciolto[];
+    sciolti.push(...blocco);
+    if (blocco.length < PAGINA_SCAN) break;
+  }
+  const righeAggancio: RigaPerAggancio[] = [];
+  if (sciolti.length > 0) {
+    for (let offset = 0; ; offset += PAGINA_SCAN) {
+      const { data, error } = await supabaseAdmin
+        .from('acqualatina_ordini')
+        .select('id, odl, matricola_norm')
+        .range(offset, offset + PAGINA_SCAN - 1);
+      if (error) throw error;
+      const blocco = (data ?? []) as RigaPerAggancio[];
+      righeAggancio.push(...blocco);
+      if (blocco.length < PAGINA_SCAN) break;
+    }
+    const agganci = agganciPerOdl(sciolti, righeAggancio);
+    const perOrdine = new Map<string, string[]>();
+    for (const a of agganci) {
+      perOrdine.set(a.ordineId, [...(perOrdine.get(a.ordineId) ?? []), a.interventoId]);
+    }
+    const scioltoPerId = new Map(sciolti.map((s) => [s.id, s]));
+    for (const [ordineId, interventoIds] of perOrdine) {
+      const { error } = await supabaseAdmin
+        .from('interventi')
+        .update({ ordine_id: ordineId })
+        .in('id', interventoIds);
+      if (error) throw error;
+      for (const id of interventoIds) {
+        const s = scioltoPerId.get(id);
+        if (s) completati.push({ ordine_id: ordineId, data: s.data, esito: s.esito });
+      }
+    }
   }
 
   /*

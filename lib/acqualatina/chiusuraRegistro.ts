@@ -27,6 +27,65 @@ export type InterventoConcluso = {
   esito: string | null;
 };
 
+/** Un intervento concluso SENZA il collegamento: `ordine_id` mai scritto. */
+export type InterventoSciolto = {
+  id: string;
+  odl: string | null;
+  matricola_contatore: string | null;
+  data: string | null;
+  esito: string | null;
+};
+
+/** La riga di registro come serve all'aggancio: identità e matricola normalizzata. */
+export type RigaPerAggancio = {
+  id: string;
+  odl: string;
+  matricola_norm: string | null;
+};
+
+/** Come `normMatricola` di ordiniDaMaster: qui per non importare il modulo del sync intero. */
+const normMatr = (m: string | null | undefined): string =>
+  String(m ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+/**
+ * Gli agganci mancanti: quale riga di registro appartiene a un intervento concluso senza
+ * `ordine_id`.
+ *
+ * Il collegamento lo scrive la pianificazione alla creazione — ma non tutti gli interventi
+ * nascono da lì: quelli del vecchio percorso su file (e le ricostruzioni) sono nati senza, e
+ * per la riconciliazione erano invisibili. Il caso vero è il 12379075 del 03/08: eseguito
+ * positivo dall'operatore, riga di registro rimasta «Aperta», e il confronto col sito che lo
+ * segnala fra i «manca il nostro esito» — 77 interventi così alla prima misura (04/08).
+ *
+ * La regola è prudente: si aggancia per ODL solo quando la scelta è OBBLIGATA — l'ODL ha una
+ * riga sola, oppure la matricola dell'intervento ne indica esattamente una. Un ODL
+ * multi-contatore senza matricola che decida resta sciolto: meglio un aggancio in meno di un
+ * esito scritto sul contatore sbagliato.
+ */
+export function agganciPerOdl(
+  sciolti: readonly InterventoSciolto[],
+  righe: readonly RigaPerAggancio[],
+): Array<{ interventoId: string; ordineId: string }> {
+  const perOdl = new Map<string, RigaPerAggancio[]>();
+  for (const r of righe) {
+    const odl = r.odl.trim();
+    if (odl === '') continue;
+    perOdl.set(odl, [...(perOdl.get(odl) ?? []), r]);
+  }
+  const agganci: Array<{ interventoId: string; ordineId: string }> = [];
+  for (const s of sciolti) {
+    const candidate = perOdl.get(String(s.odl ?? '').trim()) ?? [];
+    let scelta: RigaPerAggancio | null = candidate.length === 1 ? candidate[0] : null;
+    if (!scelta && candidate.length > 1) {
+      const m = normMatr(s.matricola_contatore);
+      const stesse = m === '' ? [] : candidate.filter((c) => normMatr(c.matricola_norm) === m);
+      if (stesse.length === 1) scelta = stesse[0];
+    }
+    if (scelta) agganci.push({ interventoId: s.id, ordineId: scelta.id });
+  }
+  return agganci;
+}
+
 /** Le colonne di stato della riga di registro, riscritte in blocco. */
 export type PatchRiga = {
   aperto: boolean;
