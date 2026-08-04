@@ -1,8 +1,43 @@
+import java.util.Properties
+
 apply plugin: 'com.android.application'
+
+// Firma di release OPZIONALE (pattern app-gelateria): in CI il workflow ricrea
+// android/key.properties + keystore dai secrets; in locale, senza key.properties,
+// la build release resta unsigned e la debug funziona come sempre.
+def keystorePropertiesFile = rootProject.file('key.properties')
+def keystoreProperties = new Properties()
+def hasReleaseKeystore = false
+
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.withInputStream { stream ->
+        keystoreProperties.load(stream)
+    }
+
+    hasReleaseKeystore = [
+        'storeFile',
+        'storePassword',
+        'keyAlias',
+        'keyPassword',
+    ].every { key ->
+        def value = keystoreProperties.getProperty(key)?.trim()
+        value
+    }
+}
 
 android {
     namespace = "it.plenzich.gestilab"
     compileSdk = rootProject.ext.compileSdkVersion
+    signingConfigs {
+        if (hasReleaseKeystore) {
+            release {
+                storeFile file(keystoreProperties.getProperty('storeFile'))
+                storePassword keystoreProperties.getProperty('storePassword')
+                keyAlias keystoreProperties.getProperty('keyAlias')
+                keyPassword keystoreProperties.getProperty('keyPassword')
+            }
+        }
+    }
     defaultConfig {
         applicationId "it.plenzich.gestilab"
         minSdkVersion rootProject.ext.minSdkVersion
@@ -18,6 +53,9 @@ android {
     }
     buildTypes {
         release {
+            if (hasReleaseKeystore) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
