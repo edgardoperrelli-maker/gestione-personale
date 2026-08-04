@@ -19,8 +19,9 @@ export function isCompletato(stato: string | null | undefined): boolean {
  * Vero se lo scostamento è REMUNERATO da ACEA. ACEA paga solo gli ordini la cui causa di scostamento
  * inizia per "E" (es. EFRE/EIES/ECE2/EESM/EFRI/EMMR/ETAA per il dunning; EANC/EIEA/EIES per le massive).
  * Le causali non-E (NMNT/NPRT/NNCT…) sono scostamenti a nostro carico → non pagati, esclusi dal SAL.
- * Fallback: causale assente/vuota → true (transizione: finché l'agente non popola la colonna non
- * escludiamo nulla, così il SAL non crolla).
+ * Fallback: causale assente/vuota → true. Pensato come transizione finché l'agente non avesse
+ * popolato la colonna — ma l'agente è stato ritirato il 04/08/2026 e nessuno la popola più:
+ * oggi non escludiamo nulla in modo permanente, non transitorio, così il SAL non crolla.
  */
 export function scostamentoPagato(causa: string | null | undefined): boolean {
   const c = String(causa ?? '').trim().toUpperCase();

@@ -26,6 +26,9 @@ Tre elementi rendono l'operazione meno rischiosa di quanto sembri:
    data; `limitazione_misuratori_stato` non è mai stata popolata. Dell'agente resta vivo solo il
    giro che aggiorna lo stato sui master.
 
+> ⚠️ **Superato (2026-08-04):** anche quel giro è stato ritirato. L'agente Playwright non gira
+> più — il punto 3 va letto come storia, non come stato attuale. Vedi anche §9.
+
 Quello che il modulo mostrerà il primo giorno, e che oggi nessuno vede:
 
 | | |

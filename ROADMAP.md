@@ -309,6 +309,10 @@
 - [ ] **`requireAdmin` per ogni route API** (getUser+profiles = 2 round-trip):
       al mount di Assegnazione AI partono ~10 round-trip di sola auth → cache
       per-request o verifica del ruolo dal JWT (`app_metadata`).
+      **Decaduta (2026-08-04)**: il mount di Assegnazione AI che la motivava non esiste più — il
+      modulo è stato ritirato insieme all'agente Playwright. Il costo di `requireAdmin` per
+      route resta un problema generale dell'app, ma senza quel caso concreto va rimisurato
+      altrove prima di riprenderlo.
 - [ ] **Middleware**: `auth.getUser()` fa una chiamata di rete per OGNI
       navigazione. File protetto da AGENTS.md (§11.1): serve istruzione esplicita
       per intervenire (opzione: validazione JWT locale, refresh solo se scaduto).

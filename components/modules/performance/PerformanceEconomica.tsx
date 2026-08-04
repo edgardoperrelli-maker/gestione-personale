@@ -306,14 +306,24 @@ export default function PerformanceEconomica() {
                 <Badge key={c} variant="warning">{AUDIT_LABEL[c]}: {num(dati.auditSummary[c])}</Badge>
               ))}
             </div>
-            {(!dati.registroPopolato || !dati.portalePopolato) && (
+            {!dati.registroPopolato && (
               <p className="mb-2 text-xs text-[var(--brand-text-muted)]">
-                L’audit DB↔registro↔portale è limitato finché mancano le due colonne di riscontro. Il
-                registro ordini si popola con l’import del Cruscotto nel modulo ACEA, poi ricarica.
-                Lo snapshot del portale lo alimentava l’agente Playwright, ritirato: quello già
-                acquisito resta, di nuovo non ne arriva.
+                L’audit DB↔registro↔portale è limitato finché manca la colonna del registro: si
+                popola con l’import del Cruscotto nel modulo ACEA, poi ricarica.
               </p>
             )}
+            {/*
+              La colonna del portale è FERMA, non vuota: la scriveva l'agente Playwright, ritirato
+              il 04/08/2026. L'avviso non può stare dietro `!portalePopolato` — lo snapshot ha
+              righe, quindi quella condizione sarebbe falsa per sempre e il messaggio non
+              comparirebbe mai, proprio mentre il problema peggiora a ogni ordine chiuso.
+            */}
+            <p className="mb-2 text-xs text-[var(--status-warn)]">
+              La colonna «portale» dell’audit è ferma all’ultima lettura dell’agente Playwright,
+              ritirato il 04/08/2026. Gli ordini chiusi dopo quella data risultano «non
+              consuntivati sul portale» perché nessuno aggiorna più quel confronto, non perché ci
+              sia una discrepanza reale. Vale anche per Pre-SAL e Fuori SAL.
+            </p>
             {dati.audit.length > 0 && (
               <div className="max-h-72 overflow-auto">
                 <table className="w-full text-xs">
