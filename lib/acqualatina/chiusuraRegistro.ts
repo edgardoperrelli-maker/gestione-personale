@@ -189,6 +189,23 @@ export function idsDaRiaprire(
 }
 
 /**
+ * Le righe «Aperta — non eseguita» da RIPORTARE ad «Aperta»: quelle il cui ordine non ha più
+ * NESSUN intervento concluso, di nessun esito.
+ *
+ * Il marchio «non eseguita» racconta un'uscita a vuoto. Se quell'uscita viene azzerata,
+ * annullata o cancellata dal modulo interventi, il racconto non ha più niente dietro — e
+ * l'imbuto «da ripassare» terrebbe in coda una riga mai davvero visitata. Simmetrica di
+ * `idsDaRiaprire`, che fa lo stesso servizio alle chiuse positive.
+ */
+export function idsSenzaConcluso(
+  nonEseguite: readonly string[],
+  conclusi: readonly InterventoConcluso[],
+): string[] {
+  const toccate = new Set(conclusi.filter((c) => c.ordine_id).map((c) => c.ordine_id));
+  return nonEseguite.filter((id) => !toccate.has(id));
+}
+
+/**
  * Gli aggiornamenti da scrivere sul registro, raggruppati per (giorno, esito).
  *
  * Un `update` per gruppo e non per riga: i giorni di campagna sono pochi, le righe tante.

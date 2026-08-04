@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  agganciPerOdl, gruppiChiusura, idsDaRiaprire, STATO_APERTA_NON_ESEGUITA,
-  STATO_CHIUSA_ESEGUITA, type InterventoConcluso,
+  agganciPerOdl, gruppiChiusura, idsDaRiaprire, idsSenzaConcluso,
+  STATO_APERTA_NON_ESEGUITA, STATO_CHIUSA_ESEGUITA, type InterventoConcluso,
 } from './chiusuraRegistro';
 
 const concluso = (over: Partial<InterventoConcluso> = {}): InterventoConcluso => ({
@@ -140,5 +140,19 @@ describe('agganciPerOdl — il collegamento che si ripara da solo', () => {
       [sciolto('i1', '999999'), sciolto('i2', null)],
       [riga('o1', '100001')],
     )).toEqual([]);
+  });
+});
+
+describe('idsSenzaConcluso — la «non eseguita» senza più niente dietro torna «Aperta»', () => {
+  it("ripulisce la riga il cui unico negativo è stato azzerato o cancellato", () => {
+    expect(idsSenzaConcluso(['ord-1'], [])).toEqual(['ord-1']);
+  });
+  it('un concluso QUALSIASI (anche negativo) tiene il marchio: l\'uscita a vuoto è vera', () => {
+    expect(idsSenzaConcluso(['ord-1'], [negativo({ ordine_id: 'ord-1' })])).toEqual([]);
+    expect(idsSenzaConcluso(['ord-1'], [concluso({ ordine_id: 'ord-1' })])).toEqual([]);
+  });
+  it('guarda solo il proprio ordine', () => {
+    expect(idsSenzaConcluso(['ord-1', 'ord-2'], [negativo({ ordine_id: 'ord-2' })]))
+      .toEqual(['ord-1']);
   });
 });

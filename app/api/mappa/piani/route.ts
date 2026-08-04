@@ -265,7 +265,18 @@ export async function DELETE(req: Request) {
     // Elimina anche gli interventi creati da questo piano, altrimenti restano orfani
     // e visibili in torre. interventi.piano_id ha ON DELETE SET NULL: vanno cancellati
     // PRIMA del piano (dopo non sarebbero più trovabili per piano_id).
-    const { error: eInt } = await supabaseAdmin.from('interventi').delete().eq('piano_id', id);
+    //
+    // I TERMINALI però restano: un completato è lavoro consegnato — cancellarlo col piano
+    // riaprirebbe la riga di registro acqualatina (la riconciliazione riapre le chiuse
+    // positive senza più intervento dietro) e lascerebbe orfana la rimozione misuratore.
+    // È la lezione di VIA FAVONIA (PR #220), stavolta sul verso della cancellazione: il
+    // piano sparisce, il lavoro fatto no (il CASCADE gli azzera `piano_id` e basta). Lo
+    // stesso filtro del PUT che toglie un operatore (:376-383).
+    const { error: eInt } = await supabaseAdmin
+      .from('interventi')
+      .delete()
+      .eq('piano_id', id)
+      .not('stato', 'in', '(completato,annullato)');
     if (eInt) throw new Error(eInt.message);
 
     const { error } = await supabaseAdmin
