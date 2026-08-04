@@ -407,14 +407,10 @@ ritiro dell'agente.
 - Saracinesca (`saracinescaProdotta`): **comune-agnostica**. Verità = colonna `esito` del master
   massive (Labico/Zagarolo la hanno); il DUNNING no → fallback sul positivo del DB.
 
-### Allineamento agente dalla Produzione economica
-Il bottone **"Limitazioni massive"** accoda `target='TUTTI'` a `/api/admin/agente/acea-stato`
-(`forza_acea_stato=true`, `acea_target='TUTTI'`, flag one-shot). Un solo giro Playwright: l'export
-viene riversato su TUTTI i master massive (`risolviMaster`) e ne pusha lo snapshot (audit 3 vie).
-`acea-stato` accetta `dunning | TUTTI | <COMUNE>`. Il controllo per singolo comune resta sulla
-pagina **Agente**. **Non reintrodurre** un bottone per-comune ("Zagarolo") in Produzione economica.
-Traccia del giro: `agente_run` = un `acea-stato` + un `acea-master` **per ogni** master del target
-(con `TUTTI`, due `acea-master` ravvicinati).
+### Niente comandi verso l'agente (ritirato il 04/08/2026)
+La Produzione economica non arma più giri: i bottoni «Allinea master: Dunning / Limitazioni
+massive» sono spariti con l'agente Playwright. I dati arrivano dall'**import del modulo ACEA**,
+che porta il file nuovo e completo a ogni giro. **Non reintrodurre** bottoni di allineamento.
 
 ### tools/limitazioni-sync (agente standalone `.mjs`)
 `comuneDaFile` usa `path.win32.basename/extname`: i master vivono su SharePoint con path Windows
