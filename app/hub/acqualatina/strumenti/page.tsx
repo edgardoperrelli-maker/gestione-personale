@@ -37,7 +37,10 @@ export default async function AcqualatinaStrumentiPage() {
           title="Strumenti"
           sub="Il master del committente, il confronto esiti col sito e i numeri del magazzino."
         />
-        <ImportMasterCard />
+        {/* L'ancora di «Importa export» dalla tabella del registro, come su ACEA. */}
+        <div id="import" className="scroll-mt-24">
+          <ImportMasterCard />
+        </div>
         <ConfrontoEsitiCard />
         <CesteCard />
       </div>
