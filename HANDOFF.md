@@ -4,7 +4,7 @@
 > Sostituisce l'handoff del redesign Cronoprogramma (2026-07-23): quel contenuto resta in git —
 > `git show 528c4c4:HANDOFF.md`.
 >
-> **La sezione più recente è la prima** (2026-08-04, ODL TOP). Sotto, dal
+> **La sezione più recente è la prima** (2026-08-04, Esito AcquaLatina). Sotto, dal
 > «Goal» in poi, c'è la sessione ACEA del 31/07: resta valida, non è storia da archiviare.
 
 **Branch**: `claude/acea-table-copy-schedule-filter-3xt700`, ripartito da `origin/main` (`93a514d`,
@@ -12,6 +12,46 @@ merge della PR #186; la vecchia PR #175 è chiusa, lo specchio `…okoirs` non s
 **Status**: modulo ACEA completo e in produzione dal 30/07. Il 31/07 il registro è diventato
 **multi-commessa**: la famiglia `acqualatina` (sostituzione misuratori Terracina) usa le stesse
 mani su tabella propria — migration `20260731170000` + backfill (4.196 righe) applicati in prod
+
+---
+
+## Sessione 2026-08-04 (3) — AcquaLatina: l'Esito guida la scheda
+
+> Branch `feat/acqualatina-esito-tab`. Spec e piano in
+> `docs/superpowers/specs/2026-08-04-acqualatina-esito-tab-design.md` e `…/plans/…`.
+
+**Cosa cambia per l'ufficio.** In `AcquaLatina › Pianificazione` la colonna **Stato** lascia il
+posto a **Esito**: la risposta di chi è andato sul posto, non lo stato che il nostro motore
+deriva. E la scheda la segue — **SI e NO chiudono, NESSUN PASSAGGIO no**.
+
+**La distinzione È la regola.** Su questa commessa il `NO` è definitivo (contatore non più
+presente, impianto dismesso, rifiuto): tenerlo in coda è rumore su lavoro che nessuno farà. Il
+`NESSUN PASSAGGIO` è un giro che non c'è stato, e il contatore è ancora lì da sostituire — è il
+caso che la decisione del 03/08 proteggeva. Questa sessione **non ribalta** quella decisione, la
+rende più fine: cambia quale risposta rappresenta «lavoro ancora da fare».
+
+**Le decisioni che non vanno riscoperte:**
+- `interventi.esito` conosce solo il positivo: NO e NESSUN PASSAGGIO gli arrivano identici. La
+  riconciliazione legge `rapportino_voci.risposte.eseguito`, best-effort (se salta, si torna a
+  chiudere sul solo positivo).
+- Nasce il quarto stato **`Chiusa — non eseguita`**: prima una riga o era fatta, o era da fare.
+- ⚠️ La guardia della `update` diventa **solo** «non contraddire il positivo». Quella vecchia
+  riapriva `esito_positivo=false AND aperto=false` — che con la regola nuova è esattamente una
+  riga chiusa dal NO: le due regole si sarebbero rincorse a ogni apertura della tabella.
+- **`NO_CHIUDE_DAL = '2026-08-05'`**: il NO chiude solo dalle uscite di quel giorno in poi. La
+  riconciliazione rigira su tutti i completati a ogni lettura, e senza barriera avrebbe chiuso
+  anche le 9 righe storiche — che per decisione restano dove sono. Comprende tutto il 04/08,
+  quindi **un NO scritto il 04/08 non chiude**.
+- La colonna Esito **non ha l'imbuto**: il valore sta nelle risposte, non nel registro, e un
+  filtro sulle sole righe caricate mentirebbe sul conteggio.
+
+**Verificato sui dati veri:** con il codice nuovo la riconciliazione ha girato sul registro
+(4.199 righe) e non ha spostato niente — 3.942 / 248 / 9 prima e dopo. `NESSUN PASSAGGIO` non ha
+occorrenze storiche: la regola è coperta dai test, il campo la produrrà.
+
+**Nota, non un bug:** 7 righe risultavano «Aperta — non eseguita» pur avendo intervento positivo.
+Erano solo non ancora riconciliate — la chiusura gira sulla strada della lettura, non in un cron —
+e aprendo la vista si sono chiuse da sole (241 → 248).
 
 ---
 
