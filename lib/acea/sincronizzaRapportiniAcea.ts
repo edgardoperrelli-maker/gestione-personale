@@ -188,7 +188,10 @@ export async function sincronizzaRapportiniAcea(
     const staffId = String(r.staff_id ?? '').trim();
     if (String(r.stato ?? '') === 'annullato') continue;
     if (!staffId) { senzaOperatore++; continue; }
-    if (filtroStaff && !filtroStaff.has(staffId)) continue;
+    // NIENTE filtro staff qui: l'ADOZIONE (§5b) deve vedere TUTTI gli operatori del giorno.
+    // Filtrare prima significava adottare solo i selezionati: una generazione mirata su un
+    // operatore lasciava i colleghi del contenitore senza riga operatore e senza piano_id —
+    // invisibili in pianifica (caso LIBERATORI 04/08). Il filtro vale per la GENERAZIONE (§6).
     interventi.push({
       id: String(r.id),
       odl: (r.odl as string | null) ?? null,
@@ -234,7 +237,11 @@ export async function sincronizzaRapportiniAcea(
   for (const i of interventi) {
     perStaff.set(i.staff_id, [...(perStaff.get(i.staff_id) ?? []), i]);
   }
+  // `staffIds` = tutti gli operatori del giorno: è il perimetro dell'ADOZIONE, che è riparazione
+  // e gira sempre su tutti. `staffGenerazione` = i soli selezionati: è il perimetro di voci,
+  // rapportini ed esiti (§6). La selezione decide per chi si GENERA, mai chi resta visibile.
   const staffIds = [...perStaff.keys()];
+  const staffGenerazione = filtroStaff ? staffIds.filter((s) => filtroStaff.has(s)) : staffIds;
 
   // ---- 2. Rapportini esistenti del giorno, su qualunque piano --------------------------------
   const { data: rapRows, error: eRap } = await db
@@ -411,8 +418,8 @@ export async function sincronizzaRapportiniAcea(
   const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? '').replace(/\/$/, '');
   const esiti: EsitoOperatore[] = [];
 
-  // ---- 6. Un operatore alla volta -------------------------------------------------------------
-  for (const staffId of staffIds) {
+  // ---- 6. Un operatore alla volta (solo i selezionati) ----------------------------------------
+  for (const staffId of staffGenerazione) {
     const miei = perStaff.get(staffId) ?? [];
     const nome = nomi.get(staffId) ?? null;
     const suoi = rapportini
