@@ -39,7 +39,7 @@ piano tratta come vincolante.
 
 | Destino | File | Perché |
 |---|---|---|
-| **Nasce** | `lib/orarioRoma.ts` + `lib/orarioRoma.test.ts` | `partiRoma` è usata da 5 endpoint vivi: deve stare fuori da `lib/agente/` |
+| **Nasce** | `lib/orarioRoma.ts` + `lib/orarioRoma.test.ts` | `partiRoma` è usata da 6 endpoint vivi: deve stare fuori da `lib/agente/` |
 | **Nasce** | `lib/produzione/comuniMassive.test.ts` | oggi non c'è test; la riduzione a una fonte va provata, non dichiarata |
 | **Nasce** | `lib/__tests__/agenteRitirato.test.ts` | la guardia: nessun filo attaccato |
 | **Nasce** | `supabase/migrations/20260805090000_ritiro_agente.sql` | drop delle 5 tabelle — si applica **a mano, dopo il deploy** |
@@ -66,16 +66,16 @@ piano tratta come vincolante.
 ## Task 1 — `partiRoma` esce da `lib/agente`
 
 `lib/agente/orarioRoma.ts` non è roba dell'agente: `partiRoma` dice che ora è a Roma, e la
-chiamano **cinque endpoint vivi** di ACEA e AcquaLatina. Se la cartella sparisse prima, sparirebbe
+chiamano **sei endpoint vivi** di ACEA e AcquaLatina. Se la cartella sparisse prima, sparirebbe
 con lei. Questo task è il prerequisito di tutto il resto.
 
 **Files:**
 - Create: `lib/orarioRoma.ts` (spostato), `lib/orarioRoma.test.ts` (spostato)
 - Delete: `lib/agente/orarioRoma.ts`, `lib/agente/orarioRoma.test.ts`
-- Modify: `app/api/acea/import/route.ts:20`, `app/api/acea/operatori/route.ts:4`,
-  `app/api/acea/ordini/route.ts:11`, `app/api/acea/pianifica/route.ts:18`,
-  `app/api/acqualatina/ordini/sync/route.ts:5`, `app/api/agente/tick/route.ts:5`,
-  `app/hub/agente/page.tsx:7`
+- Modify: `app/api/acea/celle/route.ts:18`, `app/api/acea/import/route.ts:20`,
+  `app/api/acea/operatori/route.ts:4`, `app/api/acea/ordini/route.ts:11`,
+  `app/api/acea/pianifica/route.ts:18`, `app/api/acqualatina/ordini/sync/route.ts:5`,
+  `app/api/agente/tick/route.ts:5`, `app/hub/agente/page.tsx:7`
 
 **Interfaces:**
 - Produces: `partiRoma(now: Date): PartiRoma` e `type PartiRoma = { oggi: string; oraCorrente: string; weekday: number }` da `@/lib/orarioRoma`. Comportamento **identico**: questo task sposta, non cambia.
@@ -96,10 +96,10 @@ git mv lib/agente/orarioRoma.test.ts lib/orarioRoma.test.ts
 npx tsc --noEmit
 ```
 
-Atteso: FALLISCE con `Cannot find module '@/lib/agente/orarioRoma'` su **7 file**. Se ne elenca
+Atteso: FALLISCE con `Cannot find module '@/lib/agente/orarioRoma'` su **8 file**. Se ne elenca
 di più, fermati e segnalalo: significa che c'è un importatore che questo piano non conosce.
 
-- [ ] **Step 3: Aggiorna i 7 import**
+- [ ] **Step 3: Aggiorna gli 8 import**
 
 In ognuno dei sette file, sostituisci la riga di import. Il testo cambia solo nel percorso:
 
@@ -140,7 +140,7 @@ Atteso: PASS, 6 test.
 
 ```bash
 git add lib/orarioRoma.ts lib/orarioRoma.test.ts app/api/acea app/api/acqualatina app/api/agente app/hub/agente lib/agente
-git commit -m "refactor(orario): partiRoma esce da lib/agente, la usano cinque endpoint vivi"
+git commit -m "refactor(orario): partiRoma esce da lib/agente, la usano sei endpoint vivi"
 ```
 
 ---
@@ -798,7 +798,10 @@ function sorgenti(dir: string): string[] {
   return out;
 }
 
-const file = CARTELLE.flatMap((c) => sorgenti(join(RADICE, c)));
+// Il file-guardia contiene per forza le stringhe che cerca: senza questo filtro si
+// denuncerebbe da solo. Si esclude LUI e basta — non i test in blocco, perché un test che
+// reintroducesse un import verso l'agente è proprio il caso che vogliamo vedere.
+const file = CARTELLE.flatMap((c) => sorgenti(join(RADICE, c))).filter((f) => f !== __filename);
 const relativo = (f: string) => f.slice(RADICE.length + 1).replace(/\\/g, '/');
 
 describe("l'agente Playwright è ritirato (04/08/2026)", () => {
@@ -825,7 +828,7 @@ describe("l'agente Playwright è ritirato (04/08/2026)", () => {
     expect(rimaste).toEqual([]);
   });
 
-  it('partiRoma sta fuori: la usano cinque endpoint vivi di ACEA e AcquaLatina', () => {
+  it('partiRoma sta fuori: la usano sei endpoint vivi di ACEA e AcquaLatina', () => {
     // Il ritiro non doveva portarsi via un helper condiviso. Qui si prova che non l'ha fatto.
     expect(existsSync(join(RADICE, 'lib/orarioRoma.ts'))).toBe(true);
   });
@@ -843,7 +846,8 @@ precedente ha lasciato un riferimento. Torna a sistemarlo prima di andare avanti
 
 - [ ] **Step 3: Prova che la guardia sa fallire**
 
-Un test di cancellazione che nasce verde non ha mai dimostrato niente. Rendilo rosso apposta:
+Un test di cancellazione che nasce verde non ha mai dimostrato niente. Rendilo rosso apposta —
+e **su un file diverso dalla guardia**, altrimenti il filtro di auto-esclusione lo maschera:
 aggiungi in fondo a `lib/orarioRoma.ts` la riga
 
 ```ts
