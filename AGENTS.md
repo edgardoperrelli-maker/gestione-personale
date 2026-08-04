@@ -433,6 +433,46 @@ pagina **Agente**. **Non reintrodurre** un bottone per-comune ("Zagarolo") in Pr
 Traccia del giro: `agente_run` = un `acea-stato` + un `acea-master` **per ogni** master del target
 (con `TUTTI`, due `acea-master` ravvicinati).
 
+### SAL ufficiali ACEA: due porte, un solo `acea_sal`
+I SAL entrano da **due** strade, e la colonna `acea_sal.origine` dice da quale:
+- `'agente'` — il bottone «Leggi SAL» di `/hub/agente`, che fa leggere all'agente i file
+  `SAL N.xlsx` della cartella CONTABILITA' su un PC in ufficio (`tools/.../leggiSal.mjs`);
+- `'import'` — il file caricato a mano da **Produzione economica → «Importa SAL»**
+  (`POST /api/admin/acea/sal`, `requireAdmin`). Serve al giro di controllo di fine mese, e
+  funziona anche quando quel PC è spento o il file arriva per email.
+
+⚠️ **L'export che ACEA pubblica è CUMULATIVO**: contiene tutti i SAL emessi dall'inizio della
+commessa, non il SAL del mese. Sommarne le righe dà il cumulato — è l'errore che
+`lib/produzione/importSal.ts` esiste per rendere impossibile. Quello che divide un SAL dall'altro
+dentro il file è la **Data registrazione** (il giro contabile SAP; la data di completamento varia
+riga per riga). Un lotto = una data di registrazione.
+
+Un SAL però può avere **più lotti**: ACEA chiude il grosso a fine mese e registra la coda nei
+giorni dopo. Perciò `proponiLotti()`:
+1. riconosce i lotti già in banca dati per **chiave naturale SAP** (`doc_acquisti|posizione`) e
+   riusa il loro numero — il SAL 1 dentro il file di agosto non deve diventare un SAL nuovo;
+2. numera i restanti per **mese di competenza** (mese prevalente delle date di completamento), così
+   la coda sta col suo SAL. Verificato sull'export reale del 04/08/2026: lotti 08/07 → SAL 1
+   (1545 righe, 46.191,14 €), 31/07 + 03/08 → SAL 2 (1454 righe, 45.305,18 €).
+
+Il numero resta **correggibile a mano** nell'anteprima: a decidere quanti SAL ci sono in un mese è
+il committente, non una regola nostra. La scrittura è **delete+insert per `sal_n`** (come il giro
+dell'agente: ACEA riemette il file corretto, e un upsert lascerebbe in vita le righe che la
+correzione voleva togliere) e tocca **solo i lotti selezionati**.
+
+### Confronto SAL ↔ produzione (tendina «SAL» della barra periodo)
+La tendina accanto a Mese/Trim./Anno porta il periodo sulla **finestra dei lavori** del SAL
+(`SalStorico.dal/al`, cioè min/max `data_completamento`) e passa `&sal=N` all'endpoint produzione:
+il payload si arricchisce di `confrontoSal` (`lib/produzione/confrontoSal.ts`, puro).
+
+⚠️ Il **totale** non torna quasi mai e non è un errore: ACEA consuntiva con settimane di ritardo,
+quindi la produzione del mese supera il SAL di quel mese. Quello che si guarda è la tabella **per
+voce** — agganciata sull'**attività canonica**, non sul testo SAP, altrimenti «Limitazione flusso
+idrico» e «Limitazione Erogazione» non si sommerebbero mai — e i quattro conteggi di ODL, che
+separano un problema di **tempi** (pagato, lavorato in un altro mese) da uno di **dati** (pagato e
+assente dal database). Segno: **Δ = produzione − SAL**; positivo = da farsi pagare, negativo =
+ACEA ha contabilizzato più di quanto risulta a noi.
+
 ### tools/limitazioni-sync (agente standalone `.mjs`)
 `comuneDaFile` usa `path.win32.basename/extname`: i master vivono su SharePoint con path Windows
 (`C:\...\LABICO.xlsx`) ma test/CI girano su POSIX; con `node:path` posix il path non verrebbe

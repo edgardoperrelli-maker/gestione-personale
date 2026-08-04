@@ -25,6 +25,7 @@ import {
   type Totale,
 } from './riconciliazione';
 import { odlPagatiDaSal, riepilogoUnSal, type SalRigaArricchita, type SalStorico } from './salUfficiale';
+import { confrontaSalProduzione, type ConfrontoSal, type SalRigaConfronto } from './confrontoSal';
 import { PREFISSO_COMMESSA } from './composizioneVoce';
 import {
   COMMESSE,
@@ -91,6 +92,12 @@ export interface ProduzioneEconomica {
   sal: ProduzioneSal;
   scarto: Totale;
   salStorico: SalStorico[];
+  /**
+   * Confronto fra un SAL scelto e la produzione del periodo. `null` quando nessun SAL è
+   * selezionato — è una verifica che si chiede, non un blocco sempre acceso: calcolarla
+   * d'ufficio vorrebbe dire scegliere noi quale SAL confrontare, e la scelta è il punto.
+   */
+  confrontoSal: ConfrontoSal | null;
   preSal: { n: number; totale: Totale };
   fuoriSal: Totale;
   personale: ProduzionePersonale;
@@ -235,6 +242,8 @@ export async function caricaProduzioneEconomica(
   from: string,
   to: string,
   vista: VistaCommittente = 'tutti',
+  /** Numero del SAL da mettere a confronto con la produzione del periodo; null = nessun confronto. */
+  salSelezionato: number | null = null,
 ): Promise<ProduzioneEconomica> {
   /*
     La fetta ACEA c'è in «ACEA» e in «Tutti», non in «AcquaLatina». Comanda tutto ciò che nasce
@@ -332,6 +341,16 @@ export async function caricaProduzioneEconomica(
   const dbAttivita = new Map<string, string>(); // odl → attività (per valorizzare il SAL)
   const dbInfo = new Map<string, { staffId: string; operatore: string; territorioId: string; territorio: string; data: string }>();
   const effByOdl = new Map<string, string>(); // odl → committente EFFETTIVO (per escludere il gas dal SAL)
+  /*
+    Le due popolazioni di ODL che servono al confronto col SAL, e che NON coincidono con `dbAudit`:
+    - `odlNotiDb`: ogni ODL che compare nei nostri interventi, anche riclassificato a italgas e
+      anche fuori vista. Distingue «ACEA ci ha pagato un ordine che non abbiamo mai visto» da
+      «ce l'abbiamo, ma non a positivo»: due problemi diversi, con due rimedi diversi.
+    - `odlPositiviAcea`: positivi ACEA in QUALSIASI data. Un ODL del SAL che è nostro e positivo
+      ma lavorato prima del periodo a schermo non è un buco: è solo fuori finestra.
+  */
+  const odlNotiDb = new Set<string>();
+  const odlPositiviAcea = new Set<string>();
   const righeEsito: RigaEsito[] = [];
   const produzioneRighe: RigaProduzione[] = [];
   for (const it of interventi) {
@@ -340,6 +359,7 @@ export async function caricaProduzioneEconomica(
     // attività pulita e voce. La riclassificazione (gas→italgas, massive→acea) vive qui, non nel DB.
     const canon = attivitaCanonica(it.committente, it.intervento_tipo, it.comune, alias, comuniMassive);
     if (odl && canon) effByOdl.set(odl, canon.committenteEff);
+    if (odl) odlNotiDb.add(odl);
     // Nella vista: committente effettivo tra le commesse chieste, e attività non scartata.
     if (!canon || !canon.attivo || !inVista(vista, canon.committenteEff)) continue;
     const commessa = commessaDi(canon.committenteEff) as Commessa; // garantito da inVista
@@ -358,6 +378,7 @@ export async function caricaProduzioneEconomica(
       della vista «Tutti», e le poche vere sepolte in mezzo.
     */
     if (odl && commessa === 'acea') {
+      if (esitoOk === true) odlPositiviAcea.add(odl);
       const prev = dbAudit.get(odl);
       if (!prev || (esitoOk === true && prev.esitoOk !== true)) {
         dbAudit.set(odl, { voce, esitoOk });
@@ -515,17 +536,47 @@ export async function caricaProduzioneEconomica(
     if (!salPerN.has(r.sal_n)) salPerN.set(r.sal_n, []);
     salPerN.get(r.sal_n)!.push(r);
   }
-  const salStorico: SalStorico[] = [...salPerN.entries()]
-    .sort((a, b) => a[0] - b[0])
-    .map(([, righeSalN]) => {
-      const arricchite: SalRigaArricchita[] = righeSalN.map((r) => {
+  /*
+    Le righe di ogni SAL arricchite UNA volta sola — valore a listino e attività canonica — e poi
+    riusate sia dallo storico sia dal confronto. L'attività canonica è quella che aggancia il
+    listino e, nel confronto, è la CHIAVE con cui una voce del SAL trova la voce omologa della
+    produzione: senza, «Limitazione flusso idrico» (testo SAP) e «Limitazione Erogazione» (nome
+    di listino) resterebbero due righe distinte che non si sommano mai.
+  */
+  const salArricchitoPerN = new Map<number, SalRigaConfronto[]>();
+  for (const [n, righeSalN] of salPerN) {
+    salArricchitoPerN.set(
+      n,
+      righeSalN.map((r) => {
         const canonSal = r.attivita ? attivitaCanonica('acea', r.attivita, null, alias, comuniMassive) : null;
         const attivitaKey = canonSal?.attivitaKey ?? '';
         const dataVal = r.data_completamento ?? r.data_registrazione ?? to;
-        return { ...r, valoreListino: attivitaKey ? valore('acea', attivitaKey, dataVal) : 0 };
-      });
-      return riepilogoUnSal(arricchite, odlConosciuti);
-    });
+        return {
+          ...r,
+          valoreListino: attivitaKey ? valore('acea', attivitaKey, dataVal) : 0,
+          attivitaKey,
+          attivitaLabel: canonSal?.attivitaPulita ?? (r.attivita ?? ''),
+        };
+      }),
+    );
+  }
+  const salStorico: SalStorico[] = [...salArricchitoPerN.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([, arricchite]) => riepilogoUnSal(arricchite as SalRigaArricchita[], odlConosciuti));
+
+  /*
+    Il confronto SAL ↔ produzione del periodo. Si calcola solo su richiesta (un SAL scelto dalla
+    tendina) e solo dove un SAL esiste: in vista AcquaLatina `salPerN` è vuota per costruzione.
+  */
+  const righeConfronto = salSelezionato != null ? salArricchitoPerN.get(salSelezionato) : undefined;
+  const confrontoSal: ConfrontoSal | null = righeConfronto
+    ? confrontaSalProduzione(salSelezionato as number, righeConfronto, righeAcea, {
+        positiviPeriodo: new Set(righeAcea.map((r) => r.odl.trim()).filter(Boolean)),
+        positiviTutti: odlPositiviAcea,
+        noti: odlNotiDb,
+        inQualcheSal: odlGiaPagati,
+      })
+    : null;
 
   // Pre-SAL COMPLETO: tutti gli ODL COMPLETATO sul portale non ancora entrati in un SAL pagato,
   // qualunque sia la causale (E% e non-E insieme — l'utente vuole un solo totale).
@@ -610,6 +661,7 @@ export async function caricaProduzioneEconomica(
     sal,
     scarto,
     salStorico,
+    confrontoSal,
     preSal,
     fuoriSal,
     personale,

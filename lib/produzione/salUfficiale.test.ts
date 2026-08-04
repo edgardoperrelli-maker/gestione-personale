@@ -57,6 +57,23 @@ describe('riepilogoUnSal', () => {
     expect(riepilogoUnSal([riga({ data_completamento: null })], new Set(['1'])).mese).toBe('');
   });
 
+  it('dal/al = finestra dei lavori (min/max completamento), per la tendina SAL', () => {
+    const out = riepilogoUnSal(
+      [riga({ data_completamento: '2026-06-30' }), riga({ odl: '2', data_completamento: '2026-06-03' })],
+      new Set(['1', '2']),
+    );
+    expect(out).toMatchObject({ dal: '2026-06-03', al: '2026-06-30' });
+  });
+
+  it('dal/al vuoti quando nessuna riga ha data: la tendina non sposta il periodo', () => {
+    expect(riepilogoUnSal([riga({ data_completamento: null })], new Set(['1']))).toMatchObject({ dal: '', al: '' });
+  });
+
+  it('righe conta le righe SAP, ordini resta il conteggio storico', () => {
+    const out = riepilogoUnSal([riga({ posizione: '10' }), riga({ posizione: '20' })], new Set(['1']));
+    expect(out).toMatchObject({ righe: 2, ordini: 2 });
+  });
+
   it('conta gli ODL sconosciuti (assenti dal set)', () => {
     const out = riepilogoUnSal([riga({ odl: 'x' })], new Set(['altro']));
     expect(out.odlSconosciuti).toBe(1);

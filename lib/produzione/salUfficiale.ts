@@ -57,6 +57,13 @@ export function preparaRigheSal(salN: number, grezze: SalRigaGrezza[]): SalRigaD
 export interface SalStorico {
   n: number;
   mese: string; // 'YYYY-MM', '' se nessuna data
+  /** Finestra di completamento lavori coperta dal SAL ('YYYY-MM-DD'); '' se nessuna riga ha data.
+   *  Serve alla tendina «SAL» della barra periodo: scegliere un SAL vuol dire portare il periodo
+   *  di pagina sulle date in cui quel lavoro è stato fatto. */
+  dal: string;
+  al: string;
+  /** Righe del SAL (chiave SAP documento+posizione): può superare gli ODL, che sono `ordini`. */
+  righe: number;
   ordini: number;
   valoreAps: number;
   valoreListino: number;
@@ -82,6 +89,15 @@ export function riepilogoUnSal(righe: SalRigaArricchita[], odlConosciuti: Set<st
   return {
     n,
     mese: mesi.length > 0 ? mesi[0].slice(0, 7) : '',
+    dal: mesi[0] ?? '',
+    al: mesi[mesi.length - 1] ?? '',
+    righe: righe.length,
+    /*
+      `ordini` conta le RIGHE, non gli ODL distinti, ed è storicamente così: la colonna a schermo
+      si chiama «ODL» e su questi file le due cose coincidono quasi sempre (nel SAL 1 reale: 1545
+      righe, 1543 ODL). Cambiarlo qui muoverebbe un numero che la pagina mostra da mesi; chi ha
+      bisogno del conto esatto delle righe ora ha `righe` accanto.
+    */
     ordini: righe.length,
     valoreAps,
     valoreListino,
