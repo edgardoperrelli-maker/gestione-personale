@@ -242,6 +242,27 @@ describe('sincronizzaRapportiniAcea', () => {
     expect(tables.rapportino_voci).toHaveLength(1);
   });
 
+  // Caso LIBERATORI 04/08: generazione mirata su un collega → lui restava senza riga operatore
+  // e senza piano_id, invisibile in pianifica. L'adozione ripara TUTTI gli operatori del giorno;
+  // la selezione decide solo per chi si genera.
+  it('generazione mirata: adotta anche gli operatori fuori selezione, senza generare per loro', async () => {
+    const { db, tables } = makeFakeDb(seed({
+      interventi: [intervento(), intervento({ id: 'i2', odl: '912999998', staff_id: 's2' })],
+    }));
+    const r = await sincronizzaRapportiniAcea(db, { data: DATA, attoreId: ATTORE, staffIds: ['s1'] });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    // Genera solo per s1…
+    expect(r.esiti.map((e) => e.staff_id)).toEqual(['s1']);
+    expect(tables.rapportini).toHaveLength(1);
+    expect(tables.rapportini[0].staff_id).toBe('s1');
+    // …ma adotta ENTRAMBI: riga operatore e piano_id anche per s2.
+    const staffRighe = (tables.mappa_piani_operatori ?? []).map((o) => o.staff_id).sort();
+    expect(staffRighe).toEqual(['s1', 's2']);
+    expect(tables.interventi.find((i) => i.id === 'i2')?.piano_id)
+      .toBe(String(tables.mappa_piani[0].id));
+  });
+
   it('il filtro per operatore lascia fuori gli altri', async () => {
     const { db, tables } = makeFakeDb(seed({
       interventi: [
