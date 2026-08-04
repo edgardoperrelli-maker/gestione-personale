@@ -1,10 +1,13 @@
 ﻿'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { geocodeTask } from '@/utils/routing';
 import { formatStaffStartAddress, formatStaffHomeAddress, isStaffValidOnDay } from '@/lib/staff';
+import { normalizeUsername, toEmail } from '@/lib/auth/usernameFromEmail';
 import NewOperatorModal from './NewOperatorModal';
 import StoricoTrasferte from './StoricoTrasferte';
+import Button from '@/components/Button';
+import Dialog from '@/components/ui/Dialog';
 import CostCenterRangesEditor from '@/components/impostazioni/CostCenterRangesEditor';
 import { COST_CENTERS } from '@/constants/cost-centers';
 import type { CostCenterRange } from '@/lib/costCenter';
@@ -18,8 +21,25 @@ type Props = {
 
 type Feedback = { type: 'success' | 'error'; text: string } | null;
 
+/** Dialog credenziali app: creazione, reset password o scollegamento. */
+type CredDialogState = { tipo: 'crea' | 'reset' | 'scollega'; staff: Staff } | null;
+
 function todayIso() {
   return new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Rome' });
+}
+
+/**
+ * Username proposto dal nome visualizzato: `normalizeUsername` da solo terrebbe
+ * spazi e accenti, che rendono invalida l'email finta `u_<username>@local.it`.
+ */
+function proponiUsername(displayName: string): string {
+  return normalizeUsername(
+    displayName
+      .normalize('NFD')
+      .replace(/[^a-zA-Z0-9\s.]/g, '')
+      .trim()
+      .replace(/\s+/g, '.'),
+  );
 }
 
 function validityLabel(staff: Staff, today: string) {
@@ -38,7 +58,42 @@ export default function PersonaleClient({ initialStaff, territories, initialRang
   const [showNewModal, setShowNewModal] = useState(false);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
+  // Credenziali app: mappa staff_id → username (lo userId del GET non serve alla UI).
+  const [credenziali, setCredenziali] = useState<Record<string, string>>({});
+  const [credStato, setCredStato] = useState<'caricamento' | 'pronte' | 'errore'>('caricamento');
+  const [credDialog, setCredDialog] = useState<CredDialogState>(null);
+  const [credUsername, setCredUsername] = useState('');
+  const [credBusy, setCredBusy] = useState(false);
+  const [credError, setCredError] = useState<string | null>(null);
+  // Password temporanea: visibile UNA volta, finché la dialog resta aperta.
+  const [tempPassword, setTempPassword] = useState<{ username: string; password: string } | null>(null);
+  const [copied, setCopied] = useState(false);
+
   const today = useMemo(() => todayIso(), []);
+
+  useEffect(() => {
+    let attivo = true;
+    (async () => {
+      try {
+        const res = await fetch('/api/admin/personale/credenziali');
+        const json = await res.json() as {
+          credenziali?: Record<string, { username: string; userId: string }>;
+          error?: string;
+        };
+        if (!res.ok) throw new Error(json.error ?? 'Errore caricamento credenziali app.');
+        if (!attivo) return;
+        const mappa: Record<string, string> = {};
+        for (const [staffId, cred] of Object.entries(json.credenziali ?? {})) {
+          mappa[staffId] = cred.username;
+        }
+        setCredenziali(mappa);
+        setCredStato('pronte');
+      } catch {
+        if (attivo) setCredStato('errore');
+      }
+    })();
+    return () => { attivo = false; };
+  }, []);
 
   const filteredRows = useMemo(() => {
     const term = query.trim().toLowerCase();
@@ -76,6 +131,89 @@ export default function PersonaleClient({ initialStaff, territories, initialRang
     );
     setRangesByStaff((prev) => ({ ...prev, [newStaff.id]: ranges }));
     setShowNewModal(false);
+  };
+
+  const apriCredDialog = (tipo: 'crea' | 'reset' | 'scollega', staff: Staff) => {
+    setCredError(null);
+    setTempPassword(null);
+    setCopied(false);
+    if (tipo === 'crea') setCredUsername(proponiUsername(staff.display_name));
+    setCredDialog({ tipo, staff });
+  };
+
+  const chiudiCredDialog = () => {
+    if (credBusy) return;
+    setCredDialog(null);
+    setCredError(null);
+    setTempPassword(null);
+    setCopied(false);
+    setCredUsername('');
+  };
+
+  const confermaCredDialog = async () => {
+    if (!credDialog || credBusy) return;
+    const { tipo, staff } = credDialog;
+    setCredBusy(true);
+    setCredError(null);
+    try {
+      if (tipo === 'crea') {
+        const username = normalizeUsername(credUsername);
+        if (!username) throw new Error('Inserisci uno username.');
+        const res = await fetch('/api/admin/personale/credenziali', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ staffId: staff.id, username }),
+        });
+        const json = await res.json() as { error?: string; username?: string; tempPassword?: string };
+        const nuovoUsername = json.username;
+        const nuovaPassword = json.tempPassword;
+        if (!res.ok || !nuovoUsername || !nuovaPassword) {
+          throw new Error(json.error ?? 'Errore creazione utenza.');
+        }
+        setCredenziali((prev) => ({ ...prev, [staff.id]: nuovoUsername }));
+        setTempPassword({ username: nuovoUsername, password: nuovaPassword });
+      } else if (tipo === 'reset') {
+        const res = await fetch('/api/admin/personale/credenziali', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ staffId: staff.id, azione: 'reset' }),
+        });
+        const json = await res.json() as { error?: string; tempPassword?: string };
+        const nuovaPassword = json.tempPassword;
+        if (!res.ok || !nuovaPassword) throw new Error(json.error ?? 'Errore reset password.');
+        setTempPassword({ username: credenziali[staff.id] ?? '', password: nuovaPassword });
+      } else {
+        const res = await fetch('/api/admin/personale/credenziali', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ staffId: staff.id }),
+        });
+        const json = await res.json() as { error?: string };
+        if (!res.ok) throw new Error(json.error ?? 'Errore scollegamento utenza.');
+        setCredenziali((prev) => {
+          const next = { ...prev };
+          delete next[staff.id];
+          return next;
+        });
+        setCredDialog(null);
+        showFeedback('success', `Utenza scollegata da ${staff.display_name}.`);
+      }
+    } catch (err) {
+      setCredError(err instanceof Error ? err.message : 'Errore imprevisto.');
+    } finally {
+      setCredBusy(false);
+    }
+  };
+
+  const copiaTempPassword = async () => {
+    if (!tempPassword) return;
+    try {
+      await navigator.clipboard.writeText(tempPassword.password);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCredError('Copia non riuscita: seleziona la password e copiala a mano.');
+    }
   };
 
   const toggleExpand = (id: string) => {
@@ -290,6 +428,11 @@ export default function PersonaleClient({ initialStaff, territories, initialRang
                       {hasHomeCoords ? '🏠 Casa OK' : '🏠 Casa senza coords'}
                     </span>
                   )}
+                  {credenziali[row.id] && (
+                    <span className="rounded-full border border-[var(--brand-border)] bg-[var(--brand-primary-soft)] px-2 py-0.5 text-xs text-[var(--brand-primary)]">
+                      📱 App
+                    </span>
+                  )}
                 </div>
                 <span className="text-[var(--brand-text-muted)] text-sm">
                   {isExpanded ? '▲' : '▼'}
@@ -451,6 +594,44 @@ export default function PersonaleClient({ initialStaff, territories, initialRang
                     />
                   </div>
 
+                  {/* Credenziali app: accesso dell'operatore all'app (utenza minima) */}
+                  <div className="mt-4">
+                    <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
+                      Credenziali app
+                    </label>
+                    {credStato === 'caricamento' ? (
+                      <p className="text-sm text-[var(--brand-text-muted)]">Caricamento…</p>
+                    ) : credStato === 'errore' ? (
+                      <p className="text-sm text-[var(--danger)]">
+                        Credenziali non disponibili: ricarica la pagina.
+                      </p>
+                    ) : credenziali[row.id] ? (
+                      <div className="flex flex-wrap items-center gap-3">
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-[var(--brand-text-main)]">
+                            {credenziali[row.id]}
+                          </div>
+                          <div className="text-[11px] text-[var(--brand-text-muted)]">
+                            Accesso: {toEmail(credenziali[row.id])}
+                          </div>
+                        </div>
+                        <Button size="sm" onClick={() => apriCredDialog('reset', row)}>
+                          Reset password
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => apriCredDialog('scollega', row)}>
+                          Scollega
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap items-center gap-3">
+                        <span className="text-sm text-[var(--brand-text-muted)]">Nessuna utenza app</span>
+                        <Button variant="primary" size="sm" onClick={() => apriCredDialog('crea', row)}>
+                          Crea utenza
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+
                   <StoricoTrasferte staffId={row.id} />
 
                   <div className="mt-3 space-y-0.5 text-xs text-[var(--brand-text-muted)]">
@@ -489,6 +670,106 @@ export default function PersonaleClient({ initialStaff, territories, initialRang
           territories={territories}
         />
       )}
+
+      {/* ── Dialog credenziali app (crea / reset / scollega) ─────────── */}
+      <Dialog
+        open={credDialog !== null}
+        onClose={chiudiCredDialog}
+        busy={credBusy}
+        title={
+          credDialog?.tipo === 'crea'
+            ? 'Crea utenza app'
+            : credDialog?.tipo === 'reset'
+              ? 'Reset password'
+              : 'Scollega utenza'
+        }
+        footer={
+          tempPassword ? (
+            <Button variant="primary" size="sm" onClick={chiudiCredDialog}>
+              Fatto
+            </Button>
+          ) : (
+            <>
+              <Button variant="ghost" size="sm" disabled={credBusy} onClick={chiudiCredDialog}>
+                Annulla
+              </Button>
+              <Button
+                variant={credDialog?.tipo === 'scollega' ? 'danger' : 'primary'}
+                size="sm"
+                loading={credBusy}
+                disabled={credDialog?.tipo === 'crea' && !normalizeUsername(credUsername)}
+                onClick={() => void confermaCredDialog()}
+              >
+                {credDialog?.tipo === 'crea'
+                  ? 'Crea utenza'
+                  : credDialog?.tipo === 'reset'
+                    ? 'Reset password'
+                    : 'Scollega'}
+              </Button>
+            </>
+          )
+        }
+      >
+        {credDialog && (
+          <div className="flex flex-col gap-3">
+            {tempPassword ? (
+              <div className="rounded-xl border border-[var(--warning)] bg-[var(--warning-soft)] p-4">
+                <p className="text-sm text-[var(--brand-text-main)]">
+                  Password temporanea per <strong>{tempPassword.username}</strong>:
+                </p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <code className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-1.5 text-base font-semibold tracking-wide text-[var(--brand-text-main)]">
+                    {tempPassword.password}
+                  </code>
+                  <Button size="sm" onClick={() => void copiaTempPassword()}>
+                    {copied ? 'Copiata ✓' : 'Copia'}
+                  </Button>
+                </div>
+                <p className="mt-2 text-xs text-[var(--brand-text-muted)]">
+                  Conservala ora: non sarà più visibile. L&apos;operatore la cambia al primo accesso.
+                </p>
+              </div>
+            ) : credDialog.tipo === 'crea' ? (
+              <>
+                <div>
+                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
+                    Username
+                  </label>
+                  <input
+                    value={credUsername}
+                    onChange={(e) => setCredUsername(e.target.value)}
+                    placeholder="nome.cognome"
+                    autoFocus
+                    className="w-full rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm"
+                  />
+                </div>
+                <p className="text-sm text-[var(--brand-text-muted)]">
+                  La password viene generata automaticamente e mostrata dopo la conferma.
+                </p>
+              </>
+            ) : credDialog.tipo === 'reset' ? (
+              <p className="text-sm text-[var(--brand-text-main)]">
+                Generare una nuova password per{' '}
+                <strong>{credenziali[credDialog.staff.id] ?? credDialog.staff.display_name}</strong>?
+                Quella attuale smette subito di funzionare.
+              </p>
+            ) : (
+              <p className="text-sm text-[var(--brand-text-main)]">
+                Scollegare l&apos;utenza{' '}
+                <strong>{credenziali[credDialog.staff.id] ?? ''}</strong> da{' '}
+                {credDialog.staff.display_name}? L&apos;operatore non potrà più usare l&apos;app
+                finché non viene ricollegato.
+              </p>
+            )}
+
+            {credError && (
+              <p className="rounded-lg border border-[var(--danger)] bg-[var(--danger-soft)] px-3 py-2 text-sm text-[var(--danger)]">
+                {credError}
+              </p>
+            )}
+          </div>
+        )}
+      </Dialog>
     </div>
   );
 }

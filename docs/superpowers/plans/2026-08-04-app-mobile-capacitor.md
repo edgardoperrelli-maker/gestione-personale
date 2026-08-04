@@ -63,9 +63,10 @@ Domani:
    password, poi sblocco biometrico/PIN). Le utenze Supabase esistono già per gli
    admin (email fittizie `@local.it`); si estendono agli operatori collegandole a
    `staff`.
-2. **Home operatore "Il mio giorno"**: l'app risolve internamente il rapportino/giro
-   assegnato del giorno (query per `staff_id` + data, stessa fonte dei token) e porta
-   l'operatore dritto al suo lavoro. Il token sparisce dalla sua esperienza.
+2. **Home operatore "Il mio giorno"** (deciso 2026-08-04): schermata riepilogo —
+   conteggi del giro, note ufficio, ODL TOP, stato coda offline — e da lì si entra
+   nel rapportino. L'app risolve internamente il giro assegnato del giorno (query per
+   `staff_id` + data, stessa fonte dei token). Il token sparisce dalla sua esperienza.
 3. `/r/[token]` **resta attivo** durante la transizione (fallback per emergenze,
    dispositivi non ancora migrati, interinali).
 
@@ -73,12 +74,15 @@ Domani:
 
 ## 3. Fasi operative
 
-### Fase 1 — Rifiniture mobile web (container cloud, iterazione visiva)
-- Audit viewport per i moduli operatore (`/r`, `/agenda`, `/pi`) e per i moduli
-  ufficio usati su tablet: safe-area (notch), target touch ≥44px, tastiere
-  (`inputmode`), overscroll, `100dvh`.
-- Loop di lavoro: modifica → screenshot Chromium a 390×844 (telefono) e 834×1194
-  (tablet) → confronto. Già provato e funzionante nel container.
+### Fase 1 — Rifiniture mobile web (iterazione visiva)
+- ⚠️ Corretto il 2026-08-04: **i tablet sono degli operatori** (99% uso da campo),
+  non dell'ufficio. L'audit viewport riguarda le VISTE OPERATORE su 4 viewport:
+  390×844 (iPhone), 412×915 (Android), 834×1194 (iPad), 800×1280 (tablet Android).
+  **Formato pagina unico e responsive** — stessa pagina che scala, niente layout
+  dedicati per piattaforma.
+- Safe-area (notch), target touch ≥44px, tastiere (`inputmode`), overscroll, `100dvh`.
+- Harness locale: `public/device-wall.html` (NON committare / non deployare — solo
+  dev locale): 4 iframe stessa origine ai viewport reali, zoom e navigazione sincrona.
 
 ### Fase 2 — Scaffold Capacitor (container cloud, committabile)
 - `@capacitor/core` + `@capacitor/cli` + progetti `ios/` e `android/` nel repo.
@@ -89,13 +93,17 @@ Domani:
   prompt "installa PWA" dentro l'app).
 - ⚠️ Richiede l'ok all'installazione di librerie (regola AGENTS.md §11.3).
 
-### Fase 3 — Login operatore e home "Il mio giorno" (container cloud)
-- Utenze operatore in Supabase (script di provisioning da `staff`, ruolo `operatore`,
-  `allowedModules` minimi).
-- Persistenza sessione lunga (refresh token in storage nativo sicuro) + sblocco
-  biometrico opzionale.
-- Route nuova (es. `/hub/oggi` o modulo `operatore`): risoluzione del giro del giorno
-  per l'utente loggato, riuso dei componenti di `/r/[token]`.
+### Fase 3 — Login operatore e home "Il mio giorno"
+- Utenze operatore in Supabase (provisioning da `staff`, ruolo `operatore`,
+  `allowedModules` minimi). Login: username+password consegnate dall'ufficio,
+  poi sblocco biometrico/PIN del dispositivo; sessione lunga in storage sicuro.
+- **Gestione credenziali dentro `/impostazioni/personale`** (anagrafica operatori
+  già esistente): crea utenza + reset password, visibile al ruolo `admin`
+  (= tutto il backoffice). ⚠️ NON in `/impostazioni/utenze`, che resta admin_plus.
+  Reset = password temporanea mostrata una volta + cambio obbligatorio al primo accesso.
+- Route `/hub/oggi` (home «Il mio giorno» a riepilogo): redirect automatico
+  post-login per ruolo `operatore`; da lì si entra nel rapportino (riuso
+  componenti di `/r/[token]`).
 - I token restano come canale parallelo finché la flotta non è migrata.
 
 ### Fase 4 — Nativizzazione delle funzioni da campo (container + device reali)
@@ -105,7 +113,10 @@ Domani:
 - **Fotocamera**: plugin Camera nativo (qualità/compressione controllate, meno crash
   del file input in WebView); l'outbox offline esistente resta identico.
 - **GPS**: Geolocation nativa per mappa/live (permessi dichiarati nei manifest).
-- **Push** (nuova capacità): notifica a giro assegnato / ODL TOP — FCM + APNs.
+- **Push in v1** (deciso 2026-08-04): FCM + APNs con catalogo eventi estensibile —
+  al minimo: nuovo giro assegnato, nuovo intervento assegnato, intervento rimosso.
+  Nuovo sottomodulo **Impostazioni → Notifiche operatori** con toggle GLOBALI per
+  tipo evento (ON/OFF per tutta la flotta; per-operatore eventualmente dopo).
 - **Keep-awake** durante compilazione rapportino; **App Badge** per da-sincronizzare.
 
 ### Fase 5 — CI/CD build native (GitHub Actions)
@@ -171,18 +182,25 @@ creare in Supabase con ruolo `operatore` su dati non sensibili) — da decidere 
 
 ---
 
-## 7. Decisioni aperte (per Edgardo)
+## 7. Decisioni prese (grilling con Edgardo, 2026-08-04)
 
-1. **Modello di login operatore**: username+password aziendali? PIN? Chi li assegna
-   (ufficio da `/impostazioni/utenze`)?
-2. **Perimetro moduli su telefono operatore**: solo "Il mio giorno" + rapportino +
-   scanner + foto? Agenda? Altro?
-3. **Tablet ufficio**: quali moduli servono davvero in mobilità (mappa, dashboard,
-   misuratori)?
-4. **Nome app e icona store** (oggi "Gestione Personale — Plenzich").
-5. **Canale iOS**: Custom Apps (ABM) o Unlisted? (Custom Apps consigliata se avete
-   Apple Business Manager.)
-6. **Push**: quali eventi notificano (assegnazione giro, ODL TOP, annunci)?
+1. **Perimetro**: app UNICA per tutti — l'operatore vede il suo giorno, l'ufficio
+   (se la usa) vede l'hub secondo i permessi-moduli per-utente già esistenti.
+2. **Login operatore**: username+password assegnate dall'ufficio, poi biometria/PIN.
+   Gestione credenziali (crea + reset) in `/impostazioni/personale`, visibile a
+   tutto il backoffice (ruolo `admin`), NON solo admin_plus.
+3. **Home operatore**: «Il mio giorno» a RIEPILOGO (conteggi, note ufficio, ODL TOP,
+   stato sync) → da lì si entra nel rapportino. Route `/hub/oggi`.
+4. **Perimetro moduli campo v1**: MINIMO — home + rapportino + scanner + foto.
+   Niente agenda/appuntamenti in v1 (si aggiungono via permessi, senza store).
+5. **Tablet = operatori** (99% uso da campo): formato pagina unico e responsive che
+   scala telefono→tablet; nessuna rifinitura moduli ufficio in Fase 1.
+6. **Nome app**: **Gestilab Plenzich** — appId `it.plenzich.gestilab`.
+7. **Canale iOS**: TestFlight per il PILOTA; canale definitivo (Unlisted o ABM
+   Custom Apps) deciso a pilota concluso. Android: Play internal/privata.
+8. **Push in v1**: sì, catalogo eventi completo ed estensibile (giro assegnato,
+   intervento assegnato, intervento rimosso, …) + sottomodulo Impostazioni →
+   Notifiche operatori con toggle globali per tipo evento.
 
 ---
 

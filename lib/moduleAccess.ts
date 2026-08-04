@@ -11,6 +11,7 @@ export type AssignableRole = ValidRole | 'admin_plus';
 export type AppModuleGroup = 'pianificazione' | 'operativita' | 'analisi' | 'sistema';
 
 export type AppModuleKey =
+  | 'oggi'
   | 'dashboard'
   | 'hotel-calendar'
   | 'mappa'
@@ -54,6 +55,23 @@ export const ASSIGNABLE_ROLE_LABELS: Record<AssignableRole, string> = {
 };
 
 export const APP_MODULES: AppModuleDefinition[] = [
+  {
+    /*
+      Home dell'operatore («Il mio giorno», /hub/oggi): il perimetro minimo delle
+      utenze create da /impostazioni/personale — al primo accesso l'operatore ha
+      SOLO questo modulo. Non-adminOnly: concedibile a chiunque dal toggle Utenze
+      e incluso nel fallback legacy (DEFAULT_ALLOWED_MODULES). Primo nell'array
+      perche' l'ordine e' quello di sidebar e hub, e per chi lavora sul campo la
+      propria giornata viene prima dei moduli di pianificazione.
+    */
+    key: 'oggi',
+    href: '/hub/oggi',
+    label: 'Il mio giorno',
+    description: 'Il lavoro assegnato oggi e il rapportino',
+    section: 'modules',
+    group: 'operativita',
+    matchPrefixes: ['/hub/oggi'],
+  },
   {
     key: 'dashboard',
     href: '/dashboard',

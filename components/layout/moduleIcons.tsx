@@ -15,6 +15,7 @@ import {
   Package,
   Settings,
   Siren,
+  Sun,
   Table,
   Waves,
   Wrench,
@@ -39,6 +40,9 @@ import type { AppModuleKey } from '@/lib/moduleAccess';
 const ICON_PROPS = { className: 'h-5 w-5', strokeWidth: 1.6 } as const;
 
 export const MODULE_ICONS: Record<AppModuleKey, ReactNode> = {
+  // «Il mio giorno»: il sole è la giornata di lavoro. Non `House` (già la home
+  // della sidebar) né un calendario (Appuntamenti/Consuntivazione li presidiano).
+  oggi: <Sun {...ICON_PROPS} />,
   dashboard: <ChartGantt {...ICON_PROPS} />,
   'hotel-calendar': <BedDouble {...ICON_PROPS} />,
   mappa: <MapPinned {...ICON_PROPS} />,

@@ -15,26 +15,8 @@ import {
   type AppModuleKey,
   type AssignableRole,
 } from '@/lib/moduleAccess';
-
-const LOCAL_DOMAIN = '@local.it';
-const LEGACY_LOCAL_DOMAIN = '@local';
-
-function normalizeUsername(value: string): string {
-  const t = value.trim().toLowerCase();
-  const withoutDomain =
-    t.endsWith(LOCAL_DOMAIN) ? t.slice(0, -LOCAL_DOMAIN.length) :
-    t.endsWith(LEGACY_LOCAL_DOMAIN) ? t.slice(0, -LEGACY_LOCAL_DOMAIN.length) :
-    t;
-  return withoutDomain.startsWith('u_') ? withoutDomain.slice(2) : withoutDomain;
-}
-
-function toEmail(username: string): string {
-  return `u_${normalizeUsername(username)}${LOCAL_DOMAIN}`;
-}
-
-function toUsername(email: string): string {
-  return normalizeUsername(email);
-}
+// Schema `u_<username>@local.it` a sorgente unica (condiviso con le credenziali del personale).
+import { normalizeUsername, toEmail, usernameFromEmail } from '@/lib/auth/usernameFromEmail';
 
 /** Solo gli Admin Plus possono operare sulla sezione Utenze. */
 async function requireAdminPlus(): Promise<{ userId: string } | NextResponse> {
@@ -85,7 +67,7 @@ export async function GET() {
     return {
       userId: u.id,
       email: u.email ?? '',
-      username: profile?.username ?? toUsername(u.email ?? ''),
+      username: profile?.username ?? usernameFromEmail(u.email),
       role,
       roleLabel: ASSIGNABLE_ROLE_LABELS[role],
       allowedModules: getAllowedModulesForUser(u.app_metadata, role),
