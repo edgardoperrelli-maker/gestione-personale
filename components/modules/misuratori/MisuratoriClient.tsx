@@ -58,20 +58,15 @@ export type RegistroProps = {
   /** Colonna PDR: un misuratore d'acqua non ha un punto di riconsegna gas. */
   mostraPdr?: boolean;
   /**
-   * Pallet di riferimento — di ENTRAMBE le commesse dal 2026-08-03, non più solo AcquaLatina:
-   * il ciclo fisico è identico e il pallet era semplicemente arrivato prima di là.
-   * A CESTA PIENA si selezionano i misuratori che ci sono finiti dentro e si assegna loro il
-   * numero, in blocco; la stessa cella si può anche scrivere una riga alla volta. Porta con sé
-   * la colonna in tabella, il filtro e la colonna nel PDF (la distinta del pallet).
-   */
-  mostraPallet?: boolean;
-  /**
-   * Cesta di magazzino (solo AcquaLatina): il gradino PRIMA del pallet. La dichiara l'operatore
-   * all'invio del rapportino, scaricando i contatori — ma l'ufficio la scrive anche in cella, e
-   * lì scriverla o toglierla muove anche lo stato (invariante cesta↔stato, vedi AGENTS.md): non
-   * è più il campo che l'ufficio si limita a correggere senza conseguenze.
-   * Porta con sé la colonna in tabella, il filtro («cosa c'è nella cesta 3?», che è la domanda
-   * da cui parte l'impallettamento) e la colonna nel PDF.
+   * Cesta di magazzino — di ENTRAMBE le commesse: è il contenitore numerato con cui la
+   * riconsegna al committente viaggia. Su ACEA la scrive l'ufficio (era la colonna «pallet»,
+   * rinominata il 2026-08-04 quando i due nomi si sono rivelati la stessa cosa) ed è un
+   * riferimento e basta. Su AcquaLatina la dichiara l'OPERATORE all'invio del rapportino, e vale
+   * l'**invariante cesta↔stato** (vedi AGENTS.md): anche quando la scrive l'ufficio — in cella o
+   * in blocco — scriverla o toglierla muove lo stato. Non è il campo che si corregge senza
+   * conseguenze, ed è per questo che il registro racconta a parole quello che il server decide.
+   * Porta con sé la colonna in tabella, il filtro («cosa c'è nella cesta 3?»), l'assegnazione
+   * in blocco dalla barra della selezione e la colonna nel PDF (la distinta della cesta).
    */
   mostraCesta?: boolean;
   /** Titolo del PDF esportato. Assente = quello storico del registro ACEA. */
@@ -93,7 +88,6 @@ export default function MisuratoriClient({
   sottotitolo = 'Riconsegna dei misuratori rimossi, dal deposito al committente',
   mostraRicalcola = true,
   mostraPdr = true,
-  mostraPallet = false,
   mostraCesta = false,
   titoloPdf,
   breadcrumb,
@@ -104,14 +98,12 @@ export default function MisuratoriClient({
   const [loading, setLoading]         = useState(false);
   const [syncing, setSyncing]         = useState(false);
   const [error, setError]             = useState<string | null>(null);
-  /** Filtro rapido per pallet, client-side come quello di stato. '' = tutti. */
-  const [palletFiltro, setPalletFiltro] = useState('');
-  /** Filtro rapido per cesta: «cosa c'è nella cesta 3?» è la domanda da cui parte il pallet. */
+  /** Filtro rapido per cesta, client-side come quello di stato. '' = tutte. */
   const [cestaFiltro, setCestaFiltro] = useState('');
-  /** I misuratori spuntati: la cesta che si sta impallettando. */
+  /** I misuratori spuntati: quelli a cui si sta scrivendo la stessa cesta. */
   const [selezione, setSelezione]     = useState<Set<string>>(new Set());
-  /** Numero di pallet da assegnare alla selezione. */
-  const [palletInput, setPalletInput] = useState('');
+  /** Numero di cesta da assegnare alla selezione. */
+  const [cestaInput, setCestaInput]   = useState('');
   const [assegnando, setAssegnando]   = useState(false);
 
   // Esecutori e comuni univoci per le select dinamiche
@@ -125,18 +117,14 @@ export default function MisuratoriClient({
     return { total: rows.length, byStato };
   }, [rows]);
 
-  // Righe visibili: filtro rapido di stato + cesta + pallet, tutti client-side. I due
-  // riferimenti si compongono (cesta 3 E senza pallet = «cosa della cesta 3 è da impallettare»).
+  // Righe visibili: filtro rapido di stato + cesta, entrambi client-side.
   const visibleRows = useMemo(() => {
     const perStato = statoFiltro ? rows.filter(r => r.stato === statoFiltro) : rows;
-    const perCesta = mostraCesta ? filtraPerRiferimento(perStato, cestaFiltro, 'cesta') : perStato;
-    return mostraPallet ? filtraPerRiferimento(perCesta, palletFiltro, 'pallet') : perCesta;
-  }, [rows, statoFiltro, mostraCesta, cestaFiltro, mostraPallet, palletFiltro]);
+    return mostraCesta ? filtraPerRiferimento(perStato, cestaFiltro) : perStato;
+  }, [rows, statoFiltro, mostraCesta, cestaFiltro]);
 
-  /** I pallet già assegnati, per la tendina del filtro. */
-  const pallets = useMemo(() => (mostraPallet ? valoriRiferimento(rows, 'pallet') : []), [mostraPallet, rows]);
-  /** Le ceste già dichiarate dagli operatori. */
-  const ceste = useMemo(() => (mostraCesta ? valoriRiferimento(rows, 'cesta') : []), [mostraCesta, rows]);
+  /** Le ceste già in uso, per la tendina del filtro. */
+  const ceste = useMemo(() => (mostraCesta ? valoriRiferimento(rows) : []), [mostraCesta, rows]);
 
   /*
     Una fetch alla volta: quella nuova ANNULLA la precedente.
@@ -186,9 +174,9 @@ export default function MisuratoriClient({
   const areaTabella = useRef<HTMLDivElement>(null);
 
   const handlePatch = useCallback(
-    // `pallet` incluso: si scrive anche una cella alla volta, non solo in blocco dalla barra.
-    // `cesta`: la scrive l'operatore allo scarico, qui la si CORREGGE (rapportino ormai chiuso).
-    async (id: string, patch: { stato?: StatoMisuratore; note?: string; pallet?: string; cesta?: string }) => {
+    // `cesta` inclusa: si scrive anche una cella alla volta, non solo in blocco dalla barra.
+    // Su AcquaLatina la scrive l'operatore allo scarico e qui la si CORREGGE (rapportino chiuso).
+    async (id: string, patch: { stato?: StatoMisuratore; note?: string; cesta?: string }) => {
       setSalvando(prev => new Set(prev).add(id));
       // La cesta di PRIMA: serve a non annunciare una rimozione su una riga che non ne aveva
       // una. È il motivo per cui `rows` sta nelle dipendenze qui sotto.
@@ -287,33 +275,34 @@ export default function MisuratoriClient({
   }, [apiBase, fetchData, filters]);
 
   /**
-   * Assegna (o toglie, con valore nullo) il pallet ai misuratori spuntati: il gesto «cesta
-   * piena». Ottimistico come il resto del registro; la selezione si svuota a scrittura riuscita
-   * — la cesta è andata sul pallet, la prossima riparte vuota.
+   * Assegna (o toglie, con valore nullo) la cesta ai misuratori spuntati. Ottimistico come il
+   * resto del registro; la selezione si svuota a scrittura riuscita — quella cesta è a posto,
+   * la prossima riparte vuota.
    */
-  const handleAssegnaPallet = useCallback(async (valore: string | null) => {
+  const handleAssegnaCesta = useCallback(async (valore: string | null) => {
     // Il guard di rientro: Invio nell'input non passava da `disabled`, e due Invii rapidi
-    // erano due POST in blocco sulla stessa cesta.
+    // erano due POST in blocco sulla stessa selezione.
     if (assegnando) return;
     const ids = [...selezione];
     if (ids.length === 0) return;
-    const pallet = valore?.trim() || null;
+    const cesta = valore?.trim() || null;
 
     /*
-      Sovrascrivere un pallet GIÀ DIVERSO si dichiara, non si fa in silenzio: la spunta di
-      testa prende anche le righe già impallettate, e una cesta scritta sopra un'altra è il
+      Sovrascrivere una cesta GIÀ DIVERSA si dichiara, non si fa in silenzio: la spunta di
+      testa prende anche le righe che una cesta ce l'hanno — e su AcquaLatina quel numero l'ha
+      dichiarato l'OPERATORE avendo i contatori in mano. Un numero scritto sopra un altro è il
       tipo di errore che in deposito si scopre solo contando i contatori.
     */
-    if (pallet !== null) {
+    if (cesta !== null) {
       const sovrascritti = rows.filter(
-        (r) => selezione.has(r.id) && r.pallet?.trim() && r.pallet.trim() !== pallet,
+        (r) => selezione.has(r.id) && r.cesta?.trim() && r.cesta.trim() !== cesta,
       );
       if (sovrascritti.length > 0) {
         const ok = await chiediConferma({
           title: sovrascritti.length === 1
-            ? '1 misuratore selezionato è già su un altro pallet'
-            : `${sovrascritti.length} misuratori selezionati sono già su un altro pallet`,
-          message: `Il numero verrà sovrascritto con «${pallet}».`,
+            ? '1 misuratore selezionato è già in un\'altra cesta'
+            : `${sovrascritti.length} misuratori selezionati sono già in un'altra cesta`,
+          message: `Il numero verrà sovrascritto con «${cesta}».`,
           confirmLabel: 'Sovrascrivi',
         });
         if (!ok) return;
@@ -324,36 +313,36 @@ export default function MisuratoriClient({
     /*
       Rollback PER RIGA, non per fotografia: `setRows(prima)` ripristinava l'intera tabella,
       e con lei si portava via anche i cambi di stato fatti su ALTRE righe mentre la POST era
-      in volo. Si ricordano i soli pallet toccati e si rimettono solo quelli.
+      in volo. Si ricordano le sole ceste toccate e si rimettono solo quelle.
     */
-    const palletPrima = new Map(rows.filter((r) => selezione.has(r.id)).map((r) => [r.id, r.pallet]));
+    const cestaPrima = new Map(rows.filter((r) => selezione.has(r.id)).map((r) => [r.id, r.cesta]));
     const ripristina = () => setRows(prev => prev.map(
-      (r) => (palletPrima.has(r.id) ? { ...r, pallet: palletPrima.get(r.id) ?? null } : r),
+      (r) => (cestaPrima.has(r.id) ? { ...r, cesta: cestaPrima.get(r.id) ?? null } : r),
     ));
-    setRows(prev => prev.map(r => (selezione.has(r.id) ? { ...r, pallet } : r)));
+    setRows(prev => prev.map(r => (selezione.has(r.id) ? { ...r, cesta } : r)));
     try {
-      const res = await fetch(`${apiBase}/pallet`, {
+      const res = await fetch(`${apiBase}/cesta`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids, pallet }),
+        body: JSON.stringify({ ids, cesta }),
       });
       const json = await res.json().catch(() => ({})) as { aggiornati?: number; error?: string };
       if (!res.ok) {
         ripristina();
-        toast.error(json.error ?? 'Assegnazione pallet non riuscita.');
+        toast.error(json.error ?? 'Assegnazione cesta non riuscita.');
         return;
       }
       const n = json.aggiornati ?? ids.length;
-      toast.success(pallet
-        ? `${n} ${n === 1 ? 'misuratore' : 'misuratori'} sul pallet ${pallet}.`
-        : `${n} ${n === 1 ? 'misuratore tolto' : 'misuratori tolti'} dal pallet.`);
-      // Si scaricano dalla cesta le sole righe SCRITTE: una spunta aggiunta durante il volo
-      // non c'entra con questo pallet, e azzerarla in blocco la faceva sparire senza motivo.
-      setSelezione(prev => new Set([...prev].filter((id) => !palletPrima.has(id))));
-      setPalletInput('');
+      toast.success(cesta
+        ? `${n} ${n === 1 ? 'misuratore' : 'misuratori'} nella cesta ${cesta}.`
+        : `${n} ${n === 1 ? 'misuratore tolto' : 'misuratori tolti'} dalla cesta.`);
+      // Si tolgono dalla selezione le sole righe SCRITTE: una spunta aggiunta durante il volo
+      // non c'entra con questa cesta, e azzerarla in blocco la faceva sparire senza motivo.
+      setSelezione(prev => new Set([...prev].filter((id) => !cestaPrima.has(id))));
+      setCestaInput('');
     } catch {
       ripristina();
-      toast.error('Assegnazione pallet non riuscita.');
+      toast.error('Assegnazione cesta non riuscita.');
     } finally {
       setAssegnando(false);
     }
@@ -366,15 +355,12 @@ export default function MisuratoriClient({
       stato:      statoFiltro        || undefined,
       comune:     filters.comune     || undefined,
       esecutore:  filters.esecutore  || undefined,
-      pallet:     !mostraPallet || palletFiltro === ''
-        ? undefined
-        : palletFiltro === SENZA_RIFERIMENTO ? 'senza pallet' : palletFiltro,
       cesta:      !mostraCesta || cestaFiltro === ''
         ? undefined
         : cestaFiltro === SENZA_RIFERIMENTO ? 'senza cesta' : cestaFiltro,
     };
-    exportMisuratoriPdf(visibleRows, pdfFilters, { titolo: titoloPdf, mostraPdr, mostraPallet, mostraCesta });
-  }, [visibleRows, filters, statoFiltro, mostraPallet, palletFiltro, mostraCesta, cestaFiltro, titoloPdf, mostraPdr]);
+    exportMisuratoriPdf(visibleRows, pdfFilters, { titolo: titoloPdf, mostraPdr, mostraCesta });
+  }, [visibleRows, filters, statoFiltro, mostraCesta, cestaFiltro, titoloPdf, mostraPdr]);
 
   const setFilter = (key: keyof Filters, value: string) =>
     setFilters(prev => ({ ...prev, [key]: value }));
@@ -496,7 +482,7 @@ export default function MisuratoriClient({
         {mostraCesta && (
           <label className="flex w-44 flex-col gap-1">
             <span className="text-xs text-[var(--brand-text-muted)]">Cesta</span>
-            {/* «Senza cesta» = quello che l'operatore non ha ancora scaricato in magazzino. */}
+            {/* «Senza cesta» è la domanda vera a fine giornata: cosa è ancora in furgone. */}
             <Select value={cestaFiltro} onChange={e => setCestaFiltro(e.target.value)}>
               <option value="">Tutte</option>
               <option value={SENZA_RIFERIMENTO}>Senza cesta</option>
@@ -504,64 +490,53 @@ export default function MisuratoriClient({
             </Select>
           </label>
         )}
-        {mostraPallet && (
-          <label className="flex w-44 flex-col gap-1">
-            <span className="text-xs text-[var(--brand-text-muted)]">Pallet</span>
-            {/* «Senza pallet» è la domanda vera a fine giornata: cosa è ancora in cesta. */}
-            <Select value={palletFiltro} onChange={e => setPalletFiltro(e.target.value)}>
-              <option value="">Tutti</option>
-              <option value={SENZA_RIFERIMENTO}>Senza pallet</option>
-              {pallets.map(p => <option key={p} value={p}>{p}</option>)}
-            </Select>
-          </label>
-        )}
       </div>
 
       {/*
-        La barra della CESTA PIENA: compare con la selezione e scrive il pallet in blocco.
+        La barra della selezione: compare con le spunte e scrive la cesta in blocco.
         Fissa come i filtri (la tabella scorre sotto): mentre si spuntano trenta righe la barra
         non deve scappare fuori schermo.
       */}
-      {mostraPallet && selezione.size > 0 && (
+      {mostraCesta && selezione.size > 0 && (
         <div className="flex shrink-0 flex-wrap items-center gap-3 rounded-[var(--radius-lg)] border border-[var(--brand-primary)] bg-[var(--brand-primary-soft)] px-3 py-2 shadow-[var(--shadow-sm)]">
           <span className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--brand-text-main)]">
             <Package className="h-4 w-4" aria-hidden />
             {selezione.size} {selezione.size === 1 ? 'misuratore selezionato' : 'misuratori selezionati'}
           </span>
           <label className="flex items-center gap-2">
-            <span className="text-xs text-[var(--brand-text-muted)]">Numero pallet</span>
+            <span className="text-xs text-[var(--brand-text-muted)]">Numero cesta</span>
             {/* La larghezza sta sul contenitore: Input porta un `w-full` suo. */}
             <span className="w-28">
               <Input
-                value={palletInput}
-                onChange={e => setPalletInput(e.target.value)}
+                value={cestaInput}
+                onChange={e => setCestaInput(e.target.value)}
                 // `!assegnando` anche qui: l'Invio non passa dal `disabled` del bottone, e
-                // due Invii rapidi erano due POST in blocco sulla stessa cesta.
-                onKeyDown={e => { if (e.key === 'Enter' && palletInput.trim() && !assegnando) void handleAssegnaPallet(palletInput); }}
+                // due Invii rapidi erano due POST in blocco sulla stessa selezione.
+                onKeyDown={e => { if (e.key === 'Enter' && cestaInput.trim() && !assegnando) void handleAssegnaCesta(cestaInput); }}
                 disabled={assegnando}
                 placeholder="es. 3"
-                aria-label="Numero del pallet da assegnare alla selezione"
+                aria-label="Numero della cesta da assegnare alla selezione"
               />
             </span>
           </label>
           <Button
             variant="primary"
             size="sm"
-            onClick={() => void handleAssegnaPallet(palletInput)}
-            disabled={!palletInput.trim()}
+            onClick={() => void handleAssegnaCesta(cestaInput)}
+            disabled={!cestaInput.trim()}
             loading={assegnando}
           >
-            Assegna pallet
+            Assegna cesta
           </Button>
-          {/* La correzione: la selezione torna «in cesta» (pallet nullo). */}
+          {/* La correzione: la selezione torna «senza cesta» (ancora in furgone). */}
           <Button
             variant="outline"
             size="sm"
-            onClick={() => void handleAssegnaPallet(null)}
+            onClick={() => void handleAssegnaCesta(null)}
             loading={assegnando}
-            title="Toglie il numero di pallet dai misuratori selezionati"
+            title="Toglie il numero di cesta dai misuratori selezionati"
           >
-            Togli dal pallet
+            Togli dalla cesta
           </Button>
           <Button
             variant="ghost"
@@ -642,9 +617,8 @@ export default function MisuratoriClient({
           isAdminPlus={isAdminPlus}
           mostraPdr={mostraPdr}
           mostraCesta={mostraCesta}
-          mostraPallet={mostraPallet}
-          selezione={mostraPallet ? selezione : undefined}
-          onSelezione={mostraPallet ? setSelezione : undefined}
+          selezione={mostraCesta ? selezione : undefined}
+          onSelezione={mostraCesta ? setSelezione : undefined}
           salvando={salvando}
         />
       </div>

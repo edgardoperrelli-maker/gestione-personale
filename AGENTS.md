@@ -273,6 +273,18 @@ Solo interventi ACEA con `esito = 'eseguito_positivo'`, `matricola` presente e
 `intervento_tipo` classificato come rimozione da `isRimozioneTipo`
 (`lib/interventi/rimozioneMisuratore.ts`).
 
+### L'attività dell'ordine la dichiara ACEA (regola chiave)
+`intervento_tipo` **decide un magazzino**, quindi non può restare la fotografia del testo che
+l'attività aveva sulla mappa il giorno della pianificazione — l'ODL cambia (il moroso paga, ACEA
+lo riapre e la rimozione misuratore diventa riattivazione fornitura) e la rigenerazione del piano
+**non riallinea gli interventi in stato terminale** (`planInterventiForPiano`: li preserva e ne
+occupa la chiave). L'import del Cruscotto lo riporta all'attività corrente
+(`lib/acea/attivitaDaImport.ts`, passo 5-quater di `app/api/acea/import`) e poi **ricalcola il
+registro**, perché il registro è derivato. Tre cancelli, tutti "non indovinare": ODL con
+operazioni discordi fermi, attività fuori tassonomia mai scritta, **`lim_massive` escluso** (è un
+canale con canonica propria — vedi §14 e migration 20260722140000). Recupero del pregresso:
+migration `20260804090000` (93 interventi, 5 righe di registro uscite).
+
 ### Esclusione rimozioni ABUSIVE (regola chiave)
 Le "Rimozione impianto/allaccio/contatore abusivo" **non entrano MAI** nel registro:
 il misuratore rimosso da un impianto abusivo non entra nei nostri magazzini.
@@ -294,24 +306,99 @@ non la correzione dell'esito → per quest'ultima serve il Ricalcola.
 ### AcquaLatina: registro gemello, e l'invariante cesta↔stato
 La commessa `acqualatina` ha il **suo** registro (`acqualatina_misuratori_rimossi`), stessi stati
 e stesso motore di ricalcolo (`lib/misuratori/sincronizzaRegistro.ts`), senza PDR e **senza gate
-sul tipo** (una sola attività, già una sostituzione). Due riferimenti di magazzino, in ordine di
-ciclo fisico:
-- **`cesta`** — invariante: `cesta` valorizzata ⟹ lo stato è almeno `scaricato_deposito` (mai il
-  contrario: righe `scaricato_deposito` senza cesta restano legittime, è il pregresso pre-2026-08-04).
-  Logica pura in `lib/misuratori/cestaStato.ts`; tre scrittori la tengono, tutti in
-  `aggiornaRegistro` (`lib/misuratori/registro.ts`) tranne il primo:
-  - l'**operatore**, all'invio del rapportino (`/api/r/[token]/scarico-misuratori`): scrive
-    `cesta` e `stato` in una sola UPDATE;
-  - l'**ufficio**, in cella — **la crea**, non solo la corregge: su una riga
-    `da_consegnare_deposito` dichiara con essa lo scarico avvenuto (stato → `scaricato_deposito`);
-    svuotarla su `scaricato_deposito` riporta lo stato indietro;
-  - la **regressione esplicita** dello stato a `da_consegnare_deposito` (tendina, solo
-    `admin_plus`) azzera la cesta: il numero rimasto sarebbe un riferimento falso in magazzino.
-- **`pallet`** — lo assegna l'**ufficio** in blocco quando la cesta è piena (entrambi i registri).
+sul tipo** (una sola attività, già una sostituzione).
 
-Filtri puri condivisi in `lib/misuratori/riferimenti.ts` (il campo è un parametro). Le due colonne
-viaggiano fra le **opzionali** di `selectDegradante`: mai nella select principale, o un deploy
-prima della migration spegne il registro intero.
+Il riferimento di magazzino è **UNO** e si chiama **`cesta`**: il contenitore numerato con cui la
+riconsegna al committente viaggia, su **entrambi** i registri. Per qualche giorno ne sono esistiti
+due — `cesta` e `pallet`, come due gradini di un ciclo che il magazzino non fa — fusi il 2026-08-04
+(migration `20260804090000`: su ACEA `pallet` **rinominato** in `cesta`, su AcquaLatina eliminato
+perché mai usato). A differenziare le due commesse resta **chi scrive il numero, e cosa significa**:
+- su **ACEA** lo scrive l'**ufficio**, in blocco dalla barra della selezione o in cella. È un
+  riferimento e basta: **non tocca mai lo stato**.
+- su **AcquaLatina** vale l'**invariante cesta↔stato**, ed è l'unica delle due commesse ad averlo.
+
+#### L'invariante (solo AcquaLatina)
+> **`cesta` valorizzata ⟹ lo stato è almeno `scaricato_deposito`.**
+
+Mai il contrario: righe `scaricato_deposito` **senza** cesta restano legittime (è il pregresso, e
+oltre lo scarico togliere il numero non riporta indietro niente). Un numero di cesta è la prova che
+quel contatore è in deposito — la cesta sta in magazzino.
+
+Logica pura in `lib/misuratori/cestaStato.ts` (`statoDopoCesta`), applicata da quattro scrittori:
+- l'**operatore**, all'invio del rapportino (`/api/r/[token]/scarico-misuratori`): scrive `cesta` e
+  `stato` in una sola UPDATE — è da qui che l'invariante è nato;
+- l'**ufficio in cella** (`aggiornaRegistro`): **la crea**, non solo la corregge. Su una riga
+  `da_consegnare_deposito` dichiara con essa lo scarico avvenuto; svuotarla su `scaricato_deposito`
+  riporta lo stato indietro, e la riga rientra nella modale dell'operatore;
+- l'**ufficio in blocco** (`assegnaCesta`, `POST .../misuratori/cesta`): stesso significato, ma la
+  barra **dichiara prima** quante righe cambieranno stato — una selezione può contenere righe che
+  nessuno ha guardato;
+- la **regressione esplicita** dello stato a `da_consegnare_deposito` (tendina, solo `admin_plus`)
+  azzera la cesta: il numero rimasto sarebbe un riferimento falso in magazzino.
+
+⚠️ Ogni ramo che applica l'invariante è gated su `tabella === 'acqualatina_misuratori_rimossi'`.
+Prima del 2026-08-04 il discriminante era «ACEA non ha la colonna» e bastava il 400: con la colonna
+su entrambi i registri quella difesa è caduta, e il gate va scritto a mano.
+
+Filtri puri condivisi in `lib/misuratori/riferimenti.ts`. La colonna viaggia fra le **opzionali**
+di `selectDegradante`: mai nella select principale, o un deploy prima della migration spegne il
+registro intero.
+
+### AcquaLatina: la scheda segue l'ESITO del rapportino
+La vista `AcquaLatina › Pianificazione` mostra la colonna **Esito** — la risposta `eseguito` della
+voce — e non lo stato derivato: quello diceva «Aperta» su quasi tutte le righe, e chi cercava com'era
+finita un'uscita non la trovava lì. La scheda la segue:
+
+| Esito | Stato scritto | Scheda |
+|---|---|---|
+| `SI` | `Chiusa — eseguita` | Chiusi |
+| `NO` | `Chiusa — non eseguita` | Chiusi |
+| `NESSUN PASSAGGIO` | `Aperta — non eseguita` | Da lavorare |
+
+⚠️ **`NO` ≠ `NESSUN PASSAGGIO`, e la differenza È la regola.** Su questa commessa il NO è
+definitivo (contatore non più presente, impianto dismesso, rifiuto); il «nessun passaggio» è un giro
+che non c'è stato, e il contatore è ancora lì. Chiudere anche quest'ultimo è l'errore del 03/08 —
+12 righe di lavoro vero dichiarate concluse e non più riassegnabili.
+
+La distinzione **non è in `interventi.esito`**, che conosce solo il positivo: la riconciliazione
+legge `rapportino_voci.risposte.eseguito` (best-effort — se la lettura salta si torna a chiudere sul
+solo positivo). Il `NO` chiude solo dalle uscite del **`NO_CHIUDE_DAL`** in poi, barriera che
+protegge le righe esitate prima che la regola esistesse.
+
+⚠️ La guardia della `update` è **solo** «non contraddire il positivo». Quella vecchia riapriva le
+righe `esito_positivo=false AND aperto=false`: con la regola nuova è la combinazione di una riga
+chiusa dal NO, e la riaprirebbe a ogni giro.
+
+### ODL TOP (registro ordini ACEA)
+ACEA segnala certe attività come **TOP**. Il flag è `acea_ordini.top` (booleano): lo marca
+l'ufficio **in blocco** dalla selezione della tabella (`POST /api/acea/ordini/top`,
+`requireAdmin`, tracciato in `audit_azioni` come `ordine.top`). Nessuna cella cliccabile: un
+secondo modo di scrivere lo stesso campo si paga in codice e diverge alla prima modifica.
+
+⚠️ La colonna esiste su **entrambe** le tabelle del registro (`acea_ordini` e
+`acqualatina_ordini`): `app/api/acea/ordini/route.ts` le legge con **una sola** lista di colonne,
+e metterla solo su una spegne l'altra.
+
+`top` sta nella **select principale**, non fra le opzionali di `selectDegradante` come la `cesta`
+qui sopra — e non è una svista. La degradazione serve a sopravvivere a un deploy che precede la
+migration; qui l'ordine è invertito apposta, perché la migration è **additiva** e quindi si applica
+PRIMA senza rompere il codice vecchio, che semplicemente non la nomina. La regola vera è quella:
+**additiva → prima la migration; distruttiva → prima il deploy** (vedi la fusione cesta/pallet del
+04/08, dove l'ordine sbagliato ha svuotato per un'ora la colonna Cesta in produzione).
+
+L'operatore lo legge **live**: `app/r/[token]/page.tsx` risolve gli ODL delle sue voci contro il
+registro a ogni caricamento, così un ordine marcato a giro già partito si vede subito. Non è
+fotografato in `raw_json` come la nota dell'ufficio, proprio per questo. Lettura best-effort:
+se salta, niente badge e il rapportino resta compilabile.
+
+Resa: **badge testuale + ambra**, mai rosso — nel dunning il rosso è già revoca da verificare e
+scadenza superata, e il colore da solo non è un'informazione per chi non lo vede. Le voci TOP
+vanno **in cima** alla lista dell'operatore, con ordinamento **stabile** (dentro il gruppo resta
+l'ordine geografico del giro) e `index` invariato, perché si riordina la lista e non i dati.
+Regola per gli ODL multi-operazione: **almeno una riga TOP ⇒ voce TOP**.
+
+Helper puri in `lib/acea/top.ts`. Spec:
+`docs/superpowers/specs/2026-08-04-acea-odl-top-design.md`.
 
 ---
 

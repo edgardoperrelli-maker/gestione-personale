@@ -147,13 +147,24 @@ describe('aggiornaRegistro — invariante cesta↔stato (comportamento, non form
     expect(ultimoPatch).toMatchObject({ stato: 'da_consegnare_deposito', cesta: null });
   });
 
-  it('7. registro ACEA con cesta nel corpo: 400, nessuna scrittura', async () => {
+  it("7. registro ACEA: la cesta si scrive, ma NON dichiara nessuno scarico", async () => {
+    /*
+      Fino al 2026-08-04 questo caso era un 400 — ACEA la colonna non ce l'aveva. Da quando
+      `pallet` è stato fuso in `cesta` (PR #222) la colonna c'è su entrambi i registri, e la
+      difesa gratuita è caduta: l'invariante ora è gated a mano su `acqualatina_misuratori_rimossi`.
+      Su ACEA la cesta è un riferimento e basta — nessuno scarico d'operatore da dichiarare — e
+      questo test è ciò che impedisce all'invariante di tracimare di là.
+    */
+    rigaCorrente = { stato: 'da_consegnare_deposito' };
     const res = await aggiornaRegistro('misuratori_rimossi', 'm1', { cesta: '3' }, null);
     const body = await res.json() as Record<string, unknown>;
 
-    expect(res.status).toBe(400);
-    expect(body.error).toMatch(/cesta non prevista su questo registro/);
-    expect(updateChiamato).toBe(false);
+    expect(res.status).toBe(200);
+    expect(updateChiamato).toBe(true);
+    // La cesta sì, lo stato NO: né nella UPDATE né nell'eco della risposta.
+    expect(ultimoPatch).toMatchObject({ cesta: '3' });
+    expect('stato' in (ultimoPatch as object)).toBe(false);
+    expect('stato' in body).toBe(false);
   });
 
   it('8. lettura dello stato fallita (ramo cesta): 500, nessuna scrittura', async () => {

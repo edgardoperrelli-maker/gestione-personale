@@ -33,7 +33,10 @@ describe("la PATCH d'ufficio tiene l'invariante", () => {
   it('lo stato ESPLICITO vince su quello implicito', () => {
     // Senza la guardia un corpo con stato e cesta insieme avrebbe due padroni, e a vincere
     // sarebbe stato l'ultimo ramo scritto, cioè il caso (spec §5).
-    expect(senzaCommenti(registro)).toMatch(/if \(!\('stato' in patch\)\)/);
+    // Il prefisso della condizione non si pinna: dal 2026-08-04 la guardia convive con il gate
+    // `invarianteCesta` nella stessa `if`, e cercarne la forma esatta rendeva questo test un
+    // ostacolo a ogni riscrittura invece che una difesa della regola.
+    expect(senzaCommenti(registro)).toMatch(/!\('stato' in patch\)/);
   });
 
   it('la regressione esplicita azzera la cesta, e solo su AcquaLatina', () => {
@@ -52,8 +55,18 @@ describe("la PATCH d'ufficio tiene l'invariante", () => {
     expect(src).toMatch(/risposta\.cesta = patch\.cesta/);
   });
 
-  it('il 400 sul registro ACEA resta: quella tabella non ha la colonna', () => {
-    expect(registro).toMatch(/cesta non prevista su questo registro/);
+  it("l'invariante è gated su AcquaLatina, non lasciato al caso", () => {
+    /*
+      Il 400 «cesta non prevista su questo registro» era la difesa GRATUITA: ACEA la colonna non
+      ce l'aveva. Dal 2026-08-04 (PR #222, `pallet` fuso in `cesta`) ce l'hanno entrambi, quindi
+      il discriminante va scritto a mano — e se questo flag sparisse, l'invariante farebbe
+      avanzare gli stati anche su ACEA, dove nessuno scarica niente.
+      Il comportamento vero è provato in registroCesta.test.ts (caso 7).
+    */
+    const src = senzaCommenti(registro);
+    expect(src).toMatch(/const invarianteCesta = tabella === 'acqualatina_misuratori_rimossi'/);
+    expect(src).toMatch(/if \(invarianteCesta && !\('stato' in patch\)\)/);
+    expect(src).toMatch(/if \(invarianteCesta && patch\.stato === 'da_consegnare_deposito'\)/);
   });
 });
 

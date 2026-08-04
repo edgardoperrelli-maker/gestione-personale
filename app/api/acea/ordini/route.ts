@@ -59,6 +59,9 @@ const COLONNE = [
   'nominativo', 'recapito',
   'valore_netto', 'escludi_consuntivazione', 'codice_sla', 'priorita_testo',
   'testo_ordine', 'centro_lavoro', 'note',
+  // Il TOP di ACEA. Sta nella select principale e non fra le opzionali perché la colonna esiste
+  // su ENTRAMBE le tabelle (migration 20260804110000): la lista è una sola per due registri.
+  'top',
   // L'esecutore e la data di ACEA: sono nel registro dall'inizio, ma senza queste due qui non
   // arrivavano in tabella — e le colonne «Esecutore»/«Data pianificata» sono le NOSTRE, quindi
   // su un ordine chiuso da ACEA e mai pianificato da noi restavano vuote. Sembrava un import
@@ -334,44 +337,85 @@ async function chiudiOrdiniAcqualatinaCompletati(): Promise<void> {
   if (ora - riconciliazioneAcquaAt < TTL_RICONCILIAZIONE_MS) return;
   riconciliazioneAcquaAt = ora;
 
+  /*
+    Gli interventi conclusi, e l'`id` di ciascuno accanto — serve a ripescare la risposta della sua
+    voce. `completati` e `idInterventi` si riempiono nello STESSO ciclo e restano allineati per
+    indice: l'aggancio si costruisce in un punto solo, non si ricostruisce dopo.
+  */
   const completati: InterventoConcluso[] = [];
+  const idInterventi: string[] = [];
   for (let offset = 0; ; offset += PAGINA_SCAN) {
     const { data, error } = await supabaseAdmin
       .from('interventi')
-      .select('ordine_id, data, esito')
+      .select('id, ordine_id, data, esito')
       .eq('committente', 'acqualatina')
       .eq('stato', 'completato')
       .not('ordine_id', 'is', null)
       .range(offset, offset + PAGINA_SCAN - 1);
     if (error) throw error;
-    const blocco = (data ?? []) as InterventoConcluso[];
-    completati.push(...blocco);
+    const blocco = (data ?? []) as Array<InterventoConcluso & { id: string }>;
+    for (const i of blocco) {
+      completati.push({ ordine_id: i.ordine_id, data: i.data, esito: i.esito });
+      idInterventi.push(i.id);
+    }
     if (blocco.length < PAGINA_SCAN) break;
   }
   if (completati.length === 0) return;
 
-  for (const g of gruppiChiusura(completati)) {
+  /*
+    L'esito SCRITTO NELLA VOCE, per gli interventi appena letti.
+
+    `interventi.esito` distingue solo il positivo da tutto il resto: NO e NESSUN PASSAGGIO gli
+    arrivano identici, e la regola di questa commessa vive proprio in quella differenza — il NO è
+    definitivo, il «nessun passaggio» è un giro che non c'è stato. La risposta vera sta in
+    `rapportino_voci.risposte.eseguito`, la stessa che la tabella mostra in colonna.
+
+    Best-effort: se la lettura salta si resta alla regola vecchia (chiude solo il positivo) invece
+    di far fallire la riconciliazione. Una riga chiusa in ritardo si recupera al giro dopo, una
+    tabella che non si apre no.
+  */
+  const eseguitoPerIntervento = new Map<string, string>();
+  try {
+    for (let i = 0; i < idInterventi.length; i += 200) {
+      const { data, error } = await supabaseAdmin
+        .from('rapportino_voci')
+        .select('intervento_id, risposte')
+        .in('intervento_id', idInterventi.slice(i, i + 200));
+      if (error) throw error;
+      for (const v of (data ?? []) as Array<{ intervento_id: string | null; risposte: Record<string, unknown> | null }>) {
+        if (!v.intervento_id || eseguitoPerIntervento.has(v.intervento_id)) continue;
+        const risposta = String((v.risposte ?? {})['eseguito'] ?? '').trim();
+        if (risposta !== '') eseguitoPerIntervento.set(v.intervento_id, risposta);
+      }
+    }
+  } catch (e) {
+    console.error('[acea/ordini] esiti delle voci non letti, chiusura sul solo positivo:', e);
+  }
+
+  const conEsito: InterventoConcluso[] = completati.map((c, i) => ({
+    ...c,
+    eseguito: eseguitoPerIntervento.get(idInterventi[i]) ?? null,
+  }));
+
+  for (const g of gruppiChiusura(conEsito)) {
     for (let i = 0; i < g.ids.length; i += 200) {
-      const q = supabaseAdmin
+      /*
+        UNA guardia sola: non contraddire il positivo, che è definitivo.
+
+        Il vecchio ramo negativo riapriva le righe `esito_positivo=false AND aperto=false` — la
+        riparazione delle 12 righe del 03/08, che ha già fatto il suo lavoro. Con la regola nuova
+        quella combinazione è una riga chiusa dal NO, e riaprirla a ogni giro metterebbe le due
+        regole a rincorrersi.
+
+        Le poche righe negative si riscrivono a ogni riconciliazione con gli stessi valori: è una
+        `update` a vuoto su una decina di righe al minuto, e vale il prezzo di far vincere sempre
+        l'ultima uscita invece di dover indovinare quali righe hanno già lo stato giusto.
+      */
+      const { error } = await supabaseAdmin
         .from('acqualatina_ordini')
         .update(g.patch)
-        .in('id', g.ids.slice(i, i + 200));
-      /*
-        Le due guardie. Servono a due cose insieme: non contraddire il positivo (che è
-        definitivo, e nessuna uscita successiva può riaprire) e restare IDEMPOTENTI — questa
-        riconciliazione rigira a ogni lettura della tabella, e senza guardia riscriverebbe ogni
-        minuto righe già a posto.
-
-        Il positivo chiude tutto ciò che non è già chiuso positivo: anche una riga che un'uscita
-        negativa aveva lasciato aperta, che è il caso normale del ripasso riuscito.
-
-        Il negativo tocca solo la riga che ha qualcosa da correggere — mai esitata, oppure chiusa
-        negativa dalla vecchia regola, che è la riga da riaprire (le 12 del 03/08). Su una riga
-        già «aperta e non eseguita» non scrive, e su una chiusa POSITIVA non entra mai.
-      */
-      const { error } = await (g.positivo
-        ? q.not('esito_positivo', 'is', true)
-        : q.or('esito_positivo.is.null,and(esito_positivo.is.false,aperto.is.false)'));
+        .in('id', g.ids.slice(i, i + 200))
+        .not('esito_positivo', 'is', true);
       if (error) throw error;
     }
   }
@@ -769,7 +813,9 @@ export async function GET(req: Request) {
     */
     const eseguitoPerChiave = new Map<string, string>();
     const matricolaNuovaPerChiave = new Map<string, string>();
-    const serveEseguito = f.famiglia === 'massive';
+    // Anche AcquaLatina: la sua colonna «Esito» è questa. Non costa una query — la lettura di
+    // `rapportino_voci` per quella vista parte già, per `matricola_nuova`.
+    const serveEseguito = f.famiglia === 'massive' || acqua;
     if ((serveEseguito || acqua) && interventiPerChiave.size > 0) {
       try {
         const ids = [...new Set([...interventiPerChiave.values()].flat())];

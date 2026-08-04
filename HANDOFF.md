@@ -4,7 +4,7 @@
 > Sostituisce l'handoff del redesign Cronoprogramma (2026-07-23): quel contenuto resta in git —
 > `git show 528c4c4:HANDOFF.md`.
 >
-> **La sezione più recente è la prima** (2026-08-03, scarico misuratori in cesta). Sotto, dal
+> **La sezione più recente è la prima** (2026-08-04, Esito AcquaLatina). Sotto, dal
 > «Goal» in poi, c'è la sessione ACEA del 31/07: resta valida, non è storia da archiviare.
 
 **Branch**: `claude/acea-table-copy-schedule-filter-3xt700`, ripartito da `origin/main` (`93a514d`,
@@ -12,6 +12,118 @@ merge della PR #186; la vecchia PR #175 è chiusa, lo specchio `…okoirs` non s
 **Status**: modulo ACEA completo e in produzione dal 30/07. Il 31/07 il registro è diventato
 **multi-commessa**: la famiglia `acqualatina` (sostituzione misuratori Terracina) usa le stesse
 mani su tabella propria — migration `20260731170000` + backfill (4.196 righe) applicati in prod
+
+---
+
+## Sessione 2026-08-04 (3) — AcquaLatina: l'Esito guida la scheda
+
+> Branch `feat/acqualatina-esito-tab`. Spec e piano in
+> `docs/superpowers/specs/2026-08-04-acqualatina-esito-tab-design.md` e `…/plans/…`.
+
+**Cosa cambia per l'ufficio.** In `AcquaLatina › Pianificazione` la colonna **Stato** lascia il
+posto a **Esito**: la risposta di chi è andato sul posto, non lo stato che il nostro motore
+deriva. E la scheda la segue — **SI e NO chiudono, NESSUN PASSAGGIO no**.
+
+**La distinzione È la regola.** Su questa commessa il `NO` è definitivo (contatore non più
+presente, impianto dismesso, rifiuto): tenerlo in coda è rumore su lavoro che nessuno farà. Il
+`NESSUN PASSAGGIO` è un giro che non c'è stato, e il contatore è ancora lì da sostituire — è il
+caso che la decisione del 03/08 proteggeva. Questa sessione **non ribalta** quella decisione, la
+rende più fine: cambia quale risposta rappresenta «lavoro ancora da fare».
+
+**Le decisioni che non vanno riscoperte:**
+- `interventi.esito` conosce solo il positivo: NO e NESSUN PASSAGGIO gli arrivano identici. La
+  riconciliazione legge `rapportino_voci.risposte.eseguito`, best-effort (se salta, si torna a
+  chiudere sul solo positivo).
+- Nasce il quarto stato **`Chiusa — non eseguita`**: prima una riga o era fatta, o era da fare.
+- ⚠️ La guardia della `update` diventa **solo** «non contraddire il positivo». Quella vecchia
+  riapriva `esito_positivo=false AND aperto=false` — che con la regola nuova è esattamente una
+  riga chiusa dal NO: le due regole si sarebbero rincorse a ogni apertura della tabella.
+- **`NO_CHIUDE_DAL = '2026-08-05'`**: il NO chiude solo dalle uscite di quel giorno in poi. La
+  riconciliazione rigira su tutti i completati a ogni lettura, e senza barriera avrebbe chiuso
+  anche le 9 righe storiche — che per decisione restano dove sono. Comprende tutto il 04/08,
+  quindi **un NO scritto il 04/08 non chiude**.
+- La colonna Esito **non ha l'imbuto**: il valore sta nelle risposte, non nel registro, e un
+  filtro sulle sole righe caricate mentirebbe sul conteggio.
+
+**Verificato sui dati veri:** con il codice nuovo la riconciliazione ha girato sul registro
+(4.199 righe) e non ha spostato niente — 3.942 / 248 / 9 prima e dopo. `NESSUN PASSAGGIO` non ha
+occorrenze storiche: la regola è coperta dai test, il campo la produrrà.
+
+**Nota, non un bug:** 7 righe risultavano «Aperta — non eseguita» pur avendo intervento positivo.
+Erano solo non ancora riconciliate — la chiusura gira sulla strada della lettura, non in un cron —
+e aprendo la vista si sono chiuse da sole (241 → 248).
+
+---
+
+## Sessione 2026-08-04 (2) — Gli ODL TOP, dal dunning al rapportino
+
+> Branch `feat/acea-odl-top`, da `origin/main` (`6e76fd6b`). Spec e piano in
+> `docs/superpowers/specs/2026-08-04-acea-odl-top-design.md` e `…/plans/2026-08-04-acea-odl-top.md`.
+
+**Il buco chiuso.** ACEA segnala certe attività come TOP e quella segnalazione moriva in ufficio:
+arrivava per telefono, chi pianificava se la ricordava, e l'operatore apriva il rapportino
+trovando una voce identica a tutte le altre. L'unico canale era la colonna Note, che è prosa
+libera — buona per «citofonare interno 4», inadatta a una proprietà su cui si vuole ordinare.
+
+**Come funziona.** L'ufficio spunta le righe e preme «Segna TOP» (o «Togli TOP») nella barra
+della selezione; la riga diventa ambra col badge. L'operatore se le trova **in cima** al
+rapportino, con la pill TOP in lista e un banner sulla card.
+
+**Le decisioni che non vanno riscoperte:**
+- **Il flag vive sul REGISTRO, non nella voce.** `acea_ordini.top`, letto live dalla pagina
+  dell'operatore a ogni caricamento. Fotografarlo in `raw_json` come la nota lo renderebbe cieco
+  alle marcature fatte a giro già partito — che sono il caso per cui la funzione esiste.
+- **La colonna sta su ENTRAMBE le tabelle** del registro: la select è una sola per due tabelle.
+  Migration additiva, quindi applicata PRIMA del deploy.
+- **Ambra, mai rosso** (nel dunning è già revoca e scaduto) e **sempre col badge testuale**: il
+  significato non può dipendere dalla tinta. La revoca resta prima nella catena dei colori.
+- **Ordinamento stabile e `index` invariato:** si riordina la lista, non i dati.
+- **Almeno una riga TOP ⇒ voce TOP** (il registro ha chiave `odl|numero_operazione`, l'operatore
+  ha solo l'ODL).
+- Fuori scope, deciso: nota obbligatoria sui TOP non eseguiti, filtro/conteggio in ufficio,
+  marcatura dalla vista AcquaLatina.
+
+**Da sapere:** durante la verifica una spunta sbagliata (quella di TESTATA, «seleziona tutte le
+righe caricate») ha marcato ~180 ordini invece di uno. Rimediato subito con un `update ... set
+top = false`, e lo stato di partenza era esattamente «tutti false» perché la colonna era appena
+nata. L'audit ha registrato il gesto: è servito il giorno stesso in cui è stato scritto.
+
+---
+
+## Sessione 2026-08-04 (1) — Cesta e pallet erano la stessa cosa: ne resta UNA
+
+> Branch `feat/cesta-unico-riferimento`, da `origin/main` (`6e76fd6b`).
+> Questa sezione **corregge** quella sotto: dove il 03/08 si legge «il gradino prima del pallet»,
+> il gradino è uno solo. Il resto della sessione 03/08 (chi dichiara la cesta, quando, perché)
+> resta valido parola per parola.
+
+**Il dietrofront.** Il modello a due gradini — si scarica in CESTA, a cesta piena si va su un
+PALLET — descriveva un ciclo che il magazzino non fa: sono lo stesso contenitore numerato, con
+due nomi. Il pallet era un duplicato con la sua colonna, il suo filtro, la sua barra di
+assegnazione e la sua colonna PDF.
+
+**Perché si è potuto fare a costo zero.** Il pallet non era mai stato usato: **0 righe valorizzate
+su entrambi i registri** (AcquaLatina 0/293, ACEA 0/66). Niente da travasare — solo un nome di
+troppo da togliere prima che qualcuno ci scrivesse dentro.
+
+- **DB** (`20260804090000_cesta_unico_riferimento.sql`): su ACEA `pallet` **rinominato** in `cesta`
+  (+ indice parziale gemello); su AcquaLatina `pallet` **eliminato**. La drop ha una **guardia**:
+  se il pallet risultasse valorizzato la migration si ferma con l'istruzione per travasarlo.
+- **Codice**: `assegnaPallet` → `assegnaCesta`, rotte `…/misuratori/pallet` → `…/misuratori/cesta`,
+  `mostraPallet` sparisce (le spunte di selezione ora seguono `mostraCesta`), `riferimenti.ts`
+  perde il parametro `campo` — con un campo solo era una scelta da passare che non esiste più.
+- **La cesta è ora accesa su ENTRAMBI i registri**: a differenziarli resta chi scrive il numero
+  (AcquaLatina l'operatore allo scarico, ACEA l'ufficio).
+- ⚠️ **L'assegnazione d'ufficio non tocca lo stato**, e non è una dimenticanza: «dichiarare la
+  cesta È lo scarico» vale per l'operatore con i contatori in mano.
+
+**Falla trovata e chiusa in corsa (04/08).** Una riga aveva `cesta='2'` con stato ancora
+`da_consegnare_deposito` — combinazione che il flusso operatore non può produrre, perché scrive i
+due campi insieme. Veniva dalla correzione manuale d'ufficio, che scrive **solo** `cesta`: la riga
+restava nel bacino di `misuratoriDaScaricare()` e sarebbe ricomparsa nella modale al prossimo
+invio dell'operatore, che riscrivendo un'altra cesta avrebbe **sovrascritto in silenzio** quella
+d'ufficio. Riga sistemata a mano (stato allineato a `scaricato_deposito`); la scelta di fondo —
+chi vince fra ufficio e operatore — è ancora **aperta**.
 
 ---
 

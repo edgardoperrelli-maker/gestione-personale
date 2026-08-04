@@ -14,7 +14,8 @@ export type VoceFocusData = VoceCardData;
 
 export function VoceFocus({
   voce, indice, totale, campi, dettaglio, titoloCampi, disabilitato, stato, saveState,
-  onChange, onPrev, onNext, onClose, approvazioneStato, motivoRifiuto, notaUfficio, notePrecedenti,
+  onChange, onPrev, onNext, onClose, approvazioneStato, motivoRifiuto, notaUfficio, top,
+  notePrecedenti,
 }: {
   voce: VoceFocusData;
   indice: number;
@@ -32,6 +33,8 @@ export function VoceFocus({
   approvazioneStato?: string | null;
   motivoRifiuto?: string | null;
   notaUfficio?: string | null;
+  /** Ordine segnalato TOP da ACEA: si inoltra alla card, che ci mette il banner. */
+  top?: boolean;
   notePrecedenti?: NotaPrecedente[] | null;
 }) {
   const isFirst = indice === 0;
@@ -61,6 +64,7 @@ export function VoceFocus({
           approvazioneStato={approvazioneStato}
           motivoRifiuto={motivoRifiuto}
           notaUfficio={notaUfficio}
+          top={top}
           notePrecedenti={notePrecedenti}
         />
       </div>

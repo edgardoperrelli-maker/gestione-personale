@@ -104,7 +104,7 @@ export function VoceCampi({ campi, voce, disabilitato, onChange, evidenziaNota, 
 /** Card di una voce, condivisa da VoceFocus (operatore) e dall'anteprima del template. */
 export function VoceCard({
   voce, indice, campi, dettaglio, titoloCampi, stato, disabilitato, onChange,
-  headerRight, approvazioneStato, motivoRifiuto, notaUfficio, notePrecedenti,
+  headerRight, approvazioneStato, motivoRifiuto, notaUfficio, top, notePrecedenti,
 }: {
   voce: VoceCardData;
   indice: number;
@@ -118,6 +118,8 @@ export function VoceCard({
   approvazioneStato?: string | null;
   motivoRifiuto?: string | null;
   notaUfficio?: string | null;
+  /** Ordine segnalato TOP da ACEA: banner in testa alla card. */
+  top?: boolean;
   notePrecedenti?: NotaPrecedente[] | null;
 }) {
   const badge = badgeVoceManuale(approvazioneStato ?? null);
@@ -141,6 +143,23 @@ export function VoceCard({
         </div>
       )}
       <VoceHeaderInfo voce={voce} coordinataAbilitata={coordinataAbilitata} />
+      {/*
+        Prima della nota dell'ufficio: la priorità si legge per prima.
+
+        UNA RIGA, e stretta: la frase per esteso («Segnalato da ACEA come prioritario: da fare
+        per primo») su un telefono andava a capo e si mangiava due righe di card, cioè spazio
+        tolto al lavoro. Qui il TOP è già detto dalla pill; al testo resta la sola cosa che
+        l'operatore deve fare, e il resto sta nel `title` per chi vuole saperne di più.
+      */}
+      {top && (
+        <div
+          className="mt-2 flex items-center gap-2 rounded-lg border border-[var(--status-warn)] bg-[var(--status-warn-soft)] px-2.5 py-1"
+          title="Segnalato da ACEA come prioritario"
+        >
+          <span className="rounded-[var(--radius-sm)] bg-[var(--status-warn)] px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-white">TOP</span>
+          <p className="text-xs font-semibold text-[var(--brand-text-main)]">Da fare per primo</p>
+        </div>
+      )}
       {notaUfficio && (
         <div className="mt-3 flex items-start gap-2 rounded-xl border border-[var(--warning)]/40 bg-[var(--warning-soft)] px-3.5 py-2.5">
           <StickyNote className="mt-0.5 h-4 w-4 shrink-0 text-[var(--brand-text-muted)]" strokeWidth={1.8} aria-hidden />

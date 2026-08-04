@@ -20,6 +20,7 @@ import type { CommittenteManuale, AnagraficaManuale } from '@/lib/interventi/man
 import type { TassonomiaRiga } from '@/lib/attivita/tassonomia';
 import type { CommittenteCensimento } from '@/lib/rapportini/perimetroCensimento';
 import { badgeVoceManuale } from '@/lib/interventi/manuali/badgeVoce';
+import { ordinaTopPrima } from '@/lib/acea/top';
 import { RapportinoFotoCtx } from './RapportinoFotoCtx';
 import { RisanamentoView } from './risanamento/RisanamentoView';
 import type { RigaRisanamento } from './risanamento/types';
@@ -74,6 +75,12 @@ export type Voce = {
   /** Calibro del misuratore da posare (commessa AcquaLatina, chiave info opt-in `diametro`). */
   diametro?: string;
   notaUfficio?: string;
+  /**
+   * Ordine segnalato TOP da ACEA: badge sulla card e prima posizione in lista. Letto dal
+   * REGISTRO a ogni caricamento (non fotografato nella voce), così una marcatura fatta a giro
+   * già partito si vede subito.
+   */
+  top?: boolean;
   /** Note "tramandate" dai precedenti interventi positivi sullo stesso impianto (sola lettura). */
   notePrecedenti?: NotaPrecedente[];
   risposte: Record<string, unknown>;
@@ -433,16 +440,23 @@ export default function RapportinoForm({
   // misti), esattamente come per titolo e dettagli. Nessuna delle due = default storici.
   const listaRapportino = useMemo(() => listaCampi ?? resolveListaCampi(null), [listaCampi]);
 
+  /*
+    Le voci TOP in cima, e il resto nell'ordine del giro.
+
+    Si riordina la LISTA, non i dati: `index` resta l'indice vero dentro `voci`, quindi
+    `onApri(r.index)` continua ad aprire la card giusta. L'ordinamento è stabile — dentro il
+    gruppo TOP resta l'ordine geografico con cui l'operatore si muove.
+  */
   const righe: RigaVoce[] = useMemo(
     () =>
-      voci.map((v, idx) => {
+      ordinaTopPrima(voci.map((v, idx) => {
         const titolo = titoloVoce(v, v.titolo_campi ?? titoloCampi, idx);
         const lista = v.lista_campi ?? listaRapportino;
         const bloccoPositivo = v.bloccoPositivo
           ? `Già positivo il ${dataIt(v.bloccoPositivo.data)}${v.bloccoPositivo.esecutore ? ` (${v.bloccoPositivo.esecutore})` : ''} — ordine non da lavorare`
           : undefined;
-        return { index: idx, titolo, sub: testoRiga(v, lista.sub), meta: testoRiga(v, lista.meta), stato: v.manuale ? 'eseguito' : statoVoce(v.risposte, campiDiVoce(v, campi)), nuovo: v.nuovo, annullato: v.annullato, bloccoPositivo, nota: v.notaUfficio, notaCollega: (v.notePrecedenti?.length ?? 0) > 0, badge: badgeVoceManuale(v.approvazione_stato ?? null), matricola: valoreInfo(v, 'matricola'), via: valoreInfo(v, 'via'), odl: valoreInfo(v, 'odl') };
-      }),
+        return { index: idx, titolo, sub: testoRiga(v, lista.sub), meta: testoRiga(v, lista.meta), stato: v.manuale ? 'eseguito' : statoVoce(v.risposte, campiDiVoce(v, campi)), nuovo: v.nuovo, annullato: v.annullato, bloccoPositivo, nota: v.notaUfficio, top: v.top, notaCollega: (v.notePrecedenti?.length ?? 0) > 0, badge: badgeVoceManuale(v.approvazione_stato ?? null), matricola: valoreInfo(v, 'matricola'), via: valoreInfo(v, 'via'), odl: valoreInfo(v, 'odl') };
+      })),
     [voci, campi, titoloCampi, listaRapportino],
   );
 
@@ -638,6 +652,7 @@ export default function RapportinoForm({
           approvazioneStato={voci[indiceCorrente].approvazione_stato ?? null}
           motivoRifiuto={voci[indiceCorrente].motivo_rifiuto ?? null}
           notaUfficio={voci[indiceCorrente].notaUfficio ?? null}
+          top={voci[indiceCorrente].top ?? false}
           notePrecedenti={voci[indiceCorrente].notePrecedenti ?? null}
         />
       ) : (
