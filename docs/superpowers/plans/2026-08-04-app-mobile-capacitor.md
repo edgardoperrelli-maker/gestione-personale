@@ -195,7 +195,8 @@ creare in Supabase con ruolo `operatore` su dati non sensibili) — da decidere 
    Niente agenda/appuntamenti in v1 (si aggiungono via permessi, senza store).
 5. **Tablet = operatori** (99% uso da campo): formato pagina unico e responsive che
    scala telefono→tablet; nessuna rifinitura moduli ufficio in Fase 1.
-6. **Nome app**: **Gestilab Plenzich** — appId `it.plenzich.gestilab`.
+6. **Nome app**: **Gestilab Plenzich** — appId `it.gestilab.personale` (rinominato
+   dal precedente `it.plenzich.gestilab` per coerenza con la famiglia `it.gestilab.*`).
 7. **Canale iOS**: TestFlight per il PILOTA; canale definitivo (Unlisted o ABM
    Custom Apps) deciso a pilota concluso. Android: Play internal/privata.
 8. **Push in v1**: sì, catalogo eventi completo ed estensibile (giro assegnato,

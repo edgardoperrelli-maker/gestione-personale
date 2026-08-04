@@ -1,4 +1,4 @@
-package it.plenzich.gestilab;
+package it.gestilab.personale;
 
 import com.getcapacitor.BridgeActivity;
 

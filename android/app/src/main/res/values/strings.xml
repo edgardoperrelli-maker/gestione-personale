@@ -2,6 +2,6 @@
 <resources>
     <string name="app_name">Gestilab Plenzich</string>
     <string name="title_activity_main">Gestilab Plenzich</string>
-    <string name="package_name">it.plenzich.gestilab</string>
-    <string name="custom_url_scheme">it.plenzich.gestilab</string>
+    <string name="package_name">it.gestilab.personale</string>
+    <string name="custom_url_scheme">it.gestilab.personale</string>
 </resources>

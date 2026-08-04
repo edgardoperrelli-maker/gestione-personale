@@ -12,7 +12,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
  * contro un ambiente diverso, cambiare `server.url` in locale SENZA committare.
  */
 const config: CapacitorConfig = {
-  appId: 'it.plenzich.gestilab',
+  appId: 'it.gestilab.personale',
   appName: 'Gestilab Plenzich',
   webDir: 'native-shell',
   server: {
