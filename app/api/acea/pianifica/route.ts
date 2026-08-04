@@ -16,6 +16,10 @@ import {
 import { soloAttivazioni } from '@/lib/acea/giorniProgrammabili';
 import { eRiapertura } from '@/lib/acea/scadenza';
 import { partiRoma } from '@/lib/orarioRoma';
+import {
+  caricaContestoPiani, creaPianoCommessa, eNotaContenitore,
+  risolviTerritorioIdCommessa, scegliPianoCommessa, sincronizzaOperatorePiano,
+} from '@/lib/acea/pianoCommessa';
 
 export const runtime = 'nodejs';
 
@@ -177,6 +181,54 @@ export async function POST(req: Request) {
       unita: profilo.unita,
     });
 
+    /*
+      3-bis) Il piano VERO della commessa per (data, operatore) — l'equivalente del «Salva
+      distribuzione» del percorso Excel. Prima di scrivere gli interventi si risolve (o si
+      crea) il piano di (data, territorio commessa) su cui atterreranno: deterministico e
+      per-operatore (`scegliPianoCommessa`: rapportino > riga operatore > più vecchio > crea),
+      così commessa ed Excel convergono sullo stesso piano quando l'operatore è già lì.
+      Gli interventi nascono con `piano_id` e `territorio_id` ma `created_from_mappa=false`
+      (default DB): la rigenerazione Mappa non li tocca (planInterventiForPiano) e la torre
+      li vede nei filtri territorio.
+    */
+    const azioniScrittura = piano.azioni.filter((a) => a.tipo !== 'salta');
+    let pianoDestId: string | null = null;
+    let territorioId: string | null = null;
+    // Coppie (piano, operatore) i cui task JSONB vanno rinfrescati a fine giro: la
+    // destinazione, più i piani di PROVENIENZA degli interventi spostati da un altro giorno.
+    const coppieDaRinfrescare = new Set<string>();
+    if (azioniScrittura.length > 0) {
+      territorioId = await risolviTerritorioIdCommessa(supabaseAdmin, profilo.territorioPiani);
+      const contesto = await caricaContestoPiani(supabaseAdmin, data, profilo.territorioPiani);
+      if (!contesto.ok) throw new Error(contesto.error);
+      const { data: rapStaff } = await supabaseAdmin
+        .from('rapportini').select('id, piano_id').eq('data', data).eq('staff_id', staffId);
+      const pianiIds = new Set(contesto.piani.map((p) => p.id));
+      const conRapportino = new Set(
+        ((rapStaff ?? []) as Array<{ piano_id: string | null }>)
+          .map((r) => String(r.piano_id ?? ''))
+          .filter((pid) => pid && pianiIds.has(pid)),
+      );
+      const conRiga = new Set(
+        contesto.piani
+          .filter((p) => contesto.operatoriPerPiano.get(p.id)?.has(staffId))
+          .map((p) => p.id),
+      );
+      pianoDestId = scegliPianoCommessa(contesto.piani, conRapportino, conRiga);
+      if (!pianoDestId) {
+        const c = await creaPianoCommessa(supabaseAdmin, data, profilo.territorioPiani, auth.user.id);
+        if (!c.ok) throw new Error(c.error);
+        pianoDestId = c.pianoId;
+      } else {
+        // Piano adottato da un vecchio contenitore: la nota-sentinella muore, è un piano vero.
+        const adottato = contesto.piani.find((p) => p.id === pianoDestId);
+        if (adottato && eNotaContenitore(adottato.note)) {
+          await supabaseAdmin.from('mappa_piani').update({ note: null }).eq('id', pianoDestId);
+        }
+      }
+      coppieDaRinfrescare.add(`${pianoDestId}|${staffId}`);
+    }
+
     // 4) Scritture + registrazione dello stato precedente per l'annullamento.
     const azioniLog: Array<Record<string, unknown>> = [];
     let creati = 0;
@@ -185,9 +237,22 @@ export async function POST(req: Request) {
     for (const a of piano.azioni) {
       if (a.tipo === 'salta') continue;
       if (a.tipo === 'aggiorna') {
+        // Il piano di PROVENIENZA (spostamento da un altro giorno/operatore): i suoi task
+        // JSONB vanno rinfrescati, altrimenti restano stantii sul piano vecchio.
+        const { data: provenienza } = await supabaseAdmin
+          .from('interventi').select('piano_id, staff_id').eq('id', a.interventoId).maybeSingle();
+        const prov = provenienza as { piano_id: string | null; staff_id: string | null } | null;
+        if (prov?.piano_id && (prov.piano_id !== pianoDestId || String(prov.staff_id ?? '') !== staffId)) {
+          coppieDaRinfrescare.add(`${prov.piano_id}|${String(prov.staff_id ?? '')}`);
+        }
         const { error } = await supabaseAdmin
           .from('interventi')
-          .update({ data, staff_id: staffId, stato: 'assegnato', assegnato_at: new Date().toISOString() })
+          .update({
+            data, staff_id: staffId, stato: 'assegnato', assegnato_at: new Date().toISOString(),
+            // Lo spostamento segue il giorno: l'intervento passa al piano del nuovo giorno.
+            piano_id: pianoDestId,
+            ...(territorioId ? { territorio_id: territorioId } : {}),
+          })
           .eq('id', a.interventoId);
         if (error) throw error;
         aggiornati++;
@@ -241,6 +306,10 @@ export async function POST(req: Request) {
           pdr: a.ordine.impianto ?? null,
           nominativo: a.ordine.nominativo ?? null,
           recapito: a.ordine.recapito ?? null,
+          // L'aggancio al piano vero (3-bis). `created_from_mappa` resta al default FALSE:
+          // è la protezione per-riga contro la rigenerazione della Mappa.
+          piano_id: pianoDestId,
+          territorio_id: territorioId,
         })
         .select('id')
         .single();
@@ -250,6 +319,19 @@ export async function POST(req: Request) {
         odl: a.ordine.odl, numero_operazione: a.ordine.numero_operazione,
         azione: 'creato', intervento_id: creato?.id ?? null, prima: null,
       });
+    }
+
+    /*
+      4-ter) La riga operatore del piano, con i task `acea:*` ricostruiti dagli interventi:
+      è ciò che la vista pianifica legge e ciò che tiene i rapportini al riparo da
+      `orphanRapportini`. Best-effort ma tracciato: se fallisce, la prossima generazione dei
+      rapportini (passo di adozione) ripete la stessa scrittura e lì un errore è bloccante.
+    */
+    for (const coppia of coppieDaRinfrescare) {
+      const [pid, sid] = coppia.split('|');
+      if (!pid || !sid) continue;
+      const sync = await sincronizzaOperatorePiano(supabaseAdmin, pid, sid);
+      if (!sync.ok) console.error('[acea/pianifica] riga operatore non sincronizzata:', pid, sid, sync.error);
     }
 
     /*

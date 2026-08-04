@@ -11,6 +11,7 @@ import { ensureInterventiForPiano } from '@/lib/interventi/ensureInterventiForPi
 import { buildVoceInterventoLinker, type InterventoLinkRow } from '@/lib/interventi/voceInterventoLink';
 import { rilevaConflitti, type RapEsistente } from '@/utils/rapportini/rilevaConflitti';
 import { dettagliOdlBloccati, normOdl, taskDaSaltare, type OdlBloccatoDettaglio } from '@/lib/interventi/odlPositivi';
+import { filtraTaskRendicontati, tuttiTaskRendicontatiAltrove, type VoceAltrui } from '@/lib/interventi/taskRendicontati';
 import type { PositivoDettaglio } from '@/lib/interventi/caricaOdlPositivi';
 import { isTaskVia } from '@/lib/interventi/manuali/taskVia';
 import { risolviFlussoPerGruppo } from '@/lib/rapportini/flussiGruppo';
@@ -143,6 +144,33 @@ export async function sincronizzaRapportini(
     stato: r.stato as string, submitted_at: (r.submitted_at as string | null) ?? null,
   }));
 
+  /*
+    G2 (guardia commessa) — i task `acea:*` già rendicontati in un ALTRO rapportino dello
+    stesso operatore nello stesso giorno. È il caso dell'operatore "misto" (Italgas +
+    commessa): il suo rapportino unico vive su un piano di un ALTRO territorio, quindi
+    `rilevaConflitti` non scatta, e senza questa guardia il motore gliene creerebbe un
+    secondo — rompendo la regola «un rapportino per operatore per giorno» del motore acea.
+    Ristretta al prefisso `acea:` (id globalmente deterministici); i task Excel `row-N` non
+    sono unici fra piani e non possono partecipare.
+  */
+  const staffByAltroRap = new Map((altriRaps ?? []).map((r) => [String(r.id), String(r.staff_id)]));
+  const taskAceaAltrove = new Map<string, Set<string>>();
+  if ((altriRaps ?? []).length > 0) {
+    const { data: vociAltriRaps } = await db
+      .from('rapportino_voci')
+      .select('rapportino_id, task_id')
+      .in('rapportino_id', (altriRaps ?? []).map((r) => r.id));
+    for (const v of (vociAltriRaps ?? []) as Array<{ rapportino_id: string; task_id: string | null }>) {
+      const tid = String(v.task_id ?? '');
+      if (!tid.startsWith('acea:')) continue;
+      const sid = staffByAltroRap.get(String(v.rapportino_id));
+      if (!sid) continue;
+      const set = taskAceaAltrove.get(sid) ?? new Set<string>();
+      set.add(tid);
+      taskAceaAltrove.set(sid, set);
+    }
+  }
+
   const conflicts = rilevaConflitti({
     pianoId, territorio: piano.territorio ?? null, data: piano.data, operatori: operatoriPiano, esistenti,
   });
@@ -172,6 +200,9 @@ export async function sincronizzaRapportini(
     });
   }
 
+  // Orfani NON eliminati perché protetti (inviato con skipInviati, o voci di altri motori):
+  // si segnalano in interventiWarning invece di sparire in silenzio.
+  const orfaniProtetti: Array<{ id: string; staff_id: string; staff_name: string | null; stato: string; motivo: string }> = [];
   const currentStaffIds = (ops ?? []).map((o) => String(o.staff_id));
   if (currentStaffIds.length > 0) {
     const { data: existingRaps } = await db
@@ -179,24 +210,68 @@ export async function sincronizzaRapportini(
     const righe = (existingRaps as Array<{
       id: string; staff_id: string; staff_name: string | null; stato: string; submitted_at: string | null;
     }>) ?? [];
-    const toRemove = orphanRapportini(righe, currentStaffIds);
-    if (toRemove.length > 0) {
-      const eliminati = righe.filter((r) => toRemove.includes(r.id));
-      await db.from('rapportini').delete().in('id', toRemove);
-      // Sparizione silenziosa per definizione: l'utente ha salvato un piano, non chiesto di
-      // cancellare un rapportino. Il 03/08 è mancata proprio questa riga.
-      await registraAzione({
-        azione: 'rapportino.orfano.elimina',
-        attore,
-        entita: 'mappa_piani',
-        entitaId: pianoId,
-        dettaglio: {
-          data: piano.data,
-          motivo: 'operatore non più nel piano',
-          n_rapportini_eliminati: eliminati.length,
-          rapportini_eliminati: eliminati,
-        },
-      });
+    const candidati = orphanRapportini(righe, currentStaffIds);
+    if (candidati.length > 0) {
+      /*
+        GUARDIE ANTI-DISTRUZIONE del blocco orfani. Il loop per-operatore più sotto ha le sue
+        (skipInviati salta gli inviati, il delete tocca solo origine='task'), ma questo blocco
+        gira PRIMA e cancella l'INTERO rapportino: senza guardie, togliere un operatore dal
+        piano (anche per un payload PUT stantio) radeva via un rapportino inviato o pieno di
+        voci acea compilate — l'incidente PASTORELLI riaperto dall'altro verso.
+
+         1. con opts.skipInviati (sync automatico dal Salva) un rapportino INVIATO non si
+            elimina mai: la stessa promessa che skipInviati fa nel loop voci vale qui;
+         2. un rapportino con voci di ALTRI motori (origine != 'task': acea o manuale) non è
+            posseduto da questo motore e non si elimina MAI — il motore commessa lo
+            ri-adotterà al prossimo Genera (regola 1 di scegliPianoCommessa).
+      */
+      const conVociAltrui = new Set<string>();
+      {
+        const sel = await db.from('rapportino_voci')
+          .select('rapportino_id').in('rapportino_id', candidati).neq('origine', 'task');
+        if (!sel.error) {
+          for (const v of (sel.data ?? []) as Array<{ rapportino_id: string }>) conVociAltrui.add(String(v.rapportino_id));
+        } else if (/origine/i.test(sel.error.message) && /column|schema/i.test(sel.error.message)) {
+          // Migration `origine` non applicata: il filtro storico è `manuale != false`.
+          const selFallback = await db.from('rapportino_voci')
+            .select('rapportino_id').in('rapportino_id', candidati).neq('manuale', false);
+          for (const v of (selFallback.data ?? []) as Array<{ rapportino_id: string }>) conVociAltrui.add(String(v.rapportino_id));
+        }
+      }
+      const motivoProtezione = (r: { id: string; stato: string }): string | null => {
+        if (opts.skipInviati && r.stato === 'inviato') return 'rapportino inviato (skipInviati)';
+        if (conVociAltrui.has(r.id)) return 'contiene voci di altri moduli (commessa/+)';
+        return null;
+      };
+      for (const r of righe) {
+        if (!candidati.includes(r.id)) continue;
+        const motivo = motivoProtezione(r);
+        if (motivo) orfaniProtetti.push({ id: r.id, staff_id: r.staff_id, staff_name: r.staff_name, stato: r.stato, motivo });
+      }
+      const protettiIds = new Set(orfaniProtetti.map((p) => p.id));
+      const toRemove = candidati.filter((id) => !protettiIds.has(id));
+      if (toRemove.length > 0) {
+        const eliminati = righe.filter((r) => toRemove.includes(r.id));
+        await db.from('rapportini').delete().in('id', toRemove);
+        // Sparizione silenziosa per definizione: l'utente ha salvato un piano, non chiesto di
+        // cancellare un rapportino. Il 03/08 è mancata proprio questa riga.
+        await registraAzione({
+          azione: 'rapportino.orfano.elimina',
+          attore,
+          entita: 'mappa_piani',
+          entitaId: pianoId,
+          dettaglio: {
+            data: piano.data,
+            motivo: 'operatore non più nel piano',
+            n_rapportini_eliminati: eliminati.length,
+            rapportini_eliminati: eliminati,
+            // Rapportini orfani risparmiati dalle guardie: chi legge il log deve vedere anche
+            // cosa NON è stato cancellato e perché.
+            n_rapportini_protetti: orfaniProtetti.length,
+            rapportini_protetti: orfaniProtetti,
+          },
+        });
+      }
     }
   }
 
@@ -222,6 +297,37 @@ export async function sincronizzaRapportini(
   const { data: intRows } = await db
     .from('interventi').select('id, staff_id, odl, matricola_contatore, pdr, stato, committente, gruppo_attivita, indirizzo').eq('piano_id', pianoId);
   const resolveIntervento = buildVoceInterventoLinker((intRows ?? []) as InterventoLinkRow[]);
+
+  /*
+    Cintura same-piano per i task `acea:*` — completa G1 e taskAceaAltrove, che coprono
+    rispettivamente lo STESSO rapportino e i rapportini di ALTRI piani. Il buco era il caso
+    stesso-piano-altro-operatore: un task acea spostato in pianifica da PASTORELLI a ROSSI
+    lascia la voce acea (magari compilata) nel rapportino di PASTORELLI, e senza questa mappa
+    ROSSI riceverebbe una voce 'task' doppione sullo stesso lavoro. Chi possiede la voce acea
+    resta l'unico a rendicontarla: il task sotto un altro operatore non genera niente.
+    Letta DOPO il blocco orfani/conflitti, così riflette i rapportini davvero sopravvissuti.
+  */
+  const aceaStaffByTask = new Map<string, Set<string>>();
+  {
+    const { data: rapsPiano } = await db.from('rapportini').select('id, staff_id').eq('piano_id', pianoId);
+    const staffByRapPiano = new Map(((rapsPiano ?? []) as Array<{ id: string; staff_id: string }>)
+      .map((r) => [String(r.id), String(r.staff_id)]));
+    if (staffByRapPiano.size > 0) {
+      const { data: vociPiano } = await db
+        .from('rapportino_voci')
+        .select('rapportino_id, task_id')
+        .in('rapportino_id', [...staffByRapPiano.keys()]);
+      for (const v of (vociPiano ?? []) as Array<{ rapportino_id: string; task_id: string | null }>) {
+        const tid = String(v.task_id ?? '');
+        if (!tid.startsWith('acea:')) continue;
+        const sid = staffByRapPiano.get(String(v.rapportino_id));
+        if (!sid) continue;
+        const set = aceaStaffByTask.get(tid) ?? new Set<string>();
+        set.add(sid);
+        aceaStaffByTask.set(tid, set);
+      }
+    }
+  }
 
   // Rapportino per-attività: ogni voce prende le azioni dal flusso del GRUPPO ATTIVITA' del suo
   // intervento (collegamento su rapportino_template); il modello risolto sopra resta il
@@ -265,14 +371,28 @@ export async function sincronizzaRapportini(
   // deve produrre due voci (es. import file + template) né una voce su ODL già positivo.
   const vistiOdlVoci = new Set<string>();
   const odlBloccatiVoci = new Set<string>();
+  // Operatori per cui NON si crea il rapportino perché il loro lavoro commessa è già tutto
+  // rendicontato altrove (G2): si segnala, non si tace.
+  const g2Saltati: string[] = [];
 
   for (const op of ops ?? []) {
     if (opts.overwrite === 'skip' && staffInConflitto.has(String(op.staff_id))) continue;
+    const tasksOp = ((op.tasks as Array<{ id?: unknown; odl?: string | null; matricola?: string | null }>) ?? []);
     const { data: existing } = await db.from('rapportini')
       .select('id, token, stato').eq('piano_id', pianoId).eq('staff_id', op.staff_id).maybeSingle();
     // Sync automatico (skipInviati): un rapportino già consegnato non va alterato senza conferma
     // esplicita → lo si lascia intatto (voci e stato). La riapertura resta nel flusso Genera/Conferma.
     if (opts.skipInviati && (existing as { stato?: string } | null)?.stato === 'inviato') continue;
+    // G2: nessun rapportino NUOVO per chi ha solo task `acea:*` già rendicontati nel suo
+    // rapportino (misto) di un altro piano. Un rapportino ESISTENTE su questo piano invece
+    // si aggiorna normalmente.
+    if (!existing?.id) {
+      const altrove = taskAceaAltrove.get(String(op.staff_id));
+      if (altrove && altrove.size > 0 && tuttiTaskRendicontatiAltrove(tasksOp, altrove)) {
+        g2Saltati.push(op.staff_name ?? String(op.staff_id));
+        continue;
+      }
+    }
     let rapId = existing?.id;
     let token = existing?.token;
     if (!rapId) {
@@ -324,13 +444,48 @@ export async function sincronizzaRapportini(
       existingRows.map((v) => [v.task_id, Boolean((v.raw_json as { _nuovo?: unknown } | null)?._nuovo)]),
     );
     const rapPreesisteva = Boolean(existing?.id);
-    // ODL già positivi altrove o duplicati nel piano → la voce NON si genera. Una voce già
-    // compilata non si tocca mai (rigenerare un piano storico non cancella lavoro registrato).
+    // Voci da-task già COMPILATE: non si toccano mai (rigenerare un piano storico non
+    // cancella lavoro registrato). Il set serve sia a G1 (un task compilato non si filtra:
+    // filtrarlo = cancellare la voce senza ricrearla) sia a taskDaSaltare qui sotto.
     const compilate = new Set(
       existingRows.filter((v) => Object.keys(v.risposte ?? {}).length > 0).map((v) => v.task_id),
     );
+
+    /*
+      G1 (guardia commessa) — le voci SUPERSTITI degli altri motori su questo stesso
+      rapportino (origine 'acea' o 'manuale': quelle che il delete qui sotto non tocca).
+      Un task già coperto da una di loro NON deve rigenerare una voce 'task': con i task
+      della commessa il match è esatto (`Task.id = task_id` della voce acea), l'unità
+      ODL(+matricola) fa da cintura per le SOLE voci acea — una voce manuale può condividere
+      l'ODL con un task Excel legittimo, e filtrarlo cancellerebbe la sua voce compilata
+      (regressione FIRENZE/PERUGIA/LAZIO). Le voci restano acea, le risposte restano
+      intatte, zero doppioni. Stesso filtro (negato) del delete: se la migration `origine`
+      manca, si ripiega su `manuale != false` — e senza colonna `origine` non esistono voci
+      acea, quindi la cintura ODL resta correttamente spenta.
+    */
+    let vociAltrui: VoceAltrui[] = [];
+    {
+      const colonneAltrui = filtroMotore.campo === 'origine' ? 'task_id, odl, matricola, origine' : 'task_id, odl, matricola';
+      const selAltrui = await db.from('rapportino_voci')
+        .select(colonneAltrui)
+        .eq('rapportino_id', rapId)
+        .neq(filtroMotore.campo, filtroMotore.valore);
+      if (!selAltrui.error) vociAltrui = ((selAltrui.data ?? []) as unknown) as VoceAltrui[];
+    }
+    // Cinture cross-rapportino, per soli id `acea:*` (deterministici): un task della commessa
+    // già rendicontato nel rapportino misto di un altro piano (taskAceaAltrove) o nel
+    // rapportino di un ALTRO operatore di questo stesso piano (aceaStaffByTask, task spostato
+    // in pianifica) non va duplicato.
+    const aceaAltrove = taskAceaAltrove.get(String(op.staff_id));
+    const tasksNonRendicontati = filtraTaskRendicontati(tasksOp, vociAltrui, { taskConRisposte: compilate })
+      .filter((t) => {
+        const id = String(t.id ?? '');
+        if (aceaAltrove?.has(id)) return false;
+        const owners = aceaStaffByTask.get(id);
+        return !(owners && [...owners].some((s) => s !== String(op.staff_id)));
+      });
     const { salta, odlBloccati: bloccatiOp } = taskDaSaltare({
-      tasks: (((op.tasks as Array<{ id?: unknown; odl?: string | null }>) ?? [])).map((t) => ({
+      tasks: tasksNonRendicontati.map((t) => ({
         id: String(t.id ?? ''),
         odl: t.odl ?? null,
       })),
@@ -342,7 +497,7 @@ export async function sincronizzaRapportini(
     // Ordine voci = ordine del file master (task.ordine/id "row-N"), NON la posizione nella rotta
     // ottimizzata: il rapportino segue la sequenza del master. La mappa (op.tasks) resta invariata.
     const ranks = rankOrdineDaFile((op.tasks as Array<{ id: string; ordine?: number }>) ?? []);
-    const fromTasks = ((op.tasks as unknown[]) ?? [])
+    const fromTasks = (tasksNonRendicontati as unknown[])
       .filter((t) => !salta.has(String((t as { id?: unknown }).id ?? '')))
       .map((t, i) => taskToVoce(t, ranks[(t as { id?: string }).id ?? ''] ?? i + 1));
     const existingAsVoci: Voce[] = existingRows.map((v) => ({ task_id: v.task_id, ordine: 0, raw_json: {}, risposte: v.risposte ?? {} }));
@@ -393,6 +548,18 @@ export async function sincronizzaRapportini(
       if (eVoci) return { ok: false, status: 500, error: eVoci.message };
     }
     out.push({ staff_id: op.staff_id, staff_name: op.staff_name ?? null, token: token!, url: `${baseUrl}/r/${token}` });
+  }
+
+  if (g2Saltati.length > 0) {
+    const msg = `Rapportino non creato per ${g2Saltati.join(', ')}: lavoro della commessa già rendicontato nel rapportino del giorno su un altro piano.`;
+    interventiWarning = interventiWarning ? `${interventiWarning} | ${msg}` : msg;
+  }
+  if (orfaniProtetti.length > 0) {
+    // Non è un errore: è la guardia che ha impedito una cancellazione. Ma l'anomalia
+    // (operatore fuori dal piano con un rapportino ancora dentro) va detta, non taciuta.
+    const nomi = orfaniProtetti.map((p) => p.staff_name ?? p.staff_id).join(', ');
+    const msg = `Rapportino di ${nomi} NON eliminato: l'operatore non è più nel piano ma il rapportino è inviato o contiene voci di altri moduli (commessa/+). Verificare la pianificazione.`;
+    interventiWarning = interventiWarning ? `${interventiWarning} | ${msg}` : msg;
   }
 
   return {

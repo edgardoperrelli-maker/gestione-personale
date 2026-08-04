@@ -57,11 +57,16 @@ export async function DELETE(req: Request) {
     // I TERMINALI restano: un completato è lavoro consegnato — cancellarlo riaprirebbe la
     // riga di registro acqualatina e lascerebbe orfana la rimozione misuratore. `nCompletati`
     // qui sopra continua a dire nel log quanti ne sopravvivono.
+    //
+    // E restano anche le righe del REGISTRO (`created_from_mappa=false`, commessa/«+»): non
+    // nate dai task del piano, la loro fonte di verità è il registro — qui al più si
+    // sganciano (se il piano sparisce, la FK azzera `piano_id`), mai si distruggono.
     const { error: eInt } = await supabaseAdmin
       .from('interventi')
       .delete()
       .eq('piano_id', pianoId)
       .eq('staff_id', staffId)
+      .eq('created_from_mappa', true)
       .not('stato', 'in', '(completato,annullato)');
     if (eInt) throw new Error(eInt.message);
 

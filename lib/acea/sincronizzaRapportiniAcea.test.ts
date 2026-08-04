@@ -41,7 +41,7 @@ const vociDi = (tables: Tables, rapportinoId: string) =>
   (tables.rapportino_voci ?? []).filter((v) => v.rapportino_id === rapportinoId);
 
 describe('sincronizzaRapportiniAcea', () => {
-  it('operatore senza rapportino: lo crea sul piano-contenitore ACEA', async () => {
+  it('operatore senza rapportino: lo crea su un piano VERO della commessa, con riga operatore e task', async () => {
     const { db, tables } = makeFakeDb(seed());
     const r = await sincronizzaRapportiniAcea(db, { data: DATA, attoreId: ATTORE });
 
@@ -52,10 +52,20 @@ describe('sincronizzaRapportiniAcea', () => {
       staff_id: 's1', staff_name: 'MARIO ROSSI', esito: 'creato', voci_aggiunte: 1,
     });
 
-    // Il piano esiste solo per soddisfare la FK: territorio ACEA, nessun operatore, nessun task.
+    // Il piano è un piano VERO (unificazione col percorso Excel): territorio della commessa,
+    // nessuna nota-sentinella, e l'operatore registrato in mappa_piani_operatori con i task
+    // `acea:*` — è ciò che la vista pianifica legge e ciò che tiene il rapportino al riparo
+    // da orphanRapportini. Il vecchio guscio senza operatori è morto qui.
     expect(tables.mappa_piani).toHaveLength(1);
-    expect(tables.mappa_piani[0]).toMatchObject({ data: DATA, territorio: 'ACEA', created_by: ATTORE });
-    expect(tables.mappa_piani_operatori ?? []).toHaveLength(0);
+    expect(tables.mappa_piani[0]).toMatchObject({ data: DATA, territorio: 'ACEA', created_by: ATTORE, note: null });
+    expect(tables.mappa_piani_operatori ?? []).toHaveLength(1);
+    expect(tables.mappa_piani_operatori[0]).toMatchObject({
+      staff_id: 's1', staff_name: 'MARIO ROSSI', task_count: 1,
+    });
+    expect((tables.mappa_piani_operatori[0].tasks as Array<{ id: string }>).map((t) => t.id))
+      .toEqual([taskIdAcea('i1')]);
+    // L'intervento riceve il piano_id del piano vero (backfill dell'adozione).
+    expect(tables.interventi[0].piano_id).toBe(String(tables.mappa_piani[0].id));
 
     expect(tables.rapportini).toHaveLength(1);
     expect(tables.rapportini[0]).toMatchObject({ staff_id: 's1', data: DATA, stato: 'in_corso' });
@@ -84,9 +94,15 @@ describe('sincronizzaRapportiniAcea', () => {
     if (!r.ok) return;
     expect(r.esiti[0]).toMatchObject({ esito: 'aggiunto', rapportino_id: 'rap-italgas', voci_aggiunte: 1 });
 
-    // Nessun secondo rapportino, nessun piano ACEA: si è attaccato a quello che c'era.
+    // Nessun secondo rapportino: si è attaccato a quello che c'era (regola «un rapportino per
+    // operatore per giorno», il rapportino non si sposta mai). Il piano ACEA però ora ESISTE:
+    // l'adozione crea comunque il piano vero della commessa — con riga operatore e task — così
+    // il lavoro è visibile in pianifica anche se il rapportino vive sul piano Italgas.
     expect(tables.rapportini).toHaveLength(1);
-    expect(tables.mappa_piani).toHaveLength(0);
+    expect(tables.mappa_piani).toHaveLength(1);
+    expect(tables.mappa_piani[0]).toMatchObject({ data: DATA, territorio: 'ACEA' });
+    expect(tables.mappa_piani_operatori ?? []).toHaveLength(1);
+    expect(tables.interventi[0].piano_id).toBe(String(tables.mappa_piani[0].id));
 
     const voci = vociDi(tables, 'rap-italgas');
     expect(voci).toHaveLength(3);
@@ -161,7 +177,7 @@ describe('sincronizzaRapportiniAcea', () => {
     expect(tables.mappa_piani).toHaveLength(1);     // il piano-contenitore si riusa
   });
 
-  it('due operatori nello stesso giorno condividono un solo piano-contenitore', async () => {
+  it('due operatori nello stesso giorno condividono un solo piano della commessa', async () => {
     const { db, tables } = makeFakeDb(seed({
       interventi: [
         intervento({ id: 'i1', staff_id: 's1', odl: '1' }),
@@ -173,6 +189,8 @@ describe('sincronizzaRapportiniAcea', () => {
     expect(r.ok).toBe(true);
     expect(tables.mappa_piani).toHaveLength(1);
     expect(tables.rapportini).toHaveLength(2);
+    // Una riga operatore a testa, sullo stesso piano: come un piano Excel a due operatori.
+    expect((tables.mappa_piani_operatori ?? []).map((o) => o.staff_id).sort()).toEqual(['s1', 's2']);
   });
 
   it('la voce porta il flusso del gruppo attività del suo intervento', async () => {
@@ -248,6 +266,34 @@ describe('sincronizzaRapportiniAcea', () => {
     expect(tables.mappa_piani).toHaveLength(0);
   });
 
+  // Caso 12383864/12383202: la bozza a metà di un ordine NON selezionato bloccava
+  // l'assegnazione completa di un altro. La generazione mirata (staffIds) riguarda solo la
+  // selezione: la riga a metà — che un esecutore non ce l'ha, quindi non può appartenere a
+  // nessuno degli operatori chiesti — si dice negli avvisi, non nel cancello.
+  it('generazione mirata: la bozza a metà di un ordine estraneo avvisa ma non blocca', async () => {
+    const { db, tables } = makeFakeDb(seed({
+      acea_ordini: [{ odl: '912999999', pianificato_il_bozza: DATA, pianificato_a_bozza: null }],
+    }));
+    const r = await sincronizzaRapportiniAcea(db, { data: DATA, attoreId: ATTORE, staffIds: ['s1'] });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.esiti).toHaveLength(1);
+    expect(r.esiti[0]).toMatchObject({ staff_id: 's1', esito: 'creato' });
+    expect(r.avvisi.join(' ')).toContain('912999999');
+    expect(tables.rapportini).toHaveLength(1);
+  });
+
+  it('generazione dell\'intera giornata: la stessa bozza a metà blocca con 409 e nomina gli ODL', async () => {
+    const { db } = makeFakeDb(seed({
+      acea_ordini: [{ odl: '912999999', pianificato_il_bozza: DATA, pianificato_a_bozza: null }],
+    }));
+    const r = await sincronizzaRapportiniAcea(db, { data: DATA, attoreId: ATTORE });
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.status).toBe(409);
+    expect(r.incomplete).toEqual(['912999999']);
+  });
+
   it('rifiuta una data non valida prima di toccare il database', async () => {
     const { db, tables } = makeFakeDb(seed());
     const r = await sincronizzaRapportiniAcea(db, { data: '28/07/2026', attoreId: ATTORE });
@@ -255,6 +301,79 @@ describe('sincronizzaRapportiniAcea', () => {
     if (r.ok) return;
     expect(r.status).toBe(400);
     expect(tables.rapportini).toHaveLength(0);
+  });
+});
+
+/*
+  L'ADOZIONE: i piani-contenitore storici e gli interventi senza piano guariscono al primo
+  «Genera rapportini». È il passo di retro-compatibilità: nessuna migration SQL, il codice
+  sana i dati che incontra — e lo fa in modo idempotente.
+*/
+describe('sincronizzaRapportiniAcea — adozione del piano', () => {
+  const NOTA_CONTENITORE = 'Contenitore dei rapportini generati dal registro commesse.';
+
+  it('contenitore storico con rapportino appeso: riga operatore, task, backfill piano_id, nota azzerata — rapportino MAI spostato', async () => {
+    const { db, tables } = makeFakeDb(seed({
+      mappa_piani: [{
+        id: 'pc', data: DATA, territorio: 'ACEA', note: NOTA_CONTENITORE,
+        stato: 'confermato', created_at: '2026-07-28T05:00:00Z',
+      }],
+      rapportini: [{
+        id: 'rapc', staff_id: 's1', staff_name: 'MARIO ROSSI', data: DATA,
+        stato: 'in_corso', token: 'tokc', piano_id: 'pc', created_at: '2026-07-28T06:00:00Z',
+      }],
+      interventi: [intervento({ id: 'i1', piano_id: null })],
+    }));
+
+    const r = await sincronizzaRapportiniAcea(db, { data: DATA, attoreId: ATTORE });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    // Il rapportino resta dov'era (stesso id, stesso token): è il piano a diventare vero.
+    expect(r.esiti[0]).toMatchObject({ esito: 'aggiunto', rapportino_id: 'rapc' });
+    expect(tables.rapportini).toHaveLength(1);
+    expect(tables.rapportini[0]).toMatchObject({ id: 'rapc', piano_id: 'pc', token: 'tokc' });
+    // Il contenitore è stato adottato: riga operatore con i task e nota-sentinella azzerata.
+    expect(tables.mappa_piani).toHaveLength(1);
+    expect(tables.mappa_piani[0].note).toBeNull();
+    expect(tables.mappa_piani_operatori).toHaveLength(1);
+    expect(tables.mappa_piani_operatori[0]).toMatchObject({ piano_id: 'pc', staff_id: 's1', task_count: 1 });
+    // L'intervento orfano di piano è stato agganciato al piano del rapportino.
+    expect(tables.interventi[0].piano_id).toBe('pc');
+  });
+
+  it('operatore già nel piano Excel del giorno: converge lì (regola riga operatore), preservando i task Excel', async () => {
+    const { db, tables } = makeFakeDb(seed({
+      mappa_piani: [{ id: 'px', data: DATA, territorio: 'ACEA', note: null, created_at: '2026-07-28T05:00:00Z' }],
+      mappa_piani_operatori: [{
+        piano_id: 'px', staff_id: 's1', staff_name: 'MARIO ROSSI', colore: '#2563EB',
+        km: 0, task_count: 1, tasks: [{ id: 'row-1', odl: 'Z9' }], polyline: [],
+      }],
+    }));
+
+    const r = await sincronizzaRapportiniAcea(db, { data: DATA, attoreId: ATTORE });
+    expect(r.ok).toBe(true);
+    // Nessun piano nuovo: commessa ed Excel condividono il piano dell'operatore.
+    expect(tables.mappa_piani).toHaveLength(1);
+    expect(tables.rapportini[0].piano_id).toBe('px');
+    expect(tables.interventi[0].piano_id).toBe('px');
+    // I task Excel restano, il task della commessa si accoda: il motore possiede solo gli `acea:*`.
+    const riga = tables.mappa_piani_operatori[0];
+    expect((riga.tasks as Array<{ id: string }>).map((t) => t.id)).toEqual(['row-1', taskIdAcea('i1')]);
+    expect(riga.task_count).toBe(2);
+  });
+
+  it('idempotente: il secondo giro non duplica né piano, né riga operatore, né task, né voci', async () => {
+    const { db, tables } = makeFakeDb(seed());
+    const primo = await sincronizzaRapportiniAcea(db, { data: DATA, attoreId: ATTORE });
+    expect(primo.ok).toBe(true);
+    const secondo = await sincronizzaRapportiniAcea(db, { data: DATA, attoreId: ATTORE });
+    expect(secondo.ok).toBe(true);
+    if (!secondo.ok) return;
+    expect(secondo.esiti[0]).toMatchObject({ esito: 'nessuna_modifica' });
+    expect(tables.mappa_piani).toHaveLength(1);
+    expect(tables.mappa_piani_operatori).toHaveLength(1);
+    expect((tables.mappa_piani_operatori[0].tasks as unknown[]).length).toBe(1);
+    expect(tables.rapportino_voci).toHaveLength(1);
   });
 });
 

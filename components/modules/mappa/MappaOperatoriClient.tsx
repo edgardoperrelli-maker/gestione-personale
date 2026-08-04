@@ -3469,7 +3469,13 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                               setUnassignedTasks([]);
                               setZtlConflicts([]);
                               // Azzera = ridistribuzione volontaria da zero: sblocca e dimentica i pin.
-                              setEsecutorePins({});
+                              // ECCETTO i task `acea:*`: sono lavoro della commessa, la voce del
+                              // rapportino vive già sotto il loro operatore e ridistribuirli a un
+                              // altro non sposterebbe niente (il motore li ignora sotto chiunque
+                              // non sia il titolare della voce). Restano inchiodati al loro pin.
+                              setEsecutorePins((prev) =>
+                                Object.fromEntries(Object.entries(prev).filter(([tid]) => tid.startsWith('acea:'))),
+                              );
                               setBloccaRidistribuzione(false);
                               if (isEditMode) {
                                 setCurrentPianoId(undefined);
@@ -3701,13 +3707,19 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                                   );
                                 })()}
                               </div>
-                              <button
-                                type="button"
-                                onClick={() => setMovingTaskId(isMoving ? null : t.id)}
-                                className={`shrink-0 rounded border px-1.5 py-0.5 text-[11px] font-medium transition ${isMoving ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-soft)] text-[var(--brand-primary)]' : 'border-[var(--brand-border)] text-[var(--brand-text-subtle)] hover:border-[var(--brand-primary-border)] hover:text-[var(--brand-primary)]'}`}
-                              >
-                                Sposta
-                              </button>
+                              {/* I task `acea:*` (lavoro della commessa) non si spostano da qui:
+                                  la loro assegnazione vive nel registro (pianifica commessa) e la
+                                  voce del rapportino resta comunque al titolare — spostarli
+                                  produrrebbe solo incoerenza (o un 409 se l'intervento è chiuso). */}
+                              {!t.id.startsWith('acea:') && (
+                                <button
+                                  type="button"
+                                  onClick={() => setMovingTaskId(isMoving ? null : t.id)}
+                                  className={`shrink-0 rounded border px-1.5 py-0.5 text-[11px] font-medium transition ${isMoving ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-soft)] text-[var(--brand-primary)]' : 'border-[var(--brand-border)] text-[var(--brand-text-subtle)] hover:border-[var(--brand-primary-border)] hover:text-[var(--brand-primary)]'}`}
+                                >
+                                  Sposta
+                                </button>
+                              )}
                               {t.stato !== 'completato' && (
                                 <button
                                   type="button"

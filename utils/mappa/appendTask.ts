@@ -73,9 +73,11 @@ export function appendTaskToOperator<E extends RoutableEntry>(
 
 /**
  * Sposta TUTTI i task non-completati dall'operatore `fromIdx` all'operatore `toIdx`,
- * ricalcolando le rotte di entrambi (sorgente svuotata → azzerata). I task `completato`
- * restano sulla sorgente. Funzione pura: non muta l'input. Difensivo: indici uguali,
- * fuori range, o niente da spostare → ritorna la distribuzione invariata (stesso riferimento).
+ * ricalcolando le rotte di entrambi (sorgente svuotata → azzerata). Restano sulla sorgente
+ * i task `completato` E i task `acea:*` (lavoro della commessa: la voce del rapportino vive
+ * sotto il titolare e il motore ignora questi task sotto chiunque altro — spostarli qui
+ * creerebbe solo incoerenza task/voce). Funzione pura: non muta l'input. Difensivo: indici
+ * uguali, fuori range, o niente da spostare → ritorna la distribuzione invariata.
  */
 export function moveAllTasksToOperator<E extends RoutableEntry>(
   distribution: E[],
@@ -86,9 +88,10 @@ export function moveAllTasksToOperator<E extends RoutableEntry>(
   if (fromIdx === toIdx) return distribution;
   if (fromIdx < 0 || fromIdx >= distribution.length) return distribution;
   if (toIdx < 0 || toIdx >= distribution.length) return distribution;
-  const daSpostare = distribution[fromIdx].tasks.filter((t) => t.stato !== 'completato');
+  const eInamovibile = (t: Task) => t.stato === 'completato' || String(t.id ?? '').startsWith('acea:');
+  const daSpostare = distribution[fromIdx].tasks.filter((t) => !eInamovibile(t));
   if (daSpostare.length === 0) return distribution;
-  const restano = distribution[fromIdx].tasks.filter((t) => t.stato === 'completato');
+  const restano = distribution[fromIdx].tasks.filter(eInamovibile);
   const next = distribution.map((e) => ({ ...e, tasks: [...e.tasks] })) as E[];
   const from = next[fromIdx];
   if (restano.length >= 1) {

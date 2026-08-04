@@ -72,10 +72,12 @@ export async function POST(req: Request) {
   let templateId: string | null = null;
   let infoCampi: unknown = [];
   let tipo = 'standard';
+  let flussoRisolto = false;
   if (campi.length === 0) {
     const flussi = await caricaFlussi(supabaseAdmin);
     const r = risolviCampiFlusso(int.committente, int.gruppo_attivita, flussi);
     campi = r.campi; templateId = r.templateId; infoCampi = r.infoCampi; tipo = r.tipo;
+    flussoRisolto = r.flussoTrovato;
   }
   if (campi.length === 0) return NextResponse.json({ error: 'nessun_flusso' }, { status: 422 });
 
@@ -147,6 +149,15 @@ export async function POST(req: Request) {
   if (voce) {
     const patchVoce: Record<string, unknown> = { risposte: risposteFinali };
     if (voce.approvazione_stato === 'in_attesa') patchVoce.approvazione_stato = 'approvato';
+    // Congela sulla voce le azioni con cui l'esito è stato validato. Senza questo la voce resta
+    // con `campi_snapshot` vuoto e chi rilegge l'intervento (Storico, «Modifica voce») ripiega
+    // sullo snapshot del RAPPORTINO, che è il template di piano — in pratica un altro
+    // committente: un PICARRO/Italgas esitato qui si riapriva con le azioni ACEA.
+    // Solo col flusso davvero risolto: congelare quello di ripiego renderebbe l'errore permanente.
+    if (flussoRisolto) {
+      patchVoce.campi_snapshot = campi;
+      if (templateId) patchVoce.template_id = templateId;
+    }
     await supabaseAdmin.from('rapportino_voci').update(patchVoce).eq('id', voce.id);
   } else {
     const rapId = body.rapId && /^[0-9a-fA-F-]{20,}$/.test(body.rapId) ? body.rapId : randomUUID();

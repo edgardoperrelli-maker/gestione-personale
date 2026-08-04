@@ -119,6 +119,12 @@ describe('motivoManuale400', () => {
   it('preferisce il messaggio del server se presente', () => {
     expect(motivoManuale400({ error: 'attivita_sconosciuta', messaggio: 'MSG DAL SERVER' })).toBe('MSG DAL SERVER');
   });
+  // Doppio tap su «Invia»: senza codice parlante l'operatore leggerebbe «riapri il link»,
+  // riproverebbe a mano e creerebbe una terza voce sullo stesso contatore.
+  it('matricola_gia_nel_rapportino → dice che la voce c\'è già', () => {
+    expect(motivoManuale400({ error: 'matricola_gia_nel_rapportino' })).toMatch(/già nel rapportino/i);
+  });
+
   it('altri codici o body assente → null (resta il motivo storico del 400)', () => {
     expect(motivoManuale400({ error: 'campi_mancanti' })).toBeNull();
     expect(motivoManuale400({})).toBeNull();

@@ -9,16 +9,24 @@
 // motore di raderle via al giro successivo.
 //
 // Regola unica: **un rapportino per operatore per giorno**. Si cerca per `(staff_id, data)`,
-// attraverso i piani; se non c'è lo si crea su un piano-contenitore di territorio ACEA,
-// indipendentemente dall'attività.
+// attraverso i piani; se non c'è lo si crea sul piano VERO della commessa — quello di
+// (data, territorio) scelto da `scegliPianoCommessa` — dove questo motore ha già registrato
+// l'operatore in `mappa_piani_operatori` e agganciato gli interventi (passo di ADOZIONE, §2b).
+// Il risultato è indistinguibile da un piano del percorso Excel: la vista pianifica lo mostra,
+// e i rapportini non sono mai "orfani" (staff sempre fra gli operatori del loro piano).
 //
 // Cosa NON fa, di proposito:
 //  - non cancella mai una voce, di nessuna origine;
-//  - non tocca un rapportino già `inviato` senza una conferma esplicita dell'admin;
-//  - non scrive `piano_id` sugli interventi ACEA. Sono senza piano per costruzione: legarli al
-//    piano-contenitore li esporrebbe a `ensureInterventiForPiano`, che ricostruisce gli interventi
-//    dai task del piano e cancellerebbe tutto ciò che nei task non trova — e nel contenitore di
-//    task non ce ne sono.
+//  - non tocca un rapportino già `inviato` senza una conferma esplicita dell'admin.
+//
+// NOTA STORICA (fino ad agosto 2026): questo motore NON scriveva `piano_id` sugli interventi e
+// creava i rapportini su un piano-contenitore senza operatori né task, per paura che
+// `ensureInterventiForPiano` — che ricostruisce gli interventi dai task del piano — cancellasse
+// tutto ciò che nei task non trovava. Quel pericolo non esiste più dalla migration
+// 20260603030000: la rigenerazione elimina SOLO le righe `created_from_mappa=true`
+// (planInterventiForPiano) e le voci `origine='task'`, e gli interventi del registro nascono
+// `false` per default di colonna. Il guscio invece i danni li faceva davvero: vista pianifica
+// vuota, e rapportini a rischio orfani quando il "contenitore" riusato era un piano Excel vero.
 
 import { randomBytes } from 'crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -31,6 +39,10 @@ import {
   scegliRapportino, taskIdAcea, vociDaAggiungere,
   type EsitoOperatore, type InterventoDaVoce, type VoceEsistente,
 } from '@/lib/acea/vociRapportino';
+import {
+  caricaContestoPiani, creaPianoCommessa, eNotaContenitore,
+  risolviTerritorioIdCommessa, scegliPianoCommessa, sincronizzaOperatorePiano,
+} from '@/lib/acea/pianoCommessa';
 
 export type OpzioniAcea = {
   /** Giorno di lavoro, 'YYYY-MM-DD'. */
@@ -75,6 +87,14 @@ type TemplateRow = {
 type RapportinoRow = {
   id: string; staff_id: string; staff_name: string | null;
   stato: string; token: string; created_at: string | null;
+  /** Serve all'adozione: regola 1 di `scegliPianoCommessa` (il piano del rapportino vince). */
+  piano_id: string | null;
+};
+
+/** L'intervento con l'aggancio al piano: le due colonne che l'adozione backfilla se NULL. */
+type InterventoConPiano = InterventoDaVoce & {
+  piano_id: string | null;
+  territorio_id: string | null;
 };
 
 const RE_DATA = /^\d{4}-\d{2}-\d{2}$/;
@@ -101,10 +121,34 @@ export async function sincronizzaRapportiniAcea(
     pianificazione diventa lavoro vero, ed è l'ultimo istante utile per accorgersene. Con
     `confermaIncomplete` si va avanti lo stesso — la decisione resta all'ufficio, ma presa.
 
+    MA il blocco vale solo per la generazione dell'INTERA giornata (senza `staffIds`). Quando si
+    genera dalla selezione — l'ufficio ha scelto delle righe e un operatore — una bozza con la
+    data e senza esecutore non può appartenere a nessuno degli operatori chiesti (un esecutore non
+    ce l'ha proprio): bloccare lì significa fermare un'assegnazione completa per un ordine che
+    NON è nella selezione, e chi guarda una griglia filtrata non può nemmeno capire quale sia
+    (caso 12383864/12383202). Sulla mirata la riga a metà si dice negli avvisi, non nel cancello.
+
     Si guardano solo le righe con la DATA di questo giorno: quelle con il solo esecutore non
     appartengono a nessun giorno e non possono bloccarne uno: si contano e si dicono, in fondo.
   */
-  if (!opts.confermaIncomplete) {
+  const generazioneMirata = (opts.staffIds?.length ?? 0) > 0;
+  if (!opts.confermaIncomplete && generazioneMirata) {
+    const { data: aMeta } = await db
+      .from(profilo.tabellaOrdini)
+      .select('odl, pianificato_a_bozza')
+      .eq('pianificato_il_bozza', opts.data);
+    const incomplete = ((aMeta ?? []) as Array<{ odl: string; pianificato_a_bozza: string | null }>)
+      .filter((r) => !r.pianificato_a_bozza)
+      .map((r) => r.odl);
+    if (incomplete.length > 0) {
+      avvisi.push(
+        incomplete.length === 1
+          ? `L'ordine ${incomplete[0]} è programmato per questo giorno ma non ha un esecutore: resta fuori da ogni rapportino.`
+          : `${incomplete.length} ordini (${incomplete.slice(0, 5).join(', ')}${incomplete.length > 5 ? ', …' : ''}) sono programmati per questo giorno senza esecutore: restano fuori da ogni rapportino.`,
+      );
+    }
+  }
+  if (!opts.confermaIncomplete && !generazioneMirata) {
     const { data: aMeta, error: eMeta } = await db
       .from(profilo.tabellaOrdini)
       .select('odl, pianificato_a_bozza')
@@ -131,14 +175,14 @@ export async function sincronizzaRapportiniAcea(
   const { data: intRows, error: eInt } = await db
     .from('interventi')
     .select(
-      'id, odl, staff_id, stato, intervento_tipo, gruppo_attivita, committente, indirizzo, comune, cap, matricola_contatore, nominativo, pdr, recapito',
+      'id, odl, staff_id, stato, intervento_tipo, gruppo_attivita, committente, indirizzo, comune, cap, matricola_contatore, nominativo, pdr, recapito, piano_id, territorio_id',
     )
     .eq('data', opts.data)
     .in('committente', [...profilo.committenti]);
   if (eInt) return { ok: false, status: 500, error: eInt.message };
 
   const filtroStaff = opts.staffIds?.length ? new Set(opts.staffIds) : null;
-  const interventi: InterventoDaVoce[] = [];
+  const interventi: InterventoConPiano[] = [];
   let senzaOperatore = 0;
   for (const r of (intRows ?? []) as Array<Record<string, unknown>>) {
     const staffId = String(r.staff_id ?? '').trim();
@@ -159,6 +203,8 @@ export async function sincronizzaRapportiniAcea(
       nominativo: (r.nominativo as string | null) ?? null,
       pdr: (r.pdr as string | null) ?? null,
       recapito: (r.recapito as string | null) ?? null,
+      piano_id: (r.piano_id as string | null) ?? null,
+      territorio_id: (r.territorio_id as string | null) ?? null,
     });
   }
   if (senzaOperatore > 0) {
@@ -184,7 +230,7 @@ export async function sincronizzaRapportiniAcea(
 
   if (interventi.length === 0) return { ok: true, esiti: [], avvisi };
 
-  const perStaff = new Map<string, InterventoDaVoce[]>();
+  const perStaff = new Map<string, InterventoConPiano[]>();
   for (const i of interventi) {
     perStaff.set(i.staff_id, [...(perStaff.get(i.staff_id) ?? []), i]);
   }
@@ -193,7 +239,7 @@ export async function sincronizzaRapportiniAcea(
   // ---- 2. Rapportini esistenti del giorno, su qualunque piano --------------------------------
   const { data: rapRows, error: eRap } = await db
     .from('rapportini')
-    .select('id, staff_id, staff_name, stato, token, created_at')
+    .select('id, staff_id, staff_name, stato, token, created_at, piano_id')
     .eq('data', opts.data)
     .in('staff_id', staffIds);
   if (eRap) return { ok: false, status: 500, error: eRap.message };
@@ -288,9 +334,82 @@ export async function sincronizzaRapportiniAcea(
     }
   }
 
+  /*
+    ---- 5b. ADOZIONE: il piano vero della commessa, operatore per operatore -------------------
+
+    È il passo che rende il risultato indistinguibile dal percorso Excel, e gira per OGNI
+    operatore con interventi del giorno — anche a esito `nessuna_modifica`: sana i contenitori
+    storici e i piani rimasti a metà. Le tre scritture sono un blocco unico per costruzione:
+
+      1. `piano_id` (+`territorio_id`) sugli interventi che l'hanno NULL — mai spostati se già
+         agganciati altrove;
+      2. la riga operatore in `mappa_piani_operatori` con i task `acea:*` — OBBLIGATORIA
+         insieme al punto 1: un rapportino su un piano senza la propria riga operatore viene
+         eliminato da `orphanRapportini` alla prima rigenerazione (l'incidente PASTORELLI);
+      3. la nota-sentinella «Contenitore…» azzerata sul piano adottato.
+
+    I rapportini esistenti NON si spostano mai (stesso id/token): è il piano a convergere su
+    di loro (regola 1 di `scegliPianoCommessa`), non il contrario.
+  */
+  const contesto = await caricaContestoPiani(db, opts.data, profilo.territorioPiani);
+  if (!contesto.ok) return { ok: false, status: 500, error: contesto.error };
+  const { piani, operatoriPerPiano } = contesto;
+  const territorioId = await risolviTerritorioIdCommessa(db, profilo.territorioPiani);
+  const pianoPerStaff = new Map<string, string>();
+  for (const staffId of staffIds) {
+    const miei = perStaff.get(staffId) ?? [];
+    const pianiIds = new Set(piani.map((p) => p.id));
+    const pianiConRapportino = new Set(
+      rapportini
+        .filter((r) => r.staff_id === staffId && r.piano_id && pianiIds.has(r.piano_id))
+        .map((r) => String(r.piano_id)),
+    );
+    const pianiConRiga = new Set(
+      piani.filter((p) => operatoriPerPiano.get(p.id)?.has(staffId)).map((p) => p.id),
+    );
+    let pianoId = scegliPianoCommessa(piani, pianiConRapportino, pianiConRiga);
+    if (!pianoId) {
+      const c = await creaPianoCommessa(db, opts.data, profilo.territorioPiani, opts.attoreId);
+      if (!c.ok) return { ok: false, status: 500, error: c.error };
+      pianoId = c.pianoId;
+      // Visibile agli operatori successivi dello stesso giro: un solo piano, come prima.
+      piani.push({ id: pianoId, created_at: null, note: null });
+    } else {
+      const p = piani.find((x) => x.id === pianoId);
+      if (p && eNotaContenitore(p.note)) {
+        await db.from('mappa_piani').update({ note: null }).eq('id', pianoId);
+        p.note = null;
+      }
+    }
+    pianoPerStaff.set(staffId, pianoId);
+
+    // Backfill SOLO dei NULL: un intervento già agganciato (o con territorio da override)
+    // non si tocca — l'adozione ripara, non riorganizza.
+    const senzaPiano = miei.filter((i) => i.piano_id == null).map((i) => i.id);
+    if (senzaPiano.length > 0) {
+      const { error: eUp } = await db
+        .from('interventi').update({ piano_id: pianoId }).in('id', senzaPiano);
+      if (eUp) return { ok: false, status: 500, error: eUp.message };
+    }
+    if (territorioId) {
+      const senzaTerritorio = miei.filter((i) => i.territorio_id == null).map((i) => i.id);
+      if (senzaTerritorio.length > 0) {
+        const { error: eUp } = await db
+          .from('interventi').update({ territorio_id: territorioId }).in('id', senzaTerritorio);
+        if (eUp) return { ok: false, status: 500, error: eUp.message };
+      }
+    }
+
+    const sync = await sincronizzaOperatorePiano(db, pianoId, staffId, {
+      staffName: nomi.get(staffId) ?? null,
+    });
+    // Bloccante: interventi col piano ma senza riga operatore sono la combinazione che
+    // l'adozione esiste per impedire (vedi commento sopra, punto 2).
+    if (!sync.ok) return { ok: false, status: 500, error: sync.error };
+  }
+
   const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? '').replace(/\/$/, '');
   const esiti: EsitoOperatore[] = [];
-  let pianoAcea: string | null = null;   // creato pigramente: solo se serve davvero
 
   // ---- 6. Un operatore alla volta -------------------------------------------------------------
   for (const staffId of staffIds) {
@@ -357,16 +476,17 @@ export async function sincronizzaRapportiniAcea(
           error: 'Nessun flusso attivo in Azioni operatori: impossibile creare i rapportini ACEA.',
         };
       }
-      if (!pianoAcea) {
-        const p = await assicuraPianoCommessa(db, opts.data, opts.attoreId, profilo.territorioPiani);
-        if (!p.ok) return p;
-        pianoAcea = p.pianoId;
+      // Il piano dell'operatore è già pronto (adozione §5b): riga operatore inclusa, quindi
+      // il rapportino che nasce qui non può diventare orfano.
+      const pianoOperatore = pianoPerStaff.get(staffId);
+      if (!pianoOperatore) {
+        return { ok: false, status: 500, error: 'Piano della commessa non risolto per l’operatore.' };
       }
       token = randomBytes(24).toString('base64url');
       const { data: ins, error } = await db
         .from('rapportini')
         .insert({
-          piano_id: pianoAcea, staff_id: staffId, staff_name: nome, data: opts.data,
+          piano_id: pianoOperatore, staff_id: staffId, staff_name: nome, data: opts.data,
           template_id: tpl.id, campi_snapshot: tpl.campi ?? [], info_snapshot: tpl.info_campi ?? [],
           tipo: tpl.tipo ?? 'standard', token, stato: 'in_corso', expires_at: scadenzaIso(opts.data),
         })
@@ -465,40 +585,4 @@ export async function sincronizzaRapportiniAcea(
   }
 
   return { ok: true, esiti, avvisi };
-}
-
-/**
- * Piano-contenitore del giorno, nel territorio della commessa (ACEA / ACQUA LATINA).
- *
- * Esiste solo perché `rapportini.piano_id` è NOT NULL. Non ha operatori né task: è un guscio, e
- * deve restare tale — un piano con operatori sarebbe rigenerabile dalla Mappa, e la rigenerazione
- * possiede voci che qui non sono sue. Si riusa quello del giorno se c'è già.
- */
-async function assicuraPianoCommessa(
-  db: SupabaseClient,
-  data: string,
-  attoreId: string,
-  territorio: string,
-): Promise<{ ok: true; pianoId: string } | { ok: false; status: number; error: string }> {
-  const { data: esistenti, error: eSel } = await db
-    .from('mappa_piani')
-    .select('id')
-    .eq('data', data)
-    .eq('territorio', territorio);
-  if (eSel) return { ok: false, status: 500, error: eSel.message };
-  const primo = (esistenti ?? [])[0] as { id: string } | undefined;
-  if (primo) return { ok: true, pianoId: String(primo.id) };
-
-  const { data: ins, error } = await db
-    .from('mappa_piani')
-    .insert({
-      data, territorio, note: 'Contenitore dei rapportini generati dal registro commesse.',
-      stato: 'confermato', created_by: attoreId, updated_by: attoreId,
-    })
-    .select('id')
-    .single();
-  if (error || !ins) {
-    return { ok: false, status: 500, error: error?.message ?? 'Creazione piano contenitore fallita.' };
-  }
-  return { ok: true, pianoId: String((ins as { id: string }).id) };
 }
