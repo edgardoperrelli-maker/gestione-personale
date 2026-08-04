@@ -72,6 +72,9 @@ const CODICI_400_PARLANTI = new Set([
   // ha proceduto con riserva: senza il motivo vero l'operatore leggerebbe «riapri il link» e
   // andrebbe a cercare un problema che non c'è.
   'misuratore_non_censito',
+  // Doppio tap su «Invia»: la stessa matricola è già nel rapportino di oggi. Il motivo deve
+  // dire questo, o l'operatore riprova a mano e ne crea una terza.
+  'matricola_gia_nel_rapportino',
 ]);
 
 /** Motivo amichevole per un 400 del percorso manuale, o null se il codice non è parlante. */

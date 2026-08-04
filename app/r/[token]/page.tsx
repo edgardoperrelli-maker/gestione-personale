@@ -383,6 +383,28 @@ export default async function RapportinoPublicPage({
     }
   }
 
+  // Il `gruppo_committente` sta sul TEMPLATE, e il template è del PIANO: in un giro misto — o in
+  // un rapportino del giorno riusato da un altro motore — se lo porta anche l'operatore che di
+  // quella commessa non ha nemmeno un intervento, e si vedeva chiedere lo scaricamento di un
+  // master che non gli serve. Il perimetro vero sono i committenti dei SUOI interventi (stessa
+  // domanda di `rapportinoAcqualatina`, sugli id che abbiamo già caricato con le voci).
+  // Rapportino senza interventi collegati (tutto manuale): non si decide nulla, il gate resta —
+  // è proprio il caso in cui il master serve per cercare la matricola dal "+".
+  if (committenteCensimento) {
+    const idsInterventi = ((vociRows ?? []) as VoceRow[])
+      .map((v) => v.intervento_id)
+      .filter((id): id is string => Boolean(id));
+    if (idsInterventi.length > 0) {
+      const { data: suoi } = await supabaseAdmin
+        .from('interventi')
+        .select('id')
+        .eq('committente', committenteCensimento)
+        .in('id', idsInterventi)
+        .limit(1);
+      if ((suoi ?? []).length === 0) committenteCensimento = null;
+    }
+  }
+
   // Flag "task-via" del template (query separata e resiliente: default false se la colonna
   // non esiste ancora). I rapportini di un template task-via mostrano il contenitore + "+".
   let taskVia = false;
