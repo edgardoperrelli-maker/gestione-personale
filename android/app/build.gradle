@@ -26,7 +26,7 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace = "it.plenzich.gestilab"
+    namespace = "it.gestilab.personale"
     compileSdk = rootProject.ext.compileSdkVersion
     signingConfigs {
         if (hasReleaseKeystore) {
@@ -39,7 +39,7 @@ android {
         }
     }
     defaultConfig {
-        applicationId "it.plenzich.gestilab"
+        applicationId "it.gestilab.personale"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

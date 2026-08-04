@@ -1,0 +1,557 @@
+name: iOS TestFlight
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_number:
+        description: "iOS build number / CURRENT_PROJECT_VERSION (intero, NON usare la marketing version). Deve essere maggiore dell'ultima build caricata su TestFlight."
+        required: true
+        default: "1"
+      marketing_version:
+        description: "iOS marketing version / CFBundleShortVersionString."
+        required: true
+        default: "1.0"
+      upload_to_testflight:
+        description: "Carica la IPA su TestFlight dopo la build."
+        required: true
+        type: boolean
+        default: true
+      changelog:
+        description: "Note build TestFlight."
+        required: false
+        default: "Build Gestilab Plenzich da GitHub Actions"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-testflight-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-ios:
+    name: Build iOS and upload to TestFlight
+    runs-on: macos-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    env:
+      NODE_VERSION: "22"
+      RUBY_VERSION: "3.3"
+      APP_IDENTIFIER: it.gestilab.personale
+      APPLE_TEAM_ID: 9Y5GD37272
+      # Capacitor 8 con SPM: niente .xcworkspace, si builda il .xcodeproj diretto.
+      IOS_PROJECT: ios/App/App.xcodeproj
+      IOS_SCHEME: App
+      IOS_CONFIGURATION: Release
+      ARCHIVE_PATH: ${{ github.workspace }}/build/archive/App.xcarchive
+      EXPORT_PATH: ${{ github.workspace }}/build/export
+      EXPORT_OPTIONS_PLIST: ${{ github.workspace }}/build/export/ExportOptions.plist
+      CERTIFICATE_PATH: ${{ github.workspace }}/build/signing/certificate.p12
+      PROVISIONING_PROFILE_PATH: ${{ github.workspace }}/build/signing/profile.mobileprovision
+      APPSTORE_API_KEY_PATH: ${{ github.workspace }}/build/signing/AuthKey.p8
+      KEYCHAIN_PATH: ${{ github.workspace }}/build/signing/app-signing.keychain-db
+      IPA_PATH: ${{ github.workspace }}/build/export/App.ipa
+      TESTFLIGHT_CHANGELOG: ${{ inputs.changelog }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Select latest stable Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Inspect selected Xcode
+        run: |
+          set -euo pipefail
+
+          echo "Selected Xcode after setup-xcode:"
+          xcodebuild -version
+          xcode-select -p
+
+          echo "Available Xcode installations:"
+          ls -1 /Applications | grep -E '^Xcode.*\.app$' || true
+
+          echo "SDKs:"
+          xcodebuild -showsdks
+
+          echo "iPhoneOS SDK path:"
+          xcrun --sdk iphoneos --show-sdk-path || true
+
+          echo "iPhoneOS platform path:"
+          xcrun --sdk iphoneos --show-sdk-platform-path || true
+
+      - name: Ensure iOS platform is installed
+        run: |
+          set -euo pipefail
+
+          echo "Selected developer dir:"
+          xcode-select -p
+
+          echo "Xcode version:"
+          xcodebuild -version
+
+          echo "Run Xcode first launch tasks"
+          sudo xcodebuild -runFirstLaunch || true
+
+          echo "Available SDKs before platform check:"
+          xcodebuild -showsdks || true
+
+          DEVELOPER_DIR="$(xcode-select -p)"
+          IPHONEOS_PLATFORM="$DEVELOPER_DIR/Platforms/iPhoneOS.platform"
+
+          if [ ! -d "$IPHONEOS_PLATFORM" ]; then
+            echo "iPhoneOS.platform not found. Trying to download iOS platform..."
+            sudo xcodebuild -downloadPlatform iOS || true
+          fi
+
+          if ! xcrun --sdk iphoneos --show-sdk-path >/dev/null 2>&1; then
+            echo "iphoneos SDK not available after first check. Trying platform download..."
+            sudo xcodebuild -downloadPlatform iOS || true
+          fi
+
+          echo "Available SDKs after platform check:"
+          xcodebuild -showsdks || true
+
+          echo "iPhoneOS SDK path:"
+          xcrun --sdk iphoneos --show-sdk-path || true
+
+          echo "iPhoneOS platform path:"
+          xcrun --sdk iphoneos --show-sdk-platform-path || true
+
+          SDK_PATH="$(xcrun --sdk iphoneos --show-sdk-path 2>/dev/null || true)"
+          if [ -n "$SDK_PATH" ] && [ ! -d "$SDK_PATH" ]; then
+            echo "Warning: iPhoneOS SDK path non esiste: $SDK_PATH" >&2
+          fi
+
+          PLATFORM_PATH="$(xcrun --sdk iphoneos --show-sdk-platform-path 2>/dev/null || true)"
+          if [ -n "$PLATFORM_PATH" ] && [ ! -d "$PLATFORM_PATH" ]; then
+            echo "Warning: iPhoneOS platform path non esiste: $PLATFORM_PATH" >&2
+          fi
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ env.RUBY_VERSION }}
+
+      - name: Install Fastlane
+        run: gem install fastlane --no-document
+
+      # La shell nativa carica la web app da remoto (server.url): niente build
+      # Next.js/typecheck/lint qui — npm ci serve SOLO per `npx cap sync ios`.
+      - name: Install JavaScript dependencies
+        run: |
+          set -euo pipefail
+
+          npm_ci_with_retry() {
+            local attempt=1
+            local max_attempts=3
+
+            until npm ci --no-audit --fund=false; do
+              if [ "$attempt" -ge "$max_attempts" ]; then
+                echo "npm ci fallito dopo $attempt tentativi." >&2
+                return 1
+              fi
+
+              attempt=$((attempt + 1))
+              echo "npm ci fallito, retry $attempt/$max_attempts dopo breve attesa..." >&2
+              sleep 15
+            done
+          }
+
+          npm_ci_with_retry
+
+          if npm ls @capacitor/assets >/dev/null 2>&1; then
+            echo "@capacitor/assets non deve essere installato nella build iOS: trascina sharp annidato e rompe npm ci sui runner macOS." >&2
+            exit 1
+          fi
+
+      - name: Sync Capacitor iOS
+        run: npx cap sync ios
+
+      - name: Prepare build directories
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/build/archive"
+          mkdir -p "$GITHUB_WORKSPACE/build/export"
+          mkdir -p "$GITHUB_WORKSPACE/build/signing"
+          mkdir -p "$(dirname "$CERTIFICATE_PATH")"
+          mkdir -p "$(dirname "$PROVISIONING_PROFILE_PATH")"
+          mkdir -p "$(dirname "$APPSTORE_API_KEY_PATH")"
+          mkdir -p "$(dirname "$KEYCHAIN_PATH")"
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+
+      - name: Apply iOS version numbers
+        run: |
+          BUILD_NUMBER="${{ inputs.build_number }}"
+          MARKETING_VERSION="${{ inputs.marketing_version }}"
+
+          if ! [[ "$BUILD_NUMBER" =~ ^[0-9]+$ ]]; then
+            echo "build_number deve essere numerico." >&2
+            exit 1
+          fi
+
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" ios/App/App/Info.plist >/dev/null
+          sed -i '' "s/CURRENT_PROJECT_VERSION = [0-9][0-9]*;/CURRENT_PROJECT_VERSION = ${BUILD_NUMBER};/g" ios/App/App.xcodeproj/project.pbxproj
+          sed -i '' "s/MARKETING_VERSION = [0-9][0-9.]*;/MARKETING_VERSION = ${MARKETING_VERSION};/g" ios/App/App.xcodeproj/project.pbxproj
+
+          grep -n "CURRENT_PROJECT_VERSION\|MARKETING_VERSION\|PRODUCT_BUNDLE_IDENTIFIER" ios/App/App.xcodeproj/project.pbxproj
+
+      - name: Install signing assets
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+          BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
+          APPSTORE_API_PRIVATE_KEY_BASE64: ${{ secrets.APPSTORE_API_PRIVATE_KEY_BASE64 }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          for required_var in BUILD_CERTIFICATE_BASE64 P12_PASSWORD BUILD_PROVISION_PROFILE_BASE64 APPSTORE_API_PRIVATE_KEY_BASE64 KEYCHAIN_PASSWORD; do
+            if [[ -z "${!required_var}" ]]; then
+              echo "Missing required secret: ${required_var}" >&2
+              exit 1
+            fi
+          done
+
+          echo "$BUILD_CERTIFICATE_BASE64" | base64 --decode > "$CERTIFICATE_PATH"
+          echo "$BUILD_PROVISION_PROFILE_BASE64" | base64 --decode > "$PROVISIONING_PROFILE_PATH"
+          echo "$APPSTORE_API_PRIVATE_KEY_BASE64" | base64 --decode > "$APPSTORE_API_KEY_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | tr -d '"')
+
+          PROFILE_PLIST="$GITHUB_WORKSPACE/build/signing/profile.plist"
+          security cms -D -i "$PROVISIONING_PROFILE_PATH" > "$PROFILE_PLIST"
+
+          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c 'Print UUID' "$PROFILE_PLIST")
+          PROFILE_NAME=$(/usr/libexec/PlistBuddy -c 'Print Name' "$PROFILE_PLIST")
+          PROFILE_TEAM_ID=$(/usr/libexec/PlistBuddy -c 'Print TeamIdentifier:0' "$PROFILE_PLIST")
+          PROFILE_APP_ID=$(/usr/libexec/PlistBuddy -c 'Print Entitlements:application-identifier' "$PROFILE_PLIST")
+
+          if [ "$PROFILE_APP_ID" != "${APPLE_TEAM_ID}.${APP_IDENTIFIER}" ]; then
+            echo "Provisioning profile non coerente: $PROFILE_APP_ID, atteso ${APPLE_TEAM_ID}.${APP_IDENTIFIER}" >&2
+            echo "Il secret BUILD_PROVISION_PROFILE_BASE64 deve contenere il profilo «GestiLab Personale AppStore»." >&2
+            exit 1
+          fi
+
+          cp "$PROVISIONING_PROFILE_PATH" "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
+
+          {
+            echo "PROFILE_UUID=$PROFILE_UUID"
+            echo "PROFILE_NAME=$PROFILE_NAME"
+            echo "PROFILE_TEAM_ID=$PROFILE_TEAM_ID"
+          } >> "$GITHUB_ENV"
+
+      - name: Configure app target signing
+        run: |
+          ruby <<'RUBY'
+          require "xcodeproj"
+
+          app_project_path = "ios/App/App.xcodeproj"
+          app_project = Xcodeproj::Project.open(app_project_path)
+
+          app_target = app_project.targets.find { |target| target.name == "App" }
+          raise "Target App non trovato" unless app_target
+
+          app_target.build_configurations.each do |config|
+            config.build_settings["DEVELOPMENT_TEAM"] = ENV.fetch("APPLE_TEAM_ID")
+            config.build_settings["PRODUCT_BUNDLE_IDENTIFIER"] = ENV.fetch("APP_IDENTIFIER")
+            config.build_settings["CODE_SIGN_STYLE"] = "Manual"
+            config.build_settings["CODE_SIGN_IDENTITY"] = "Apple Distribution"
+            config.build_settings["PROVISIONING_PROFILE_SPECIFIER"] = ENV.fetch("PROFILE_NAME")
+          end
+
+          app_project.save
+          RUBY
+
+          xcodebuild -list -project "$IOS_PROJECT"
+
+      - name: Create export options plist
+        run: |
+          cat > "$EXPORT_OPTIONS_PLIST" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>destination</key>
+            <string>export</string>
+            <key>method</key>
+            <string>app-store-connect</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>${APP_IDENTIFIER}</key>
+              <string>${PROFILE_NAME}</string>
+            </dict>
+            <key>signingCertificate</key>
+            <string>Apple Distribution</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>stripSwiftSymbols</key>
+            <true/>
+            <key>teamID</key>
+            <string>${APPLE_TEAM_ID}</string>
+            <key>uploadBitcode</key>
+            <false/>
+            <key>uploadSymbols</key>
+            <true/>
+          </dict>
+          </plist>
+          PLIST
+
+      - name: Select Xcode with usable iOS archive destination
+        run: |
+          set -euo pipefail
+
+          echo "Available Xcode installations:"
+          ls -1 /Applications | grep -E '^Xcode.*\.app$' || true
+
+          candidates=()
+          selected_developer_dir="$(xcode-select -p)"
+          selected_app="${selected_developer_dir%/Contents/Developer}"
+
+          if [ -d "$selected_app" ]; then
+            candidates+=("$selected_app")
+          fi
+
+          # Prima Xcode stabili installate sul runner.
+          for app in /Applications/Xcode*.app; do
+            [ -d "$app" ] || continue
+            if echo "$app" | grep -qi "Release_Candidate"; then
+              continue
+            fi
+            candidates+=("$app")
+          done
+
+          # Poi eventuali RC come fallback
+          for app in /Applications/Xcode*Release_Candidate*.app; do
+            [ -d "$app" ] || continue
+            candidates+=("$app")
+          done
+
+          selected=""
+          tested_apps=""
+
+          for app in "${candidates[@]}"; do
+            case ":$tested_apps:" in
+              *":$app:"*) continue ;;
+            esac
+            tested_apps="${tested_apps}:$app"
+
+            echo "Testing Xcode candidate: $app"
+            sudo xcode-select -s "$app/Contents/Developer"
+
+            version="$(xcodebuild -version | awk '/Xcode/ {print $2}')"
+
+            echo "Xcode version:"
+            xcodebuild -version
+
+            echo "SDKs:"
+            xcodebuild -showsdks || true
+
+            echo "iPhoneOS SDK path:"
+            set +e
+            sdk_path="$(xcrun --sdk iphoneos --show-sdk-path 2>&1)"
+            sdk_status=$?
+            set -e
+            echo "$sdk_path"
+
+            if [ "$sdk_status" -ne 0 ]; then
+              echo "Skip $app: xcrun iphoneos SDK path non disponibile"
+              continue
+            fi
+
+            if [ ! -d "$sdk_path" ]; then
+              echo "Skip $app: iPhoneOS SDK path inesistente: $sdk_path"
+              continue
+            fi
+
+            echo "iPhoneOS platform path:"
+            set +e
+            platform_path="$(xcrun --sdk iphoneos --show-sdk-platform-path 2>&1)"
+            platform_status=$?
+            set -e
+            echo "$platform_path"
+
+            if [ "$platform_status" -ne 0 ]; then
+              echo "Skip $app: xcrun iPhoneOS platform path non disponibile"
+              continue
+            fi
+
+            if [ ! -d "$platform_path" ]; then
+              echo "Skip $app: iPhoneOS platform path inesistente: $platform_path"
+              continue
+            fi
+
+            echo "Checking actual archive destination for project/scheme..."
+            set +e
+            destinations_output="$(
+              xcodebuild \
+                -project "$IOS_PROJECT" \
+                -scheme "$IOS_SCHEME" \
+                -configuration "$IOS_CONFIGURATION" \
+                -sdk iphoneos \
+                -destination "generic/platform=iOS" \
+                -showdestinations 2>&1
+            )"
+            status=$?
+            set -e
+
+            echo "$destinations_output"
+
+            if [ "$status" -eq 0 ] && echo "$destinations_output" | grep -Eq "generic/platform[:=]iOS|generic:1, platform:iOS"; then
+              if echo "$destinations_output" | grep -qi "not installed"; then
+                echo "Skip $app: iOS platform reported as not installed"
+                continue
+              fi
+
+              selected="$app"
+              break
+            fi
+
+            if echo "$destinations_output" | grep -qi "not installed"; then
+              echo "Skip $app: iOS platform not installed"
+              continue
+            fi
+
+            echo "Skip $app: generic/platform=iOS not usable"
+          done
+
+          if [ -z "$selected" ]; then
+            echo "Errore: nessuna Xcode installata sul runner ha una iPhoneOS SDK/platform valida per archive." >&2
+            echo "Il runner contiene una Xcode visibile, ma ibtool/xcodebuild non possono usare la piattaforma iOS device." >&2
+            echo "Serve usare un'immagine runner con Xcode stabile completa o installare la piattaforma iOS device." >&2
+            exit 1
+          fi
+
+          sudo xcode-select -s "$selected/Contents/Developer"
+          echo "Selected usable Xcode: $selected"
+          xcodebuild -version
+          xcode-select -p
+          xcodebuild -showsdks
+
+      - name: Diagnose and verify iPhoneOS platform before archive
+        run: |
+          set -euo pipefail
+
+          echo "Xcode version:"
+          xcodebuild -version
+
+          echo "Selected developer directory:"
+          xcode-select -p
+
+          echo "SDKs:"
+          xcodebuild -showsdks
+
+          echo "iPhoneOS SDK path:"
+          if ! xcrun --sdk iphoneos --show-sdk-path; then
+            echo "Errore: xcrun non trova iphoneos SDK. Archive interrotto prima di xcodebuild." >&2
+            exit 1
+          fi
+
+          echo "iPhoneOS platform path:"
+          if ! xcrun --sdk iphoneos --show-sdk-platform-path; then
+            echo "Errore: xcrun non trova iPhoneOS platform. Archive interrotto prima di CompileStoryboard/ibtool." >&2
+            exit 1
+          fi
+
+          echo "Available Xcode installations:"
+          ls /Applications | grep Xcode || true
+
+      - name: Archive iOS app
+        run: |
+          xcodebuild \
+            -project "$IOS_PROJECT" \
+            -scheme "$IOS_SCHEME" \
+            -configuration "$IOS_CONFIGURATION" \
+            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
+            -archivePath "$ARCHIVE_PATH" \
+            clean archive
+
+      - name: Export IPA
+        run: |
+          xcodebuild \
+            -exportArchive \
+            -archivePath "$ARCHIVE_PATH" \
+            -exportPath "$EXPORT_PATH" \
+            -exportOptionsPlist "$EXPORT_OPTIONS_PLIST"
+
+          EXPORTED_IPA_PATH=$(find "$EXPORT_PATH" -name "*.ipa" -print -quit)
+          if [ -z "$EXPORTED_IPA_PATH" ]; then
+            echo "IPA non trovata in $EXPORT_PATH" >&2
+            exit 1
+          fi
+
+          if [ "$EXPORTED_IPA_PATH" != "$IPA_PATH" ]; then
+            cp "$EXPORTED_IPA_PATH" "$IPA_PATH"
+          fi
+
+          echo "IPA_PATH=$IPA_PATH" >> "$GITHUB_ENV"
+          ls -lah "$IPA_PATH"
+
+      - name: Verify signed IPA entitlements
+        run: |
+          set -euo pipefail
+
+          INSPECT_DIR="$GITHUB_WORKSPACE/build/ipa-inspect"
+          rm -rf "$INSPECT_DIR"
+          mkdir -p "$INSPECT_DIR"
+
+          unzip -q "$IPA_PATH" -d "$INSPECT_DIR"
+
+          APP_PATH="$(find "$INSPECT_DIR/Payload" -maxdepth 1 -name "*.app" -type d -print -quit)"
+          if [ -z "$APP_PATH" ]; then
+            echo "App bundle non trovato dentro IPA." >&2
+            exit 1
+          fi
+
+          echo "App path: $APP_PATH"
+
+          echo "Signed entitlements:"
+          codesign -d --entitlements :- "$APP_PATH" > "$INSPECT_DIR/entitlements.plist" 2>/dev/null
+          cat "$INSPECT_DIR/entitlements.plist"
+
+          APPLICATION_IDENTIFIER="$(/usr/libexec/PlistBuddy -c 'Print :application-identifier' "$INSPECT_DIR/entitlements.plist" 2>/dev/null || true)"
+
+          echo "application-identifier=$APPLICATION_IDENTIFIER"
+
+          if [ "$APPLICATION_IDENTIFIER" != "${APPLE_TEAM_ID}.${APP_IDENTIFIER}" ]; then
+            echo "IPA firmata con application-identifier non coerente: $APPLICATION_IDENTIFIER, atteso ${APPLE_TEAM_ID}.${APP_IDENTIFIER}" >&2
+            exit 1
+          fi
+
+          echo "OK: IPA firmata come ${APPLE_TEAM_ID}.${APP_IDENTIFIER}"
+
+      - name: Upload to TestFlight
+        if: ${{ inputs.upload_to_testflight }}
+        env:
+          APPSTORE_API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
+          APPSTORE_API_ISSUER_ID: ${{ secrets.APPSTORE_API_ISSUER_ID }}
+          APPSTORE_API_KEY_PATH: ${{ env.APPSTORE_API_KEY_PATH }}
+          IPA_PATH: ${{ env.IPA_PATH }}
+          APP_IDENTIFIER: ${{ env.APP_IDENTIFIER }}
+        run: fastlane ios upload_testflight
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gestilab-personale-ios-${{ inputs.marketing_version }}-${{ inputs.build_number }}
+          path: ${{ env.IPA_PATH }}
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Cleanup signing keychain
+        if: always()
+        run: |
+          security delete-keychain "$KEYCHAIN_PATH" || true
