@@ -44,6 +44,15 @@ describe("il TOP arriva all'operatore", () => {
 
   it('la riga e la card mostrano un badge testuale, non solo un colore', () => {
     expect(lista).toMatch(/PILL_TOP/);
-    expect(card).toMatch(/Segnalato da ACEA come prioritario/);
+    expect(card).toMatch(/Da fare per primo/);
+  });
+
+  it('il banner della card sta su UNA riga: sul telefono lo spazio è del lavoro', () => {
+    // La frase per esteso andava a capo su schermo stretto e si mangiava due righe di card.
+    // Il «chi lo dice» è passato nel title, che non occupa spazio.
+    const banner = card.match(/\{top && \([\s\S]*?\n {6}\)\}/)?.[0] ?? '';
+    expect(banner).not.toBe('');
+    expect(banner).toMatch(/title="Segnalato da ACEA come prioritario"/);
+    expect(banner).not.toMatch(/text-sm/);
   });
 });
