@@ -31,11 +31,14 @@ const file = CARTELLE.flatMap((c) => sorgenti(join(RADICE, c))).filter((f) => f 
 const relativo = (f: string) => f.slice(RADICE.length + 1).replace(/\\/g, '/');
 
 describe("l'agente Playwright è ritirato (04/08/2026)", () => {
-  it('il camminatore vede davvero i sorgenti (se no, il test passerebbe a vuoto)', () => {
-    // Senza questa asserzione un bug nel walker renderebbe verdi tutte le altre gratis.
-    // Soglia larga apposta: i sorgenti sono ~960 dopo la rimozione, e questo numero deve
-    // reggere la crescita normale del progetto senza diventare un test da aggiornare.
-    expect(file.length).toBeGreaterThan(500);
+  it('il camminatore vede davvero i sorgenti di OGNI cartella (se no, passerebbe a vuoto)', () => {
+    // Senza questa asserzione un bug nel camminatore renderebbe verdi le altre gratis.
+    // Il controllo è PER CARTELLA e non sul totale: perdere tutta `app` (254 file su 962)
+    // lascerebbe il totale sopra qualunque soglia ragionevole, e le ricerche diventerebbero
+    // cieche proprio dove vivono le rotte API — il posto più probabile per un residuo.
+    const magre = CARTELLE.map((c) => [c, sorgenti(join(RADICE, c)).length] as const)
+      .filter(([, n]) => n < 100);
+    expect(magre).toEqual([]);
   });
 
   it('nessun sorgente importa da lib/agente', () => {
