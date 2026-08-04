@@ -27,13 +27,16 @@ export type InterventoConcluso = {
   esito: string | null;
 };
 
-/** Un intervento concluso SENZA il collegamento: `ordine_id` mai scritto. */
+/** Un intervento SENZA il collegamento: `ordine_id` mai scritto. Anche APERTO — l'aggancio
+ *  serve pure a lui: senza, le correzioni anagrafiche del sync non lo raggiungono e la
+ *  tabella del registro non lo mostra fra Esecutore/Data pianificata. */
 export type InterventoSciolto = {
   id: string;
   odl: string | null;
   matricola_contatore: string | null;
   data: string | null;
   esito: string | null;
+  stato?: string | null;
 };
 
 /** La riga di registro come serve all'aggancio: identità e matricola normalizzata. */

@@ -52,13 +52,17 @@ export async function riconciliaChiusureAcqualatina(): Promise<void> {
     riparati entrano SUBITO fra i completati, così la stessa passata chiude le loro righe.
     Idempotente: un intervento agganciato non è più sciolto, al giro dopo non compare.
   */
+  // Anche gli interventi APERTI si agganciano, non solo i completati: senza il filo le
+  // correzioni anagrafiche del sync non li raggiungono, e la tabella del registro non li
+  // mostra fra Esecutore/Data pianificata. Solo l'annullato resta fuori: non c'è più niente
+  // da fargli seguire.
   const sciolti: InterventoSciolto[] = [];
   for (let offset = 0; ; offset += PAGINA_SCAN) {
     const { data, error } = await supabaseAdmin
       .from('interventi')
-      .select('id, odl, matricola_contatore, data, esito')
+      .select('id, odl, matricola_contatore, data, esito, stato')
       .eq('committente', 'acqualatina')
-      .eq('stato', 'completato')
+      .neq('stato', 'annullato')
       .is('ordine_id', null)
       .range(offset, offset + PAGINA_SCAN - 1);
     if (error) throw error;
@@ -92,7 +96,11 @@ export async function riconciliaChiusureAcqualatina(): Promise<void> {
       if (error) throw error;
       for (const id of interventoIds) {
         const s = scioltoPerId.get(id);
-        if (s) completati.push({ ordine_id: ordineId, data: s.data, esito: s.esito });
+        // Solo il CONCLUSO entra nel giro di chiusura: l'aperto appena agganciato non ha
+        // ancora un esito da portare al registro.
+        if (s && s.stato === 'completato') {
+          completati.push({ ordine_id: ordineId, data: s.data, esito: s.esito });
+        }
       }
     }
   }
