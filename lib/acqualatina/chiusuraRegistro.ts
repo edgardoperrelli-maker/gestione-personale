@@ -32,7 +32,8 @@ export type PatchRiga = {
   aperto: boolean;
   stato: string;
   stato_desc: string;
-  esito_positivo: boolean;
+  /** `null` solo sulla RIAPERTURA: la riga torna «mai esitata», non «esitata negativa». */
+  esito_positivo: boolean | null;
   data_completamento: string | null;
 };
 
@@ -85,6 +86,45 @@ const PATCH_NON_ESEGUITA: PatchRiga = {
   */
   data_completamento: null,
 };
+
+/**
+ * La patch che RIAPRE una riga chiusa positiva rimasta senza il suo intervento positivo.
+ *
+ * Torna «Aperta», come mai lavorata: se dell'ordine resta un'uscita negativa, il gruppo
+ * negativo della stessa riconciliazione la rimarca subito «Aperta — non eseguita» (la
+ * riapertura gira PRIMA dei gruppi, apposta).
+ */
+export const PATCH_RIAPERTA: PatchRiga = {
+  aperto: true,
+  stato: 'APERTO',
+  stato_desc: STATO_APERTA,
+  esito_positivo: null,
+  data_completamento: null,
+};
+
+/**
+ * Le righe chiuse positive da RIAPRIRE: quelle il cui ordine non ha più NESSUN intervento
+ * completato con esito positivo.
+ *
+ * È la seconda metà di «il positivo è definitivo». La guardia dei gruppi impedisce a
+ * un'uscita successiva di contraddire una chiusa positiva — giusto: il lavoro fatto resta
+ * fatto. Ma quando l'ufficio CORREGGE l'esito dell'intervento (il positivo era un errore di
+ * consuntivazione, 04/08/2026), il lavoro fatto non c'è mai stato: la riga chiusa non ha più
+ * niente dietro, e senza questa lista la correzione andava rifatta a mano sul registro —
+ * la doppia modifica che il modulo interventi doveva evitare.
+ *
+ * «NESSUN positivo» e non «l'intervento corretto»: su un'unità con più uscite (ripasso
+ * negativo poi positivo) basta un positivo superstite a tenere la riga chiusa.
+ */
+export function idsDaRiaprire(
+  chiusePositive: readonly string[],
+  conclusi: readonly InterventoConcluso[],
+): string[] {
+  const positivi = new Set(
+    conclusi.filter((c) => c.ordine_id && c.esito === 'eseguito_positivo').map((c) => c.ordine_id),
+  );
+  return chiusePositive.filter((id) => !positivi.has(id));
+}
 
 /**
  * Gli aggiornamenti da scrivere sul registro, raggruppati per (giorno, esito).

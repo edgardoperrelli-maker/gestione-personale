@@ -366,36 +366,37 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
   /**
    * Aggiorna il registro acqualatina dal master caricato in Impostazioni → Template master.
    *
-   * Additivo e idempotente: le righe nuove entrano, quelle già presenti conservano la loro
-   * pianificazione — il master può solo RIEMPIRNE i campi anagrafici vuoti (cod. fornitura,
-   * nome utente, recapito). È il gesto per quando l'ufficio carica il file del mese nuovo, e
-   * anche per quando ricarica lo stesso file perché arrivato più completo.
+   * Additivo sugli stati, correttivo sull'anagrafica, idempotente: le righe nuove entrano,
+   * quelle già presenti conservano stati e pianificazione ma il master ne SOVRASCRIVE i campi
+   * anagrafici difformi (il file del committente è la fonte) — e la correzione scende da sola
+   * sugli interventi aperti. È il gesto per il file del mese nuovo, e per quando lo stesso
+   * file torna più completo o corretto.
    */
   const sincronizzaDalMaster = useCallback(async () => {
     setSincronizzando(true);
     try {
       const res = await fetch('/api/acqualatina/ordini/sync', { method: 'POST' });
       const body = (await res.json()) as {
-        inseriti?: number; arricchiti?: number; giaPresenti?: number; scartate?: number;
-        master?: string[]; error?: string;
+        inseriti?: number; corrette?: number; interventiAggiornati?: number;
+        giaPresenti?: number; scartate?: number; master?: string[]; error?: string;
       };
       if (!res.ok) {
         toast.error(body.error ?? 'Aggiornamento dal master non riuscito.');
         return;
       }
       const inseriti = body.inseriti ?? 0;
-      const arricchiti = body.arricchiti ?? 0;
-      // Le righe completate si dicono a parte: un «nessuna riga nuova» dopo aver ricaricato un
-      // master più ricco farebbe credere che il file non sia servito a niente.
-      const completate = arricchiti > 0 ? `, ${numero(arricchiti)} completate` : '';
+      const corrette = body.corrette ?? 0;
+      // Le righe corrette si dicono a parte: un «nessuna riga nuova» dopo aver ricaricato un
+      // master corretto farebbe credere che il file non sia servito a niente.
+      const dettaglioCorrette = corrette > 0 ? `, ${numero(corrette)} corrette` : '';
       toast.success(
         inseriti > 0
-          ? `${numero(inseriti)} righe nuove dal master (${numero(body.giaPresenti ?? 0)} già presenti${completate}).`
-          : arricchiti > 0
-            ? `Nessuna riga nuova; ${numero(arricchiti)} righe completate col dato che mancava.`
+          ? `${numero(inseriti)} righe nuove dal master (${numero(body.giaPresenti ?? 0)} già presenti${dettaglioCorrette}).`
+          : corrette > 0
+            ? `Nessuna riga nuova; ${numero(corrette)} anagrafiche corrette dal master.`
             : 'Registro già allineato al master: nessuna riga nuova.',
       );
-      if (inseriti > 0 || arricchiti > 0) ricarica();
+      if (inseriti > 0 || corrette > 0) ricarica();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Aggiornamento dal master non riuscito.');
     } finally {

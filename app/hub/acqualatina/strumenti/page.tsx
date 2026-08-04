@@ -6,6 +6,7 @@ import AuthGate from '@/components/AuthGate';
 import Breadcrumb from '@/components/ui/Breadcrumb';
 import ObjectHeader from '@/components/ui/ObjectHeader';
 import ImportMasterCard from '@/components/modules/acqualatina/ImportMasterCard';
+import ConfrontoEsitiCard from '@/components/modules/acqualatina/ConfrontoEsitiCard';
 import CesteCard from '@/components/modules/acqualatina/CesteCard';
 
 export const dynamic = 'force-dynamic';
@@ -34,9 +35,10 @@ export default async function AcqualatinaStrumentiPage() {
         <Breadcrumb items={[{ label: 'AcquaLatina', href: '/hub/acqualatina' }, { label: 'Strumenti' }]} />
         <ObjectHeader
           title="Strumenti"
-          sub="Il master del committente e i numeri del magazzino."
+          sub="Il master del committente, il confronto esiti col sito e i numeri del magazzino."
         />
         <ImportMasterCard />
+        <ConfrontoEsitiCard />
         <CesteCard />
       </div>
     </AuthGate>

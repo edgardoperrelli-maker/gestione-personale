@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  gruppiChiusura, STATO_APERTA_NON_ESEGUITA, STATO_CHIUSA_ESEGUITA,
+  gruppiChiusura, idsDaRiaprire, STATO_APERTA_NON_ESEGUITA, STATO_CHIUSA_ESEGUITA,
   type InterventoConcluso,
 } from './chiusuraRegistro';
 
@@ -85,5 +85,33 @@ describe('gruppiChiusura — raggruppamento', () => {
       [STATO_APERTA_NON_ESEGUITA, false],
       [STATO_CHIUSA_ESEGUITA, true],
     ]);
+  });
+});
+
+describe('idsDaRiaprire — la seconda metà di «il positivo è definitivo»', () => {
+  /*
+    La guardia dei gruppi impedisce a un'uscita successiva di contraddire una chiusa positiva.
+    Ma quando l'ufficio CORREGGE l'esito (il positivo era un errore di consuntivazione), il
+    lavoro fatto non c'è mai stato: la riga chiusa non ha più niente dietro e deve riaprirsi
+    da sola — senza questa lista la correzione andava rifatta a mano sul registro.
+  */
+  it('riapre la chiusa positiva il cui ordine non ha più nessun intervento positivo', () => {
+    expect(idsDaRiaprire(['ord-1'], [negativo({ ordine_id: 'ord-1' })])).toEqual(['ord-1']);
+  });
+
+  it('anche senza più NESSUN intervento (annullato o cancellato): il lavoro dichiarato è sparito', () => {
+    expect(idsDaRiaprire(['ord-1'], [])).toEqual(['ord-1']);
+  });
+
+  it('un positivo superstite tiene la riga chiusa: il ripasso riuscito non si riapre', () => {
+    expect(idsDaRiaprire(['ord-1'], [
+      negativo({ ordine_id: 'ord-1', data: '2026-08-01' }),
+      concluso({ ordine_id: 'ord-1', data: '2026-08-02' }),
+    ])).toEqual([]);
+  });
+
+  it('guarda solo l\'ordine della riga: i positivi degli altri ordini non la salvano', () => {
+    expect(idsDaRiaprire(['ord-1', 'ord-2'], [concluso({ ordine_id: 'ord-2' })]))
+      .toEqual(['ord-1']);
   });
 });

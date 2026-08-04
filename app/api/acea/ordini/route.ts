@@ -16,7 +16,7 @@ import { odlConSaracinescaDichiarata } from '@/lib/acea/caricaSaracinesche';
 import { comuniMassiveAperti } from '@/lib/acea/caricaComuniMassive';
 import { contaSenzaData, type InterventoDellOdl } from '@/lib/acea/codaRiaperture';
 import { PROFILO_COMMESSA } from '@/lib/acea/famiglia';
-import { gruppiChiusura, type InterventoConcluso } from '@/lib/acqualatina/chiusuraRegistro';
+import { PATCH_RIAPERTA, gruppiChiusura, idsDaRiaprire, type InterventoConcluso } from '@/lib/acqualatina/chiusuraRegistro';
 // La stessa normalizzazione della colonna «Eseguito» del modulo Interventi: una sola regola per
 // due schermate che parlano dello stesso lavoro.
 import { siNo } from '@/lib/interventi/storico/normalizza';
@@ -323,7 +323,9 @@ async function indicePianificazione(f: FiltriOrdini): Promise<IndicePianificazio
   multi-matricola.
 
   CHIUDE solo il positivo: un'uscita negativa lascia la riga aperta, perché il contatore è ancora
-  lì da sostituire. La regola sta tutta in `gruppiChiusura`, insieme al perché.
+  lì da sostituire. La regola sta tutta in `gruppiChiusura`, insieme al perché. E RIAPRE la
+  chiusa positiva rimasta senza il suo intervento positivo — l'esito corretto in consuntivazione
+  dopo la chiusura (vedi `idsDaRiaprire`): correggere l'intervento basta, il registro segue.
 
   Gira qui, sulla strada della lettura, e non in un cron: la tabella è il momento in cui la
   chiusura si guarda. Throttling a un minuto e best-effort — una riconciliazione in ritardo di
@@ -351,7 +353,37 @@ async function chiudiOrdiniAcqualatinaCompletati(): Promise<void> {
     completati.push(...blocco);
     if (blocco.length < PAGINA_SCAN) break;
   }
-  if (completati.length === 0) return;
+
+  /*
+    PRIMA dei gruppi: le chiuse positive rimaste senza il loro intervento positivo si
+    RIAPRONO — è l'esito corretto in consuntivazione dopo la chiusura (04/08/2026), l'unico
+    caso in cui «il positivo è definitivo» mentiva. Il perché e la regola («nessun positivo
+    superstite», non «l'intervento è cambiato») stanno in `idsDaRiaprire`; l'ordine sta qui:
+    riaperta la riga, l'eventuale uscita negativa superstite la rimarca subito «Aperta — non
+    eseguita» nel giro dei gruppi qui sotto. Idempotente per costruzione: una riga riaperta
+    non è più chiusa positiva, e al giro dopo non compare.
+  */
+  const chiusePositive: string[] = [];
+  for (let offset = 0; ; offset += PAGINA_SCAN) {
+    const { data, error } = await supabaseAdmin
+      .from('acqualatina_ordini')
+      .select('id')
+      .eq('aperto', false)
+      .eq('esito_positivo', true)
+      .range(offset, offset + PAGINA_SCAN - 1);
+    if (error) throw error;
+    const blocco = (data ?? []) as Array<{ id: string }>;
+    chiusePositive.push(...blocco.map((r) => r.id));
+    if (blocco.length < PAGINA_SCAN) break;
+  }
+  const daRiaprire = idsDaRiaprire(chiusePositive, completati);
+  for (let i = 0; i < daRiaprire.length; i += 200) {
+    const { error } = await supabaseAdmin
+      .from('acqualatina_ordini')
+      .update(PATCH_RIAPERTA)
+      .in('id', daRiaprire.slice(i, i + 200));
+    if (error) throw error;
+  }
 
   for (const g of gruppiChiusura(completati)) {
     for (let i = 0; i < g.ids.length; i += 200) {
