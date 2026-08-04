@@ -517,9 +517,21 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
             «Sul rapportino» in barra azioni non esiste piu`). Resta in entrambi i modi: da vuoto
             la modale spiega da sola che righe selezionare.
           */}
-          <Button variant="outline" size="sm" onClick={() => setRapportiniAperti(true)}>
+          {/*
+            IN SELEZIONE PERDE LA PAROLA, non il posto. È lo scambio fra i due modi: le parole
+            vanno dove serve leggerle — nella barra azioni, che è quella che si sta usando — e i
+            comandi della vista si stringono a icona per farle stare sulla stessa riga. Restano
+            raggiungibili con un click e col tooltip; alla deselezione tornano scritti.
+          */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setRapportiniAperti(true)}
+            aria-label={selezionate.length > 0 ? 'Rapportini' : undefined}
+            title={selezionate.length > 0 ? 'Carica le righe spuntate sui rapportini' : undefined}
+          >
             <ClipboardList size={14} aria-hidden="true" />
-            Rapportini
+            {selezionate.length === 0 && 'Rapportini'}
           </Button>
 
           {/*
@@ -530,11 +542,19 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
             Niente `aria-pressed`: l'etichetta cambia e dice già cosa farà il prossimo click, e
             sommare le due cose fa annunciare «Riduci, premuto», che si contraddice.
           */}
-          <Button variant="outline" size="sm" onClick={() => setIngrandita((v) => !v)}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIngrandita((v) => !v)}
+            /* In selezione resta l'icona sola (vedi «Rapportini» qui sopra): l'etichetta
+               accessibile continua a dire quale dei due gesti farà il prossimo click. */
+            aria-label={selezionate.length > 0 ? (ingrandita ? 'Riduci' : 'Ingrandisci') : undefined}
+            title={selezionate.length > 0 ? (ingrandita ? 'Riduci' : 'Ingrandisci') : undefined}
+          >
             {ingrandita
               ? <Minimize2 size={14} aria-hidden="true" />
               : <Maximize2 size={14} aria-hidden="true" />}
-            {ingrandita ? 'Riduci' : 'Ingrandisci'}
+            {selezionate.length === 0 && (ingrandita ? 'Riduci' : 'Ingrandisci')}
           </Button>
 
           {/*

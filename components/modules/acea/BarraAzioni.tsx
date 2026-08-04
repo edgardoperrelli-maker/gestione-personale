@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { CalendarCheck, ClipboardCopy, Star, TriangleAlert, Undo2, X } from 'lucide-react';
+import { CalendarCheck, ClipboardCopy, Star, StarOff, TriangleAlert, Undo2, X } from 'lucide-react';
 import Button from '@/components/Button';
 import Select from '@/components/ui/Select';
 import { toast } from '@/components/ui/Toast';
@@ -263,7 +263,10 @@ export default function BarraAzioni({
               a h-8 campo e menu sporgevano di 2px sui bottoni della stessa barra — la classe
               esatta di disallineamento bonificata su tutta la console in questa PR.
             */
-            className={`h-[30px] w-[8.75rem] shrink-0 rounded-[var(--radius-md)] border bg-[var(--brand-surface)] px-2 text-sm text-[var(--brand-text-main)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ${
+            /* `w-[7.5rem]` = 120px: quanto basta a «04/08/2026» più l'icona del calendario.
+               Erano 140 e ne avanzavano venti: su questa riga venti pixel sono la differenza fra
+               una riga e due, misurata a 1280. */
+            className={`h-[30px] w-[7.5rem] shrink-0 rounded-[var(--radius-md)] border bg-[var(--brand-surface)] px-2 text-sm text-[var(--brand-text-main)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ${
               fuoriFinestra ? 'border-[var(--status-ko)]' : 'border-[var(--brand-border)]'
             }`}
           />
@@ -287,7 +290,9 @@ export default function BarraAzioni({
             value={staffId}
             onChange={(e) => setStaffId(e.target.value)}
             aria-label="Assegna a"
-            className="h-[30px] w-48 py-0 text-xs"
+            /* `w-[11.25rem]` = 180px invece di 192: i nomi lunghi («DE SANTIS ALESSANDRO · LAZIO
+               EST») si troncavano già a 192, e la lista aperta li mostra comunque per esteso. */
+            className="h-[30px] w-[11.25rem] py-0 text-xs"
             disabled={operatori.length === 0}
             // Il nome dell'attività per esteso sta qui: dentro una select da w-48
             // «LIMITAZIONI MASSIVE» usciva tagliato a metà parola.
@@ -330,33 +335,65 @@ export default function BarraAzioni({
           </Button>
 
           {/*
-            Copia le righe spuntate, che è la cosa per cui prima bisognava per forza passare da
-            qui: si assegnava soltanto. Il Ctrl+C fa lo stesso, ma da solo non si trova — la barra
-            diceva «40 righe selezionate» senza dire che si potevano portare via.
+            LE SECONDARIE SONO A SOLA ICONA, la primaria no.
+
+            Questa barra vive dentro la riga dei comandi, che è `flex-wrap`, ed è il gruppo più
+            largo della riga (vedi il commento su «Colonne (15)» in `RegistroAcea`): con quattro
+            etichette per esteso in coda la riga andava a capo, e su uno schermo stretto la barra
+            finiva staccata dai comandi che la governano. Le quattro etichette pesavano ~190px,
+            cioè da sole il salto di riga.
+
+            Cosa resta scritto e cosa no: il PERCORSO PRIMARIO — quante righe, che giorno, chi,
+            «Pianifica» — resta per esteso, perché è quello che si legge scegliendo. Le azioni di
+            contorno diventano icona + `aria-label`/`title`: si riconoscono a colpo d'occhio una
+            volta imparate, e chi non le ha imparate le scopre col tooltip.
+
+            «Segna TOP» tiene la parola perché TOP è un termine di ACEA, non un'icona nota: una
+            stella sola non dice CHE COSA marca. «Togli TOP» invece è la stella barrata accanto
+            alla stella piena — la coppia si legge da sé, e il gesto di disfare resta a un clic
+            di distanza da quello di fare, che è il punto (una marcatura sbagliata deve costare
+            quanto è costata farla).
           */}
-          <Button variant="outline" size="sm" onClick={() => void onCopiaRighe()}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void onCopiaRighe()}
+            aria-label="Copia righe"
+            title="Copia le righe spuntate (come Ctrl+C)"
+          >
             <ClipboardCopy size={14} aria-hidden="true" />
-            Copia righe
           </Button>
 
-          {/*
-            Il TOP di ACEA. Vive qui e non in una cella cliccabile perché il gesto vero è
-            «questi ordini sono prioritari»: arrivano in lista, si cercano e si marcano insieme.
-            Il «Togli» sta accanto al «Segna» e non altrove: una marcatura sbagliata deve costare
-            quanto è costata farla.
-          */}
-          <Button variant="outline" size="sm" onClick={() => void segnaTop(true)} loading={marcandoTop}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void segnaTop(true)}
+            loading={marcandoTop}
+            title="Segna gli ordini spuntati come TOP (prioritari per ACEA)"
+          >
             <Star size={14} aria-hidden="true" />
             Segna TOP
           </Button>
 
-          <Button variant="ghost" size="sm" onClick={() => void segnaTop(false)} loading={marcandoTop}>
-            Togli TOP
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => void segnaTop(false)}
+            loading={marcandoTop}
+            aria-label="Togli TOP"
+            title="Togli il TOP dagli ordini spuntati"
+          >
+            <StarOff size={14} aria-hidden="true" />
           </Button>
 
-          <Button variant="ghost" size="sm" onClick={onAnnullaSelezione}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onAnnullaSelezione}
+            aria-label="Deseleziona"
+            title="Deseleziona tutte le righe"
+          >
             <X size={14} aria-hidden="true" />
-            Deseleziona
           </Button>
 
           {/*
