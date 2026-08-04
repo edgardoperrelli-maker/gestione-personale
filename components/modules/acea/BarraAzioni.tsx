@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { CalendarCheck, ClipboardCopy, TriangleAlert, Undo2, X } from 'lucide-react';
+import { CalendarCheck, ClipboardCopy, Star, TriangleAlert, Undo2, X } from 'lucide-react';
 import Button from '@/components/Button';
 import Select from '@/components/ui/Select';
 import { toast } from '@/components/ui/Toast';
@@ -75,6 +75,8 @@ export default function BarraAzioni({
   const { etichetta: etichettaAttivita } = ATTIVITA_TABELLONE[famiglia];
   const [staffId, setStaffId] = useState('');
   const [busy, setBusy] = useState(false);
+  /** Marcatura TOP in volo: ha il suo flag e non `busy`, che è della pianificazione. */
+  const [marcandoTop, setMarcandoTop] = useState(false);
   const [ultima, setUltima] = useState<{ id: string; descrizione: string } | null>(null);
 
   /*
@@ -137,6 +139,41 @@ export default function BarraAzioni({
       setBusy(false);
     }
   }, [chiavi, giorno, staffId, famiglia, operatori, onAnnullaSelezione, onPianificato]);
+
+  /**
+   * Segna (o toglie) il TOP sulle righe spuntate.
+   *
+   * Non tocca la pianificazione: il TOP è una proprietà dell'ORDINE — come lo vuole ACEA — non
+   * dell'uscita che ci mandiamo noi, e infatti si marca anche una riga mai pianificata.
+   * Ricarica invece di correggere la riga a mano: la tabella è virtualizzata e la sua verità è
+   * la fetch, non lo stato del client.
+   */
+  const segnaTop = useCallback(async (top: boolean) => {
+    if (marcandoTop || chiavi.length === 0) return;
+    setMarcandoTop(true);
+    try {
+      const res = await fetch('/api/acea/ordini/top', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        // La famiglia dice al server QUALE registro scrivere, come per la pianificazione.
+        body: JSON.stringify({ chiavi, top, famiglia }),
+      });
+      const json = await res.json().catch(() => ({})) as { aggiornati?: number; error?: string };
+      if (!res.ok) {
+        toast.error(json.error ?? 'Marcatura TOP non riuscita.');
+        return;
+      }
+      const n = json.aggiornati ?? chiavi.length;
+      toast.success(top
+        ? `${n} ${n === 1 ? 'ordine segnato' : 'ordini segnati'} TOP.`
+        : `TOP tolto da ${n} ${n === 1 ? 'ordine' : 'ordini'}.`);
+      onPianificato();
+    } catch {
+      toast.error('Marcatura TOP non riuscita (rete).');
+    } finally {
+      setMarcandoTop(false);
+    }
+  }, [chiavi, famiglia, marcandoTop, onPianificato]);
 
   const annulla = useCallback(async () => {
     if (!ultima) return;
@@ -300,6 +337,21 @@ export default function BarraAzioni({
           <Button variant="outline" size="sm" onClick={() => void onCopiaRighe()}>
             <ClipboardCopy size={14} aria-hidden="true" />
             Copia righe
+          </Button>
+
+          {/*
+            Il TOP di ACEA. Vive qui e non in una cella cliccabile perché il gesto vero è
+            «questi ordini sono prioritari»: arrivano in lista, si cercano e si marcano insieme.
+            Il «Togli» sta accanto al «Segna» e non altrove: una marcatura sbagliata deve costare
+            quanto è costata farla.
+          */}
+          <Button variant="outline" size="sm" onClick={() => void segnaTop(true)} loading={marcandoTop}>
+            <Star size={14} aria-hidden="true" />
+            Segna TOP
+          </Button>
+
+          <Button variant="ghost" size="sm" onClick={() => void segnaTop(false)} loading={marcandoTop}>
+            Togli TOP
           </Button>
 
           <Button variant="ghost" size="sm" onClick={onAnnullaSelezione}>
