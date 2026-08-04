@@ -412,11 +412,6 @@ La Produzione economica non arma più giri: i bottoni «Allinea master: Dunning 
 massive» sono spariti con l'agente Playwright. I dati arrivano dall'**import del modulo ACEA**,
 che porta il file nuovo e completo a ogni giro. **Non reintrodurre** bottoni di allineamento.
 
-### tools/limitazioni-sync (agente standalone `.mjs`)
-`comuneDaFile` usa `path.win32.basename/extname`: i master vivono su SharePoint con path Windows
-(`C:\...\LABICO.xlsx`) ma test/CI girano su POSIX; con `node:path` posix il path non verrebbe
-spezzato. Vale per qualunque parsing di path Windows in questo tool.
-
 ### Invariante
 Non disattivare la voce tassonomia `LIMITAZIONI MASSIVE`: l'export
 `api/export/limitazioni-massive` è ancorato al literal `gruppo_attivita='LIMITAZIONI MASSIVE'`
