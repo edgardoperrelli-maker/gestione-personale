@@ -173,15 +173,29 @@ describe('parseMasterUpload — battente AcquaLatina', () => {
       recapito: '3892599774',
     }]);
   });
-  it('civico «0» = senza civico; il suffisso si attacca col «/»; telefono «---» = vuoto', () => {
+  it('civico «0» = senza civico; il suffisso si attacca col «/»; telefono «---» o «0» = vuoto', () => {
     const out = parseMasterUpload([
       HEADER,
       riga({ 11: '0', 8: '---' }),
-      riga({ 3: '12379999', 11: '39', 12: 'INT' }),
+      riga({ 3: '12379999', 11: '39', 12: 'INT', 8: '0' }),
     ]);
     expect(out.righe[0].indirizzo).toBe('VIA STRISCIA');
     expect(out.righe[0].recapito).toBe('');
     expect(out.righe[1].indirizzo).toBe('VIA STRISCIA 39/INT');
+    expect(out.righe[1].recapito).toBe('');
+  });
+
+  it("scioglie l'escaping del file: «''» è l'apostrofo, «''''» le virgolette", () => {
+    // Misurato sul battente reale: 97 nominativi e 13 vie. Senza questo l'import che
+    // sovrascrive il difforme riscriverebbe il registro coi valori storpiati.
+    const out = parseMasterUpload([
+      HEADER,
+      riga({ 5: "D''ONOFRIO FRANCESCO", 10: "VIA VALLE D''AOSTA" }),
+      riga({ 3: '12379999', 5: "''''HAPPY GELO'''' S.R.L." }),
+    ]);
+    expect(out.righe[0].nominativo).toBe("D'ONOFRIO FRANCESCO");
+    expect(out.righe[0].indirizzo).toBe("VIA VALLE D'AOSTA 1401");
+    expect(out.righe[1].nominativo).toBe('"HAPPY GELO" S.R.L.');
   });
   it("il nominativo cade sull'utenza quando manca la ragione sociale; righe senza Codice Esterno scartate", () => {
     const out = parseMasterUpload([HEADER, riga({ 5: '' }), riga({ 3: '' })]);

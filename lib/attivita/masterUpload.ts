@@ -129,6 +129,17 @@ export function spartiUtenzaImpianto(v: unknown): { impianto: string; nominativo
   return { impianto: '', nominativo: '' };
 }
 
+/**
+ * L'escaping SQL-style che il battente si porta dietro: «D''ONOFRIO» per D'ONOFRIO,
+ * «''''HAPPY GELO''''» per "HAPPY GELO" (misurato sul file reale: 97 nominativi e 13 vie).
+ * Senza questo passaggio l'import — che dal 04/08 sovrascrive il difforme — «correggerebbe»
+ * al contrario, riscrivendo il registro con i valori storpiati. L'ordine conta: prima il
+ * quadruplo, poi il doppio.
+ */
+function deApostrofa(v: string): string {
+  return v.replace(/''''/g, '"').replace(/''/g, "'");
+}
+
 function parseBattente(
   rows: unknown[][],
   headerIdx: number,
@@ -149,8 +160,9 @@ function parseBattente(
     const civico = get(row, 'civico').replace(/^0$/, '');
     const suffisso = get(row, 'suffisso');
     const civicoPieno = civico ? (suffisso ? `${civico}/${suffisso}` : civico) : '';
-    const via = get(row, 'via');
-    const recapito = get(row, 'recapito').replace(/^-+$/, '');
+    const via = deApostrofa(get(row, 'via'));
+    // «---» e «0» sono i due modi del file di dire «niente telefono» (1.703 e 8 righe).
+    const recapito = get(row, 'recapito').replace(/^(?:-+|0)$/, '');
     righe.push({
       odl,
       matricola: '',
@@ -159,7 +171,7 @@ function parseBattente(
       cap: '',
       comune: get(row, 'comune'),
       operazione: '',
-      nominativo: get(row, 'nominativo') || utenza.nominativo,
+      nominativo: deApostrofa(get(row, 'nominativo') || utenza.nominativo),
       recapito,
     });
   }
