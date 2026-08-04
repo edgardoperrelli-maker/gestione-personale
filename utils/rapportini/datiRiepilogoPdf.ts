@@ -1,5 +1,5 @@
 // utils/rapportini/datiRiepilogoPdf.ts
-import { riepilogoRapportino, statoVoce } from './riepilogo';
+import { riepilogoRapportino, statoVoceEffettivo } from './riepilogo';
 import { resolveInfoCampi, valoreInfo, type VoceInfo, type TemplateInfoCampo } from './infoCampi';
 import { campiDiVoce } from './campiDiVoce';
 import { campiEsportabili, type TemplateCampo } from './buildVoci';
@@ -150,8 +150,8 @@ export function costruisciDatiPdf(params: {
   // Una lavorazione si conta SOLO sugli interventi ESEGUITI: un'azione (es. mini_bag) marcata su
   // una voce NON eseguita non è una "lavorazione svolta" e gonfiava il conteggio oltre il numero
   // di eseguiti (caso DELL'AQUILA: mini_bag > eseguiti). Le voci manuali (dal "+") sono sempre eseguite.
-  const vociEseguite = voci.map((v, i) =>
-    v.manuale ? true : statoVoce(risposteVoce[i], campiVoce[i]) === 'eseguito',
+  const vociEseguite = voci.map(
+    (v, i) => statoVoceEffettivo({ risposte: risposteVoce[i], manuale: v.manuale }, campiVoce[i]) === 'eseguito',
   );
 
   // Barre "Lavorazioni svolte": crocette spuntate + select positivi (es. saracinesca "SI"),
@@ -175,10 +175,11 @@ export function costruisciDatiPdf(params: {
       ...campiOrd.map((c) => valoreCampo(rsp, c)),
     ];
     const riga: RigaPdf = { n: i + 1, valori };
-    // Le voci manuali (dal "+") sono sempre complete → "Eseguiti", coerente con riepilogo/lista.
-    // Senza questo, la loro `risposte` (chiavi del template manuale, diverse dal pianificato)
-    // dava 'da_fare' e la riga spariva dal PDF pur essendo conteggiata nei totali.
-    const stato = v.manuale ? 'eseguito' : statoVoce(rsp, campiVoce[i]);
+    // Stessa regola di riepilogo e lista: una voce dal "+" senza esito dichiarato è "Eseguiti"
+    // (le sue chiavi sono quelle del template manuale, non del pianificato: senza la scorciatoia
+    // dava 'da_fare' e la riga spariva dal PDF pur essendo conteggiata nei totali), ma un esito
+    // dichiarato — anche negativo — vince sempre.
+    const stato = statoVoceEffettivo({ risposte: rsp, manuale: v.manuale }, campiVoce[i]);
     if (stato === 'eseguito') eseguiti.push(riga);
     else if (stato === 'non_eseguito') nonEseguiti.push(riga);
     // 'da_fare' (non compilata, o template senza campo `eseguito` es. BONIFICHE EXTRA): NON scartare.

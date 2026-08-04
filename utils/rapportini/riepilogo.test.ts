@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { statoVoce, riepilogoRapportino } from './riepilogo';
+import { statoVoce, statoVoceEffettivo, riepilogoRapportino } from './riepilogo';
 import type { TemplateCampo } from './buildVoci';
 
 const campi: TemplateCampo[] = [
@@ -84,5 +84,60 @@ describe('riepilogoRapportino', () => {
     ], campi);
     expect(r.eseguiti).toBe(1);
     expect(r.totali).toBe(1);
+  });
+});
+
+// Regressione PASTORELLI 04/08/2026 (AcquaLatina): una voce dal "+" esitata NO con la nota
+// («VALVOLA NON CHIUDE») veniva contata fra gli ESEGUITI — il rapportino diceva 31/31, 0 non
+// eseguiti. Sul "+" di AcquaLatina l'esito NON è dato per positivo: la voce nasce come richiesta
+// di assegnazione e l'operatore la compila dopo.
+describe('statoVoceEffettivo — la voce dal "+" non è eseguita per decreto', () => {
+  const campi: TemplateCampo[] = [
+    { chiave: 'eseguito', etichetta: 'ESEGUITO', tipo: 'select', opzioni: ['SI', 'NO', 'NESSUN PASSAGGIO'], obbligatoria: true, ordine: 1 },
+    { chiave: 'note', etichetta: 'NOTE', tipo: 'testo', ordine: 2 },
+  ];
+
+  it('manuale con esito NO e nota → NON eseguita', () => {
+    expect(statoVoceEffettivo({ risposte: { eseguito: 'NO', note: 'VALVOLA NON CHIUDE' }, manuale: true }, campi))
+      .toBe('non_eseguito');
+  });
+
+  it('manuale con NESSUN PASSAGGIO → non eseguita anche senza nota (auto-esplicativo)', () => {
+    expect(statoVoceEffettivo({ risposte: { eseguito: 'NESSUN PASSAGGIO' }, manuale: true }, campi))
+      .toBe('non_eseguito');
+  });
+
+  it('manuale con esito NO ma senza nota → resta da fare, non eseguita', () => {
+    expect(statoVoceEffettivo({ risposte: { eseguito: 'NO' }, manuale: true }, campi)).toBe('da_fare');
+  });
+
+  it('manuale con esito SI → eseguita', () => {
+    expect(statoVoceEffettivo({ risposte: { eseguito: 'SI' }, manuale: true }, campi)).toBe('eseguito');
+  });
+
+  it('manuale a cui un esito non è stato chiesto → eseguita (template senza campo esito)', () => {
+    const senzaEsito: TemplateCampo[] = [{ chiave: 'note', etichetta: 'NOTE', tipo: 'testo', ordine: 1 }];
+    expect(statoVoceEffettivo({ risposte: {}, manuale: true }, senzaEsito)).toBe('eseguito');
+    expect(statoVoceEffettivo({ risposte: {}, manuale: true }, campi)).toBe('eseguito');
+  });
+
+  it('voce pianificata: il flag manuale non c’entra, vale sempre l’esito', () => {
+    expect(statoVoceEffettivo({ risposte: { eseguito: 'NO', note: 'ASSENTE' } }, campi)).toBe('non_eseguito');
+    expect(statoVoceEffettivo({ risposte: { eseguito: 'SI' } }, campi)).toBe('eseguito');
+  });
+});
+
+describe('riepilogoRapportino — i conteggi seguono l’esito della voce manuale', () => {
+  const campi: TemplateCampo[] = [
+    { chiave: 'eseguito', etichetta: 'ESEGUITO', tipo: 'select', opzioni: ['SI', 'NO'], obbligatoria: true, ordine: 1 },
+    { chiave: 'note', etichetta: 'NOTE', tipo: 'testo', ordine: 2 },
+  ];
+
+  it('un "+" esitato NO non gonfia gli eseguiti', () => {
+    const voci = [
+      { risposte: { eseguito: 'SI' }, manuale: true },
+      { risposte: { eseguito: 'NO', note: 'VALVOLA NON CHIUDE' }, manuale: true },
+    ];
+    expect(riepilogoRapportino(voci, campi)).toMatchObject({ eseguiti: 1, nonEseguiti: 1, daFare: 0, totali: 2 });
   });
 });

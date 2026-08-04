@@ -1,4 +1,4 @@
-import { voceEsitoColore } from './voceColore';
+import { voceEsitoColore, esitoDichiarato } from './voceColore';
 import type { TemplateCampo } from './buildVoci';
 import { campiDiVoce, unioneCampi } from './campiDiVoce';
 import { valoreSaracinesca } from '@/lib/limitazione/exportLimMassive';
@@ -34,6 +34,32 @@ export function statoVoce(
   return 'da_fare';
 }
 
+/**
+ * Stato di una voce tenendo conto di com'è nata. È l'unica funzione che le viste devono usare:
+ * lista, conteggi, PDF e gate dell'invio devono dire la stessa cosa sulla stessa voce.
+ *
+ * Una voce creata dal "+" è completa PER COSTRUZIONE — il suo template può non dichiarare affatto
+ * il campo `eseguito` (i modelli `solo_manuale` del committente), e lì pretendere un esito la
+ * lascerebbe per sempre «da fare».
+ *
+ * Ma «completa» non vuol dire «riuscita». Su AcquaLatina il "+" è una RICHIESTA di assegnazione:
+ * la voce nasce senza esito e l'operatore la compila dopo, sul posto, e può compilarla NO. Dare
+ * per eseguita una voce che dice NO è come non aver chiesto: il rapportino di PASTORELLI del
+ * 04/08 mostrava «31 su 31, 0 non eseguiti» con dentro una VIA TUCCIA 2/AC marcata NO, motivo
+ * «VALVOLA NON CHIUDE».
+ *
+ * Quindi: l'esito dichiarato, se c'è, vince sempre. La scorciatoia resta solo dove serviva
+ * davvero, cioè quando un esito non è stato proprio chiesto.
+ */
+export function statoVoceEffettivo(
+  voce: { risposte: Record<string, unknown>; manuale?: boolean | null },
+  campi: TemplateCampo[],
+): StatoVoce {
+  const risposte = voce.risposte ?? {};
+  if (voce.manuale && esitoDichiarato(risposte, campi) === 'nessuno') return 'eseguito';
+  return statoVoce(risposte, campi);
+}
+
 /** Riepilogo dell'intero rapportino: esiti + conteggio lavorazioni (crocette). */
 export function riepilogoRapportino(
   voci: { risposte: Record<string, unknown>; annullato?: boolean; bloccoPositivo?: unknown; manuale?: boolean; approvazione_stato?: string | null; campi?: TemplateCampo[] | null }[],
@@ -56,10 +82,9 @@ export function riepilogoRapportino(
     if (valoreSaracinesca(v.risposte['sostituzione_valvola'], v.risposte['sost_valvola']).toUpperCase() === 'SI') {
       saracinesche += 1;
     }
-    // Voci create dal "+" (manuali): già complete con esito e foto → contano come eseguite, mai "da fare".
-    if (v.manuale) { eseguiti += 1; continue; }
     // L'esito si valuta sui campi DELLA voce (flusso del suo gruppo attività, fallback rapportino).
-    const s = statoVoce(v.risposte, campiDiVoce(v, campi));
+    // Le voci dal "+" contano come eseguite solo finché un esito non l'hanno: vedi statoVoceEffettivo.
+    const s = statoVoceEffettivo(v, campiDiVoce(v, campi));
     if (s === 'eseguito') eseguiti += 1;
     else if (s === 'non_eseguito') nonEseguiti += 1;
     else daFare += 1;

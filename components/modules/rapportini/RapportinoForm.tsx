@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { partitionInfoCampi, titoloVoce, valoreInfo, type InfoChiave, type TemplateInfoCampo } from '@/utils/rapportini/infoCampi';
 import { resolveListaCampi, testoRiga, type ListaCampi } from '@/utils/rapportini/rigaLista';
-import { statoVoce, riepilogoRapportino } from '@/utils/rapportini/riepilogo';
+import { statoVoce, statoVoceEffettivo, riepilogoRapportino } from '@/utils/rapportini/riepilogo';
 import { motivoVoceIncompleta, type MotivoIncompleto } from '@/utils/rapportini/voceMancante';
 import type { SaveState } from './SaveBadge';
 import { RapportinoLista, type RigaVoce, type Filtro } from './RapportinoLista';
@@ -455,7 +455,7 @@ export default function RapportinoForm({
         const bloccoPositivo = v.bloccoPositivo
           ? `Già positivo il ${dataIt(v.bloccoPositivo.data)}${v.bloccoPositivo.esecutore ? ` (${v.bloccoPositivo.esecutore})` : ''} — ordine non da lavorare`
           : undefined;
-        return { index: idx, titolo, sub: testoRiga(v, lista.sub), meta: testoRiga(v, lista.meta), stato: v.manuale ? 'eseguito' : statoVoce(v.risposte, campiDiVoce(v, campi)), nuovo: v.nuovo, annullato: v.annullato, bloccoPositivo, nota: v.notaUfficio, top: v.top, notaCollega: (v.notePrecedenti?.length ?? 0) > 0, badge: badgeVoceManuale(v.approvazione_stato ?? null), matricola: valoreInfo(v, 'matricola'), via: valoreInfo(v, 'via'), odl: valoreInfo(v, 'odl') };
+        return { index: idx, titolo, sub: testoRiga(v, lista.sub), meta: testoRiga(v, lista.meta), stato: statoVoceEffettivo(v, campiDiVoce(v, campi)), nuovo: v.nuovo, annullato: v.annullato, bloccoPositivo, nota: v.notaUfficio, top: v.top, notaCollega: (v.notePrecedenti?.length ?? 0) > 0, badge: badgeVoceManuale(v.approvazione_stato ?? null), matricola: valoreInfo(v, 'matricola'), via: valoreInfo(v, 'via'), odl: valoreInfo(v, 'odl') };
       })),
     [voci, campi, titoloCampi, listaRapportino],
   );
