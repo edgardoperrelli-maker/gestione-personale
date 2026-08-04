@@ -11,6 +11,7 @@ import { ensureInterventiForPiano } from '@/lib/interventi/ensureInterventiForPi
 import { buildVoceInterventoLinker, type InterventoLinkRow } from '@/lib/interventi/voceInterventoLink';
 import { rilevaConflitti, type RapEsistente } from '@/utils/rapportini/rilevaConflitti';
 import { dettagliOdlBloccati, normOdl, taskDaSaltare, type OdlBloccatoDettaglio } from '@/lib/interventi/odlPositivi';
+import { filtraTaskRendicontati, tuttiTaskRendicontatiAltrove, type VoceAltrui } from '@/lib/interventi/taskRendicontati';
 import type { PositivoDettaglio } from '@/lib/interventi/caricaOdlPositivi';
 import { isTaskVia } from '@/lib/interventi/manuali/taskVia';
 import { risolviFlussoPerGruppo } from '@/lib/rapportini/flussiGruppo';
@@ -143,6 +144,33 @@ export async function sincronizzaRapportini(
     stato: r.stato as string, submitted_at: (r.submitted_at as string | null) ?? null,
   }));
 
+  /*
+    G2 (guardia commessa) — i task `acea:*` già rendicontati in un ALTRO rapportino dello
+    stesso operatore nello stesso giorno. È il caso dell'operatore "misto" (Italgas +
+    commessa): il suo rapportino unico vive su un piano di un ALTRO territorio, quindi
+    `rilevaConflitti` non scatta, e senza questa guardia il motore gliene creerebbe un
+    secondo — rompendo la regola «un rapportino per operatore per giorno» del motore acea.
+    Ristretta al prefisso `acea:` (id globalmente deterministici); i task Excel `row-N` non
+    sono unici fra piani e non possono partecipare.
+  */
+  const staffByAltroRap = new Map((altriRaps ?? []).map((r) => [String(r.id), String(r.staff_id)]));
+  const taskAceaAltrove = new Map<string, Set<string>>();
+  if ((altriRaps ?? []).length > 0) {
+    const { data: vociAltriRaps } = await db
+      .from('rapportino_voci')
+      .select('rapportino_id, task_id')
+      .in('rapportino_id', (altriRaps ?? []).map((r) => r.id));
+    for (const v of (vociAltriRaps ?? []) as Array<{ rapportino_id: string; task_id: string | null }>) {
+      const tid = String(v.task_id ?? '');
+      if (!tid.startsWith('acea:')) continue;
+      const sid = staffByAltroRap.get(String(v.rapportino_id));
+      if (!sid) continue;
+      const set = taskAceaAltrove.get(sid) ?? new Set<string>();
+      set.add(tid);
+      taskAceaAltrove.set(sid, set);
+    }
+  }
+
   const conflicts = rilevaConflitti({
     pianoId, territorio: piano.territorio ?? null, data: piano.data, operatori: operatoriPiano, esistenti,
   });
@@ -265,14 +293,28 @@ export async function sincronizzaRapportini(
   // deve produrre due voci (es. import file + template) né una voce su ODL già positivo.
   const vistiOdlVoci = new Set<string>();
   const odlBloccatiVoci = new Set<string>();
+  // Operatori per cui NON si crea il rapportino perché il loro lavoro commessa è già tutto
+  // rendicontato altrove (G2): si segnala, non si tace.
+  const g2Saltati: string[] = [];
 
   for (const op of ops ?? []) {
     if (opts.overwrite === 'skip' && staffInConflitto.has(String(op.staff_id))) continue;
+    const tasksOp = ((op.tasks as Array<{ id?: unknown; odl?: string | null; matricola?: string | null }>) ?? []);
     const { data: existing } = await db.from('rapportini')
       .select('id, token, stato').eq('piano_id', pianoId).eq('staff_id', op.staff_id).maybeSingle();
     // Sync automatico (skipInviati): un rapportino già consegnato non va alterato senza conferma
     // esplicita → lo si lascia intatto (voci e stato). La riapertura resta nel flusso Genera/Conferma.
     if (opts.skipInviati && (existing as { stato?: string } | null)?.stato === 'inviato') continue;
+    // G2: nessun rapportino NUOVO per chi ha solo task `acea:*` già rendicontati nel suo
+    // rapportino (misto) di un altro piano. Un rapportino ESISTENTE su questo piano invece
+    // si aggiorna normalmente.
+    if (!existing?.id) {
+      const altrove = taskAceaAltrove.get(String(op.staff_id));
+      if (altrove && altrove.size > 0 && tuttiTaskRendicontatiAltrove(tasksOp, altrove)) {
+        g2Saltati.push(op.staff_name ?? String(op.staff_id));
+        continue;
+      }
+    }
     let rapId = existing?.id;
     let token = existing?.token;
     if (!rapId) {
