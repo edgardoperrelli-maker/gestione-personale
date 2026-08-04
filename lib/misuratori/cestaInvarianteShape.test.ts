@@ -113,3 +113,96 @@ describe("il registro d'ufficio mostra quello che il server ha deciso", () => {
     expect(src).toMatch(/patch\.stato !== undefined && eco\.cesta === null && cestaPrima/);
   });
 });
+
+describe("assegnaCesta (la barra in blocco) applica la STESSA invariante, gated allo stesso modo", () => {
+  /*
+    Decisione ribaltata il 2026-08-04: fino ad allora la barra scriveva un riferimento e basta
+    ovunque. Ora dichiara la stessa cosa della cella — anche in blocco — ma una selezione può
+    mescolare righe a stati diversi, quindi non basta più una UPDATE sola: si legge, si
+    raggruppa per stato risultante, si scrive un gruppo alla volta. Il comportamento vero è in
+    assegnaCestaInvariante.test.ts; qui solo i segnali che non devono sparire per sbaglio.
+  */
+  const corpoAssegnaCesta = () =>
+    senzaCommenti(registro).match(/export async function assegnaCesta[\s\S]*?\n\}/)?.[0] ?? '';
+
+  it('legge gli stati correnti con una SELECT a blocchi, poi passa da statoDopoCesta', () => {
+    const corpo = corpoAssegnaCesta();
+    expect(corpo).not.toBe('');
+    expect(corpo).toMatch(/\.select\('id, stato'\)/);
+    expect(corpo).toMatch(/statoDopoCesta\(/);
+  });
+
+  it("resta gated su AcquaLatina, come ogni altro ramo dell'invariante", () => {
+    expect(corpoAssegnaCesta()).toMatch(/tabella === 'acqualatina_misuratori_rimossi'/);
+  });
+
+  it('la lettura FALLITA rifiuta la scrittura con 500, non la ingoia come riga assente', () => {
+    // Stesso principio di statoAttuale: ingoiare l'errore qui scriverebbe la sola cesta senza
+    // stato su TUTTA la selezione, non su una riga sola.
+    expect(corpoAssegnaCesta()).toMatch(/status: 500/);
+  });
+
+  it('la risposta è additiva: aggiunge SOLO cambiStato alla forma { ok, aggiornati, cesta }', () => {
+    // Serve al toast del client — quante righe, oltre a quelle scritte, hanno anche cambiato
+    // stato. Additiva: il registro ACEA passa dallo stesso handler e cambiStato resta 0.
+    expect(corpoAssegnaCesta()).toMatch(/ok: true, aggiornati, cesta: valore, cambiStato/);
+  });
+});
+
+describe("la barra dichiara PRIMA quanti misuratori cambieranno stato (solo dove vale l'invariante)", () => {
+  const client2 = readFileSync(
+    resolve(__dirname, '../../components/modules/misuratori/MisuratoriClient.tsx'),
+    'utf8',
+  );
+  const paginaAcqua = readFileSync(
+    resolve(__dirname, '../../app/hub/acqualatina/misuratori/page.tsx'),
+    'utf8',
+  );
+  const paginaAcea = readFileSync(
+    resolve(__dirname, '../../app/hub/misuratori/acea/page.tsx'),
+    'utf8',
+  );
+  const corpoAssegna = () =>
+    senzaCommenti(client2).match(/const handleAssegnaCesta = useCallback\(async[\s\S]*?\n  \}, \[/)?.[0] ?? '';
+
+  it("statoDopoCesta è importata nel client: è pura, non è server-only", () => {
+    // Se un giorno finisse per importare 'server-only' questo import romperebbe la build del
+    // client PRIMA che qualcuno se ne accorga guardando la barra: è la verifica che la spec
+    // chiedeva esplicitamente di fare.
+    expect(client2).toMatch(/import \{ statoDopoCesta \} from '@\/lib\/misuratori\/cestaStato'/);
+  });
+
+  it('la conferma preventiva vive dentro handleAssegnaCesta, gated dalla prop esplicita', () => {
+    const corpo = corpoAssegna();
+    expect(corpo).not.toBe('');
+    expect(corpo).toMatch(/cestaDichiaraScarico/);
+    expect(corpo).toMatch(/statoDopoCesta\(/);
+  });
+
+  it('le due conferme restano UN dialogo solo: una sola chiamata a chiediConferma nella funzione', () => {
+    // Sovrascrittura e cambio di stato possono scattare insieme: se diventassero due
+    // `chiediConferma` in sequenza, sarebbero due popup in fila per lo stesso click.
+    const chiamate = corpoAssegna().match(/chiediConferma\(/g) ?? [];
+    expect(chiamate).toHaveLength(1);
+  });
+
+  it('il toast a scrittura riuscita cita anche i cambi di stato, quando il server li riporta', () => {
+    expect(corpoAssegna()).toMatch(/cambiStato/);
+  });
+
+  it('la cella NON acquisisce un dialogo di conferma: resta la scelta della spec (§7)', () => {
+    // Decisione dell'utente, non estendibile per simmetria con la barra: sulla cella il gesto
+    // è su una riga sola e deliberato. handlePatch non deve chiamare chiediConferma.
+    const corpoPatch =
+      senzaCommenti(client2).match(/const handlePatch = useCallback\([\s\S]*?\[apiBase, fetchData, filters, rows\]/)?.[0] ?? '';
+    expect(corpoPatch).not.toBe('');
+    expect(corpoPatch).not.toMatch(/chiediConferma/);
+  });
+
+  it("la prop è esplicita: AcquaLatina l'accende, ACEA non la nomina (resta spenta di default)", () => {
+    // «Non dedurla da apiBase»: due stringhe di endpoint non sono un contratto leggibile
+    // quanto un flag dichiarato dalla pagina che monta il client.
+    expect(paginaAcqua).toMatch(/cestaDichiaraScarico/);
+    expect(paginaAcea).not.toMatch(/cestaDichiaraScarico/);
+  });
+});

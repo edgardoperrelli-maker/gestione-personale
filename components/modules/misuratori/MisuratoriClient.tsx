@@ -15,6 +15,7 @@ import { AlertTriangle, FileDown, Loader2, Package, RefreshCw, X } from 'lucide-
 import type { MisuratoreRimosso, StatoMisuratore } from '@/types/misuratori';
 import { STATI_MISURATORE, STATO_LABEL } from '@/types/misuratori';
 import { SENZA_RIFERIMENTO, filtraPerRiferimento, valoriRiferimento } from '@/lib/misuratori/riferimenti';
+import { statoDopoCesta } from '@/lib/misuratori/cestaStato';
 import Button from '@/components/Button';
 import Input from '@/components/Input';
 import Select from '@/components/ui/Select';
@@ -69,6 +70,15 @@ export type RegistroProps = {
    * in blocco dalla barra della selezione e la colonna nel PDF (la distinta della cesta).
    */
   mostraCesta?: boolean;
+  /**
+   * L'invariante cesta↔stato (AGENTS.md §13, «AcquaLatina: registro gemello…»): SOLO su
+   * AcquaLatina scrivere o togliere la cesta — anche in blocco dalla barra — dichiara lo
+   * scarico e muove lo stato. Il flag pilota la conferma preventiva di `handleAssegnaCesta`
+   * (`statoDopoCesta` è pura e gira anche lato client). Va dichiarato ESPLICITAMENTE dalla
+   * pagina che monta il client: dedurlo da `apiBase` legherebbe due stringhe di endpoint a un
+   * contratto che deve restare leggibile a colpo d'occhio.
+   */
+  cestaDichiaraScarico?: boolean;
   /** Titolo del PDF esportato. Assente = quello storico del registro ACEA. */
   titoloPdf?: string;
   /**
@@ -89,6 +99,7 @@ export default function MisuratoriClient({
   mostraRicalcola = true,
   mostraPdr = true,
   mostraCesta = false,
+  cestaDichiaraScarico = false,
   titoloPdf,
   breadcrumb,
 }: RegistroProps) {
@@ -286,6 +297,7 @@ export default function MisuratoriClient({
     const ids = [...selezione];
     if (ids.length === 0) return;
     const cesta = valore?.trim() || null;
+    const selezionate = rows.filter((r) => selezione.has(r.id));
 
     /*
       Sovrascrivere una cesta GIÀ DIVERSA si dichiara, non si fa in silenzio: la spunta di
@@ -293,20 +305,48 @@ export default function MisuratoriClient({
       dichiarato l'OPERATORE avendo i contatori in mano. Un numero scritto sopra un altro è il
       tipo di errore che in deposito si scopre solo contando i contatori.
     */
-    if (cesta !== null) {
-      const sovrascritti = rows.filter(
-        (r) => selezione.has(r.id) && r.cesta?.trim() && r.cesta.trim() !== cesta,
-      );
-      if (sovrascritti.length > 0) {
-        const ok = await chiediConferma({
-          title: sovrascritti.length === 1
-            ? '1 misuratore selezionato è già in un\'altra cesta'
-            : `${sovrascritti.length} misuratori selezionati sono già in un'altra cesta`,
-          message: `Il numero verrà sovrascritto con «${cesta}».`,
-          confirmLabel: 'Sovrascrivi',
-        });
-        if (!ok) return;
+    const sovrascritti = cesta !== null
+      ? selezionate.filter((r) => r.cesta?.trim() && r.cesta.trim() !== cesta)
+      : [];
+
+    /*
+      Quante righe della selezione cambierebbero stato — SOLO dove vale l'invariante
+      (`cestaDichiaraScarico`, acceso solo su AcquaLatina: AGENTS.md §13). La spunta di testa
+      prende tutte le righe VISIBILI, non quelle guardate una per una: qui — a differenza della
+      cella, dove il gesto è su una riga sola e deliberato, e la spec ha scelto niente dialogo
+      (§7) — la barra lo dichiara PRIMA di scriverlo. `statoDopoCesta` è pura: la stessa
+      funzione che decide sul server, chiamata qui solo per anticiparne l'esito.
+    */
+    const daCambiareStato = cestaDichiaraScarico
+      ? selezionate.filter((r) => statoDopoCesta(r.stato, cesta) !== null)
+      : [];
+
+    // Le due conferme restano UN dialogo solo: se scattano insieme non si mettono in fila due
+    // popup per lo stesso click.
+    if (sovrascritti.length > 0 || daCambiareStato.length > 0) {
+      const direzione = cesta !== null
+        ? 'risulteranno scaricati a deposito'
+        : 'torneranno fra quelli da scaricare';
+      const frasi: string[] = [];
+      if (sovrascritti.length > 0) frasi.push(`Il numero verrà sovrascritto con «${cesta}».`);
+      if (daCambiareStato.length > 0) {
+        frasi.push(
+          `${daCambiareStato.length} ${daCambiareStato.length === 1 ? 'misuratore' : 'misuratori'} ${direzione}.`,
+        );
       }
+      const title = sovrascritti.length > 0
+        ? (sovrascritti.length === 1
+            ? '1 misuratore selezionato è già in un\'altra cesta'
+            : `${sovrascritti.length} misuratori selezionati sono già in un'altra cesta`)
+        : (daCambiareStato.length === 1
+            ? '1 misuratore selezionato cambierà stato'
+            : `${daCambiareStato.length} misuratori selezionati cambieranno stato`);
+      const ok = await chiediConferma({
+        title,
+        message: frasi.join(' '),
+        ...(sovrascritti.length > 0 ? { confirmLabel: 'Sovrascrivi' } : {}),
+      });
+      if (!ok) return;
     }
 
     setAssegnando(true);
@@ -315,7 +355,7 @@ export default function MisuratoriClient({
       e con lei si portava via anche i cambi di stato fatti su ALTRE righe mentre la POST era
       in volo. Si ricordano le sole ceste toccate e si rimettono solo quelle.
     */
-    const cestaPrima = new Map(rows.filter((r) => selezione.has(r.id)).map((r) => [r.id, r.cesta]));
+    const cestaPrima = new Map(selezionate.map((r) => [r.id, r.cesta]));
     const ripristina = () => setRows(prev => prev.map(
       (r) => (cestaPrima.has(r.id) ? { ...r, cesta: cestaPrima.get(r.id) ?? null } : r),
     ));
@@ -326,16 +366,26 @@ export default function MisuratoriClient({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids, cesta }),
       });
-      const json = await res.json().catch(() => ({})) as { aggiornati?: number; error?: string };
+      const json = await res.json().catch(() => ({})) as { aggiornati?: number; cambiStato?: number; error?: string };
       if (!res.ok) {
         ripristina();
         toast.error(json.error ?? 'Assegnazione cesta non riuscita.');
         return;
       }
       const n = json.aggiornati ?? ids.length;
-      toast.success(cesta
-        ? `${n} ${n === 1 ? 'misuratore' : 'misuratori'} nella cesta ${cesta}.`
-        : `${n} ${n === 1 ? 'misuratore tolto' : 'misuratori tolti'} dalla cesta.`);
+      const cambiStato = json.cambiStato ?? 0;
+      /*
+        Stesso pattern di `handleSync`: parti opzionali unite da virgola, un punto in fondo. Su
+        ACEA (o quando nessuna riga cambia stato) `parti` ha un elemento solo — il toast resta
+        byte per byte quello di sempre.
+      */
+      const parti = [cesta
+        ? `${n} ${n === 1 ? 'misuratore' : 'misuratori'} nella cesta ${cesta}`
+        : `${n} ${n === 1 ? 'misuratore tolto' : 'misuratori tolti'} dalla cesta`];
+      if (cambiStato > 0) {
+        parti.push(`${cambiStato} ${cambiStato === 1 ? 'ha cambiato stato' : 'hanno cambiato stato'}`);
+      }
+      toast.success(`${parti.join(', ')}.`);
       // Si tolgono dalla selezione le sole righe SCRITTE: una spunta aggiunta durante il volo
       // non c'entra con questa cesta, e azzerarla in blocco la faceva sparire senza motivo.
       setSelezione(prev => new Set([...prev].filter((id) => !cestaPrima.has(id))));
@@ -346,7 +396,7 @@ export default function MisuratoriClient({
     } finally {
       setAssegnando(false);
     }
-  }, [apiBase, rows, selezione, assegnando]);
+  }, [apiBase, rows, selezione, assegnando, cestaDichiaraScarico]);
 
   const handleExportPdf = useCallback(() => {
     const pdfFilters: PdfFilters = {
