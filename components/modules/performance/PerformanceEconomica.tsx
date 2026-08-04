@@ -309,8 +309,9 @@ export default function PerformanceEconomica() {
             {(!dati.registroPopolato || !dati.portalePopolato) && (
               <p className="mb-2 text-xs text-[var(--brand-text-muted)]">
                 L’audit DB↔registro↔portale è limitato finché mancano le due colonne di riscontro. Il
-                registro ordini si popola con l’import del Cruscotto nel modulo ACEA; lo snapshot del
-                portale con il giro «Richiedi stato ACEA» dell’agente. Poi ricarica.
+                registro ordini si popola con l’import del Cruscotto nel modulo ACEA, poi ricarica.
+                Lo snapshot del portale lo alimentava l’agente Playwright, ritirato: quello già
+                acquisito resta, di nuovo non ne arriva.
               </p>
             )}
             {dati.audit.length > 0 && (
