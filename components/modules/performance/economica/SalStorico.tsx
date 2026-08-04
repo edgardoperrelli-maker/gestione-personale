@@ -9,7 +9,7 @@ export default function SalStorico({ dati }: { dati: DatiProduzione }) {
       <div className="rounded-xl border border-[var(--brand-border)] p-3">
         <h3 className="mb-2 text-[13px] font-medium text-[var(--brand-text-main)]">Storico SAL</h3>
         <p className="py-6 text-center text-sm text-[var(--brand-text-muted)]">
-          Nessun SAL caricato. Usa «Leggi SAL» dal modulo Agente.
+          Nessun SAL caricato. La lettura automatica dei SAL è stata ritirata insieme all&rsquo;agente: quelli già caricati restano visibili qui.
         </p>
       </div>
     );

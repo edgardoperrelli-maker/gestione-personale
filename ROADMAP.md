@@ -324,6 +324,8 @@
       stop lato client (`AssegnaOdl.tsx` — `fatto` hardcoded a false). Nota: dopo il
       fix dello storico giri ogni refresh è ora ~0.3ms sul DB invece di ~125ms, quindi
       il polling non è più costoso; resta da dargli comunque una condizione di stop.
+      **Decaduta (2026-08-04)**: il modulo Assegnazione AI è stato ritirato insieme
+      all'agente Playwright — `AssegnaOdl.tsx` non esiste più, niente da fare qui.
 - [ ] **Hotel calendar**: query `staff` nel bootstrap mai usata dal client;
       realtime che rifà il full refetch a ogni evento.
 - [ ] **Ricerca storico interventi**: 6 × `ilike '%q%'` (36ms medi) → indici GIN
