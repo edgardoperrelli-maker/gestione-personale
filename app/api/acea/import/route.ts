@@ -9,6 +9,13 @@ import { applicaImport } from '@/lib/acea/applicaImport';
 import { ricalcolaGruppi, type EsitoGruppi } from '@/lib/acea/gruppiServer';
 import { isAnnullato } from '@/lib/acea/statiOrdine';
 import { correzioniDaImport, ESITO_POSITIVO, type InterventoDaCorreggere } from '@/lib/acea/correggiEsiti';
+import {
+  allineamentiDaImport,
+  COMMITTENTE_ALLINEABILE,
+  type InterventoDaAllineare,
+} from '@/lib/acea/attivitaDaImport';
+import { indiceTassonomiaCached } from '@/lib/acea/indiceTassonomia';
+import { sincronizzaRegistro, COMMESSA_ACEA, type EsitoSync } from '@/lib/misuratori/sincronizzaRegistro';
 import { daPotare, type ImportArchiviato } from '@/lib/acea/retentionArchivio';
 import { partiRoma } from '@/lib/agente/orarioRoma';
 import type { RigaOrdineAcea } from '@/lib/acea/tipi';
@@ -99,6 +106,67 @@ async function correggiEsitiPositivi(dalFile: readonly RigaOrdineAcea[]): Promis
       .select('id');
     if (error) throw error;
     fatte += (data ?? []).length;
+  }
+  return fatte;
+}
+
+/**
+ * Riporta `intervento_tipo` all'attività che l'ordine ha OGGI su ACEA. Torna quante righe.
+ *
+ * La decisione (quali ODL, quale forma canonica, chi resta fuori) sta in `attivitaDaImport`,
+ * che è pura e provata; qui c'è solo il giro di lettura e scrittura. Senza tassonomia non si
+ * scrive niente: la forma canonica è tutto il valore dell'operazione.
+ */
+async function allineaAttivitaDalFile(dalFile: readonly RigaOrdineAcea[]): Promise<number> {
+  const indice = await indiceTassonomiaCached();
+  if (!indice) return 0;
+
+  const odls = [...new Set(dalFile.map((r) => String(r.odl ?? '').trim()).filter(Boolean))];
+  if (odls.length === 0) return 0;
+
+  const candidati: InterventoDaAllineare[] = [];
+  // `in` con liste lunghe fa esplodere la query string: a blocchi, come le correzioni d'esito.
+  for (let i = 0; i < odls.length; i += 200) {
+    const { data, error } = await supabaseAdmin
+      .from('interventi')
+      .select('id, odl, committente, intervento_tipo, gruppo_attivita')
+      .eq('committente', COMMITTENTE_ALLINEABILE)
+      .in('odl', odls.slice(i, i + 200));
+    if (error) throw error;
+    candidati.push(...((data ?? []) as InterventoDaAllineare[]));
+  }
+
+  const allineamenti = allineamentiDaImport(
+    dalFile.map((r) => ({ odl: String(r.odl ?? ''), attivita: r.attivita })),
+    candidati,
+    indice,
+  );
+  if (allineamenti.length === 0) return 0;
+
+  // Raggruppati per (tipo, gruppo): le coppie distinte sono una manciata anche su file interi.
+  // I due valori viaggiano NEL valore della mappa, non nella chiave: le descrizioni contengono
+  // spazi e barre («Rim Mis/Mod radio per morosità»), e ricavarle da uno split le spezzerebbe.
+  type Coppia = { intervento_tipo: string; gruppo_attivita: string; ids: string[] };
+  const perCoppia = new Map<string, Coppia>();
+  for (const a of allineamenti) {
+    const k = `${a.intervento_tipo}|${a.gruppo_attivita}`;
+    const c = perCoppia.get(k)
+      ?? { intervento_tipo: a.intervento_tipo, gruppo_attivita: a.gruppo_attivita, ids: [] };
+    c.ids.push(a.id);
+    perCoppia.set(k, c);
+  }
+
+  let fatte = 0;
+  for (const { intervento_tipo, gruppo_attivita, ids } of perCoppia.values()) {
+    for (let i = 0; i < ids.length; i += 200) {
+      const { data, error } = await supabaseAdmin
+        .from('interventi')
+        .update({ intervento_tipo, gruppo_attivita })
+        .in('id', ids.slice(i, i + 200))
+        .select('id');
+      if (error) throw error;
+      fatte += (data ?? []).length;
+    }
   }
   return fatte;
 }
@@ -252,6 +320,38 @@ export async function POST(req: Request) {
       console.warn('[acea/import] correzione esiti non riuscita:', e);
     }
 
+    /*
+      5-quater) L'ATTIVITÀ DELL'ORDINE LA DICHIARA ACEA.
+
+      `intervento_tipo` nasce dal testo che l'attività aveva sulla mappa il giorno della
+      pianificazione, e lì resta: la rigenerazione del piano preserva gli interventi in stato
+      terminale e non ha un ramo di UPDATE. Ma l'ordine cambia — il cliente moroso paga, ACEA
+      riapre l'ODL e la rimozione misuratore diventa una riattivazione fornitura — e da noi
+      resta scritta la rimozione.
+
+      Non è un'etichetta: il registro «Misuratori Rimossi» decide su questo campo. Cinque
+      riaperture (impianti 4000551740, 4003925044, 4000145731, 4003852681, 4004372214) sono
+      entrate a magazzino come rimozioni, con la matricola di contatori mai staccati.
+
+      Il registro è derivato, quindi si ricalcola SOLO se qualcosa è cambiato davvero: il
+      passo di rimozione del motore porta via le righe il cui intervento non qualifica più.
+
+      Best-effort come il resto del post-import, e con lo stesso patto: si DICE quante righe
+      sono state toccate. Una riscrittura silenziosa su un campo che governa un magazzino è
+      esattamente il tipo di magia che fa perdere fiducia nel registro.
+    */
+    let attivitaAllineate = 0;
+    let registroMisuratori: EsitoSync | null = null;
+    try {
+      attivitaAllineate = await allineaAttivitaDalFile(parse.righe);
+      if (attivitaAllineate > 0) {
+        console.info(`[acea/import] attività riallineate dal Cruscotto: ${attivitaAllineate}`);
+        registroMisuratori = await sincronizzaRegistro(COMMESSA_ACEA);
+      }
+    } catch (e) {
+      console.warn('[acea/import] riallineamento attività non riuscito:', e);
+    }
+
     // 5-bis) Microaree: gli ordini nuovi arrivano senza coordinate, e geocodificarli richiede
     // minuti (un indirizzo al secondo). Il ricalcolo presta loro il gruppo del CAP — a Roma — o del
     // comune, così una riga appena importata ha già una zona invece di restare a «—» proprio nei
@@ -307,6 +407,8 @@ export async function POST(req: Request) {
       archiviato: storagePath !== null,
       archivioPotati,
       esitiCorretti,
+      attivitaAllineate,
+      registroMisuratori,
       microaree: gruppi,
     };
 

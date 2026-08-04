@@ -30,6 +30,14 @@ export type EsitoImport = {
    * Opzionale: un riepilogo salvato prima del 2026-08-03 non ce l'ha.
    */
   esitiCorretti?: number;
+  /**
+   * Interventi la cui attività è tornata a quella che l'ordine ha oggi su ACEA (il cliente
+   * paga, la rimozione misuratore diventa riattivazione fornitura, e da noi restava scritta
+   * la rimozione). Opzionale: i riepiloghi precedenti non ce l'hanno.
+   */
+  attivitaAllineate?: number;
+  /** Effetto a valle sul registro Misuratori Rimossi, quando l'allineamento ne ha toccato qualcuna. */
+  registroMisuratori?: { inseriti: number; rimossi: number; aggiornati: number } | null;
 };
 
 const data = (iso: string | null) => {
@@ -114,7 +122,31 @@ export default function RiepilogoImport({
           note="ACEA li ha pagati"
           tone={(esito.esitiCorretti ?? 0) > 0 ? 'primary' : 'neutral'}
         />
+        {/*
+          Stessa regola degli esiti: l'import riscrive un campo nostro, quindi lo dice. Qui
+          pesa il doppio, perché su `intervento_tipo` decide anche il registro Misuratori
+          Rimossi — un'attività ferma alla pianificazione ci manda a magazzino contatori mai
+          staccati.
+        */}
+        <StatTile
+          label="Attività riallineate"
+          value={esito.attivitaAllineate ?? 0}
+          note="l'ordine è cambiato su ACEA"
+          tone={(esito.attivitaAllineate ?? 0) > 0 ? 'primary' : 'neutral'}
+        />
       </div>
+
+      {(esito.registroMisuratori?.rimossi ?? 0) > 0 && (
+        <p className="text-xs text-[var(--brand-text-muted)]">
+          Registro Misuratori Rimossi ricalcolato:{' '}
+          <strong>{esito.registroMisuratori?.rimossi}</strong> righe uscite (l&apos;intervento non
+          è più una rimozione)
+          {(esito.registroMisuratori?.inseriti ?? 0) > 0
+            ? `, ${esito.registroMisuratori?.inseriti} entrate`
+            : ''}
+          .
+        </p>
+      )}
 
       {esito.annullatiPianificati.length > 0 && (
         <div className="rounded-[var(--radius-lg)] border border-[var(--danger)] bg-[var(--danger-soft)] p-3">
