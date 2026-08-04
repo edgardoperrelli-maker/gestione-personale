@@ -1,7 +1,8 @@
 import 'server-only';
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
-import { STATI_MISURATORE } from '@/types/misuratori';
+import { STATI_MISURATORE, type StatoMisuratore } from '@/types/misuratori';
+import { statoDopoCesta } from './cestaStato';
 import { resolveAssignableRole } from '@/lib/moduleAccess';
 import { selectDegradante } from '@/lib/rapportini/colonneOpzionali';
 
@@ -131,6 +132,41 @@ export async function aggiornaRegistro(
       return NextResponse.json({ error: 'cesta non prevista su questo registro' }, { status: 400 });
     }
     patch.cesta = typeof body.cesta === 'string' ? body.cesta.trim() || null : null;
+
+    /*
+      Scrivere la cesta È dichiarare lo scarico, anche quando a scriverla è l'ufficio: il numero
+      e lo stato devono dire la stessa cosa. Senza questo blocco la riga corretta a mano restava
+      nel bacino della modale dell'operatore — che ne sovrascriveva il numero in silenzio — e la
+      cesta SVUOTATA lasciava lo stato avanti, cioè un contatore che nessuno avrebbe più chiesto
+      a nessuno.
+
+      Lo stato ESPLICITO vince: quello implicito si applica solo se il corpo non ne porta uno.
+      E non passa dal gate admin_plus di sopra, di proposito — chi può scrivere la cesta può
+      disfare la propria scrittura, e chiedere un admin lascerebbe il buco aperto nel frattempo.
+    */
+    if (!('stato' in patch)) {
+      const { data: riga } = await supabaseAdmin
+        .from(tabella)
+        .select('stato')
+        .eq('id', id)
+        .maybeSingle();
+      // Riga inesistente: niente stato implicito, e l'UPDATE più sotto non aggancerà niente.
+      const implicito = riga
+        ? statoDopoCesta((riga as { stato: StatoMisuratore }).stato, patch.cesta as string | null)
+        : null;
+      if (implicito) patch.stato = implicito;
+    }
+  }
+
+  /*
+    L'altra faccia dell'invariante: dichiarare che il misuratore NON è in deposito toglie il
+    numero di cesta, che a quel punto è falso — e un riferimento falso in magazzino costa più di
+    un riferimento assente. È anche la porta da cui l'incoerenza è probabilmente entrata in
+    produzione: un admin_plus che riporta indietro lo stato dalla tendina, e la cesta che resta
+    scritta. Sul ritorno IMPLICITO qui sopra è un no-op: la cesta era già `null`.
+  */
+  if (patch.stato === 'da_consegnare_deposito' && tabella === 'acqualatina_misuratori_rimossi') {
+    patch.cesta = null;
   }
 
   if (Object.keys(patch).length === 1) {
@@ -139,7 +175,16 @@ export async function aggiornaRegistro(
 
   const { error } = await supabaseAdmin.from(tabella).update(patch).eq('id', id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true });
+  /*
+    L'eco dei campi scritti. Il registro NON rifà la fetch quando il salvataggio riesce (scelta
+    voluta: si aggiorna in ottimistica), quindi senza questa risposta lo stato mosso dalla cesta
+    — e la cesta tolta dalla regressione — resterebbero invisibili fino al ricaricamento.
+    Additiva: il registro ACEA passa dallo stesso handler e semplicemente non li riceve mai.
+  */
+  const risposta: Record<string, unknown> = { ok: true };
+  if (patch.stato !== undefined) risposta.stato = patch.stato;
+  if (patch.cesta !== undefined) risposta.cesta = patch.cesta;
+  return NextResponse.json(risposta);
 }
 
 /**
