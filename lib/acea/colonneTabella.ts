@@ -76,6 +76,12 @@ export type RigaTabella = {
    * banner «Nota dall'ufficio» — non e` un promemoria interno, e` un messaggio a chi va sul posto.
    */
   note: string | null;
+  /**
+   * Segnalato TOP da ACEA: da lavorare per primo. Lo marca l'ufficio in blocco dalla selezione,
+   * e l'operatore se lo ritrova evidenziato e in cima alle voci del rapportino. Opzionale: il
+   * registro c'era prima di questa colonna.
+   */
+  top?: boolean;
   // dalla pianificazione (join in lettura, non è dato ACEA)
   pianificato_il: string | null;
   pianificato_a: string | null;

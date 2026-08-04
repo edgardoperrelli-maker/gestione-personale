@@ -59,6 +59,9 @@ const COLONNE = [
   'nominativo', 'recapito',
   'valore_netto', 'escludi_consuntivazione', 'codice_sla', 'priorita_testo',
   'testo_ordine', 'centro_lavoro', 'note',
+  // Il TOP di ACEA. Sta nella select principale e non fra le opzionali perché la colonna esiste
+  // su ENTRAMBE le tabelle (migration 20260804110000): la lista è una sola per due registri.
+  'top',
   // L'esecutore e la data di ACEA: sono nel registro dall'inizio, ma senza queste due qui non
   // arrivavano in tabella — e le colonne «Esecutore»/«Data pianificata» sono le NOSTRE, quindi
   // su un ordine chiuso da ACEA e mai pianificato da noi restavano vuote. Sembrava un import
