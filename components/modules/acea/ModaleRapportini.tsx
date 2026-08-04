@@ -102,9 +102,15 @@ export default function ModaleRapportini({
         // Righe a metà su quel giorno: il cancello del motore. Si chiede, riga per riga.
         if (res.status === 409 && body.incomplete) {
           const n = body.incomplete.length;
+          // Gli ODL vanno NOMINATI, come già fa RapportiniGiorno: chi genera sta spesso su una
+          // griglia filtrata su tutt'altro ordine, e un conteggio anonimo gli fa credere che la
+          // riga a metà sia quella che ha davanti (caso 12383864: bozza con la data ma senza
+          // esecutore, invisibile dietro il filtro su 12383202).
+          const elenco = body.incomplete.slice(0, 5).join(', ')
+            + (n > 5 ? ` e altri ${n - 5}` : '');
           const procedi = await chiediConferma({
             title: `${n} ${n === 1 ? 'ordine è programmato' : 'ordini sono programmati'} per ${giornoEsteso(g.data)} senza esecutore`,
-            message: 'Non entreranno in nessun rapportino finché non hanno anche l\'esecutore. Generare lo stesso senza di loro?',
+            message: `ODL ${elenco}. Non entreranno in nessun rapportino finché non hanno anche l'esecutore: puoi completarli nel registro e rilanciare, oppure generare lo stesso senza di loro.`,
             confirmLabel: 'Genera senza di loro',
           });
           if (!procedi) { nuovi.set(chiave, 'saltato: righe a metà sul giorno'); setEsiti(new Map(nuovi)); continue; }
