@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Gestilab Plenzich</string>
+    <string name="title_activity_main">Gestilab Plenzich</string>
+    <string name="package_name">it.plenzich.gestilab</string>
+    <string name="custom_url_scheme">it.plenzich.gestilab</string>
+</resources>
