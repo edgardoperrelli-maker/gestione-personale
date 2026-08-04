@@ -14,11 +14,12 @@ export const dynamic = 'force-dynamic';
  * `/api/misuratori`, ricalcolo dal lavoro chiuso, colonna PDR); il breadcrumb passa da
  * dentro, perché la radice del client è full-screen e una riga fuori sfonderebbe la viewport.
  *
- * `mostraPallet` dal 2026-08-03: il pallet non era un fatto di AcquaLatina, era arrivato prima
- * di là. Il ciclo fisico è identico — si accumula in cesta, a cesta piena si scrive il numero
- * del pallet su tutti i misuratori che ci sono finiti dentro — e ora le due commesse hanno la
- * stessa colonna, lo stesso filtro, la stessa barra di assegnazione e la stessa cella
- * scrivibile. Il PDR resta il solo campo che ACEA ha e l'altra no: quello è del gas.
+ * `mostraCesta`: la colonna c'era già come «pallet» ed è la stessa, rinominata il 2026-08-04
+ * quando i due nomi si sono rivelati la stessa cosa — il contenitore numerato con cui la
+ * riconsegna viaggia. Le due commesse hanno la stessa colonna, lo stesso filtro, la stessa
+ * barra di assegnazione e la stessa cella scrivibile; a differenziarle resta CHI scrive il
+ * numero (qui l'ufficio, di là l'operatore allo scarico). Il PDR è il solo campo che ACEA ha
+ * e l'altra no: quello è del gas.
  */
 export default async function MisuratoriAceaPage() {
   const cookieStore = await cookies();
@@ -37,7 +38,7 @@ export default async function MisuratoriAceaPage() {
       <MisuratoriClient
         isAdminPlus={isAdminPlus}
         titolo="Misuratori rimossi — ACEA"
-        mostraPallet
+        mostraCesta
         breadcrumb={
           <Breadcrumb items={[{ label: 'Misuratori', href: '/hub/misuratori' }, { label: 'ACEA' }]} />
         }

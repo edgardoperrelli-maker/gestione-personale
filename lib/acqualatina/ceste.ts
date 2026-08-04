@@ -1,10 +1,10 @@
 /*
   PURA: le ceste di magazzino della commessa AcquaLatina.
 
-  Il contatore smontato in campo la sera si scarica in una CESTA numerata; quando la cesta si
-  riempie finisce su un PALLET, che è il riferimento con cui la riconsegna al committente
-  viaggia. Questo file è il primo dei due passi: chi decide cosa va scaricato adesso, e quali
-  numeri di cesta sono selezionabili.
+  Il contatore smontato in campo la sera si scarica in una CESTA numerata, ed è quella con cui
+  la riconsegna al committente viaggia: il riferimento di magazzino è UNO (per qualche giorno
+  se n'erano immaginati due, cesta e pallet, ma erano la stessa cosa — fusi il 2026-08-04).
+  Questo file decide cosa va scaricato adesso e quali numeri di cesta sono selezionabili.
 
   Niente DB e niente React: sono le tre decisioni che devono restare vere anche quando la
   modale dell'operatore verrà riscritta.

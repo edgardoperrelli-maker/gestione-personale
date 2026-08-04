@@ -17,12 +17,11 @@ const COLONNE_COMUNI =
   'id, intervento_id, rapportino_id, odl, data_esecuzione, esecutore, indirizzo, comune, matricola, stato, note, created_at, updated_at';
 
 /**
- * Il PALLET ora è di ENTRAMBI i registri (migrazione 20260803140000): il ciclo fisico è lo
- * stesso — si accumula in cesta, a cesta piena si va su un pallet, e quel numero è il
- * riferimento con cui la riconsegna viaggia. A restare solo di ACEA è il PDR, che è del gas;
- * solo di AcquaLatina è la CESTA, che l'operatore dichiara all'invio del rapportino.
- * Ognuno seleziona le SUE colonne: chiedere una colonna che la tabella non ha fa fallire la
- * query intera.
+ * La CESTA è di ENTRAMBI i registri (migration 20260804090000): è il contenitore numerato con
+ * cui la riconsegna viaggia, e il ciclo fisico è lo stesso per le due commesse — su ACEA la
+ * colonna si chiamava `pallet` ed è la stessa, rinominata. A restare solo di ACEA è il PDR,
+ * che è del gas. Ognuno seleziona le SUE colonne: chiedere una colonna che la tabella non ha
+ * fa fallire la query intera.
  */
 function colonne(tabella: TabellaRegistro): string {
   return tabella === 'misuratori_rimossi' ? `${COLONNE_COMUNI}, pdr` : COLONNE_COMUNI;
@@ -35,10 +34,12 @@ function colonne(tabella: TabellaRegistro): string {
  * migration il registro resta VIVO (senza quella colonna) invece di spegnersi tutto — una
  * select che nomina una colonna inesistente fallisce intera, non per campo. Stessa medicina
  * già usata per le colonne bozza del registro ACEA.
+ *
+ * Uguale per le due tabelle da quando il riferimento di magazzino è uno solo: `cesta` sta QUI
+ * e non fra le comuni proprio per la finestra di deploy — su ACEA la colonna nasce da una
+ * rinomina, e fra il codice nuovo e la migration applicata il registro deve restare leggibile.
  */
-function colonneOpzionali(tabella: TabellaRegistro): string[] {
-  return tabella === 'misuratori_rimossi' ? ['pallet'] : ['pallet', 'cesta'];
-}
+const COLONNE_OPZIONALI = ['cesta'];
 
 /** GET del registro con i filtri di modulo (data, stato, comune, esecutore). */
 export async function leggiRegistro(tabella: TabellaRegistro, url: string) {
@@ -64,12 +65,12 @@ export async function leggiRegistro(tabella: TabellaRegistro, url: string) {
     return query;
   };
 
-  const { data, error } = await selectDegradante(colonne(tabella), colonneOpzionali(tabella), esegui);
+  const { data, error } = await selectDegradante(colonne(tabella), COLONNE_OPZIONALI, esegui);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  // `pdr`, `pallet` e `cesta` sempre presenti nella risposta: il client è lo stesso per i due
-  // registri, e un campo assente diventerebbe `undefined` dove il tipo promette `| null`.
+  // `pdr` e `cesta` sempre presenti nella risposta: il client è lo stesso per i due registri,
+  // e un campo assente diventerebbe `undefined` dove il tipo promette `| null`.
   const righe = ((data ?? []) as unknown as Record<string, unknown>[])
-    .map((r) => ({ pdr: null, pallet: null, cesta: null, ...r }));
+    .map((r) => ({ pdr: null, cesta: null, ...r }));
   return NextResponse.json(righe);
 }
 
@@ -116,20 +117,12 @@ export async function aggiornaRegistro(
     patch.note = typeof body.note === 'string' ? body.note || null : null;
   }
 
-  // Il pallet vale su entrambi i registri dal 2026-08-03: la colonna c'è di qua e di là, e il
-  // gesto («questa cesta è finita sul pallet N») è lo stesso per le due commesse.
-  if ('pallet' in body) {
-    patch.pallet = typeof body.pallet === 'string' ? body.pallet.trim() || null : null;
-  }
-
-  // La CESTA la scrive l'operatore dal campo; qui si CORREGGE. Un numero sbagliato dichiarato
-  // di sera è un contatore che l'ufficio cerca nella cesta sbagliata: doverlo far correggere
-  // dall'operatore, col rapportino ormai chiuso, sarebbe una porta murata. Solo AcquaLatina:
-  // la tabella ACEA non ha la colonna e la UPDATE fallirebbe.
+  // La CESTA vale su entrambi i registri (2026-08-04): la colonna c'è di qua e di là — su ACEA
+  // è quella che si chiamava `pallet` — e il gesto è lo stesso per le due commesse.
+  // Su AcquaLatina la scrive l'OPERATORE dal campo e qui si CORREGGE: un numero sbagliato
+  // dichiarato di sera è un contatore che l'ufficio cerca nella cesta sbagliata, e doverlo far
+  // correggere dall'operatore col rapportino ormai chiuso sarebbe una porta murata.
   if ('cesta' in body) {
-    if (tabella !== 'acqualatina_misuratori_rimossi') {
-      return NextResponse.json({ error: 'cesta non prevista su questo registro' }, { status: 400 });
-    }
     patch.cesta = typeof body.cesta === 'string' ? body.cesta.trim() || null : null;
   }
 
@@ -143,16 +136,21 @@ export async function aggiornaRegistro(
 }
 
 /**
- * Assegnazione del pallet IN BLOCCO: il gesto vero è «la cesta è piena» — si selezionano i
- * misuratori che ci sono finiti dentro e si scrive su tutti il numero del pallet. `pallet`
- * vuoto o nullo TOGLIE l'assegnazione (correzione di un errore): l'assenza è uno stato
- * legittimo («ancora in cesta»), non serve un secondo verbo.
+ * Assegnazione della cesta IN BLOCCO: si selezionano i misuratori che ci sono finiti dentro e
+ * si scrive su tutti lo stesso numero. `cesta` vuota o nulla TOGLIE l'assegnazione (correzione
+ * di un errore): l'assenza è uno stato legittimo («ancora in furgone»), non serve un secondo
+ * verbo.
+ *
+ * Lo STATO non si tocca, ed è una scelta: qui si scrive un riferimento, mentre «dichiarare la
+ * cesta È lo scarico a deposito» vale per l'operatore che ha i contatori in mano
+ * (`lib/acqualatina/scaricoMisuratori`). L'ufficio che corregge un numero non sta dicendo che
+ * quel contatore è appena arrivato in magazzino.
  */
-export async function assegnaPallet(
-  // Non più ristretta ad AcquaLatina: entrambe le tabelle hanno la colonna e lo stesso gesto.
+export async function assegnaCesta(
+  // Entrambe le tabelle hanno la colonna e lo stesso gesto.
   tabella: TabellaRegistro,
   ids: unknown,
-  pallet: unknown,
+  cesta: unknown,
 ) {
   const elenco = (Array.isArray(ids) ? ids : [])
     .map((v) => String(v ?? '').trim())
@@ -160,17 +158,17 @@ export async function assegnaPallet(
   if (elenco.length === 0) {
     return NextResponse.json({ error: 'Nessun misuratore selezionato.' }, { status: 400 });
   }
-  const valore = typeof pallet === 'string' ? pallet.trim() || null : null;
+  const valore = typeof cesta === 'string' ? cesta.trim() || null : null;
 
   let aggiornati = 0;
   for (let i = 0; i < elenco.length; i += 200) {
     const { data, error } = await supabaseAdmin
       .from(tabella)
-      .update({ pallet: valore, updated_at: new Date().toISOString() })
+      .update({ cesta: valore, updated_at: new Date().toISOString() })
       .in('id', elenco.slice(i, i + 200))
       .select('id');
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     aggiornati += (data ?? []).length;
   }
-  return NextResponse.json({ ok: true, aggiornati, pallet: valore });
+  return NextResponse.json({ ok: true, aggiornati, cesta: valore });
 }

@@ -294,16 +294,24 @@ non la correzione dell'esito → per quest'ultima serve il Ricalcola.
 ### AcquaLatina: registro gemello, e la CESTA la dichiara l'operatore
 La commessa `acqualatina` ha il **suo** registro (`acqualatina_misuratori_rimossi`), stessi stati
 e stesso motore di ricalcolo (`lib/misuratori/sincronizzaRegistro.ts`), senza PDR e **senza gate
-sul tipo** (una sola attività, già una sostituzione). Due riferimenti di magazzino, in ordine di
-ciclo fisico:
-- **`cesta`** — la scrive l'**operatore** dal campo, all'invio del rapportino
-  (`/api/r/[token]/scarico-misuratori`): dichiararla porta lo stato a `scaricato_deposito`.
-  L'ufficio la corregge in cella, non la crea.
-- **`pallet`** — lo assegna l'**ufficio** in blocco quando la cesta è piena (entrambi i registri).
+sul tipo** (una sola attività, già una sostituzione).
 
-Filtri puri condivisi in `lib/misuratori/riferimenti.ts` (il campo è un parametro). Le due colonne
-viaggiano fra le **opzionali** di `selectDegradante`: mai nella select principale, o un deploy
-prima della migration spegne il registro intero.
+Il riferimento di magazzino è **UNO** e si chiama **`cesta`**: il contenitore numerato con cui la
+riconsegna al committente viaggia, su **entrambi** i registri. Per qualche giorno ne sono esistiti
+due — `cesta` e `pallet`, come due gradini di un ciclo che il magazzino non fa — fusi il 2026-08-04
+(migration `20260804090000`: su ACEA `pallet` **rinominato** in `cesta`, su AcquaLatina eliminato
+perché mai usato). A differenziare le due commesse resta **chi scrive il numero**:
+- su **AcquaLatina** lo dichiara l'**operatore** dal campo, all'invio del rapportino
+  (`/api/r/[token]/scarico-misuratori`): dichiararlo porta lo stato a `scaricato_deposito`.
+  L'ufficio lo corregge in cella o in blocco, non lo crea.
+- su **ACEA** lo scrive l'**ufficio**, in blocco dalla barra della selezione o in cella.
+
+⚠️ L'assegnazione d'ufficio (`POST .../misuratori/cesta`) **non tocca lo stato**: «dichiarare la
+cesta È lo scarico» vale per l'operatore che ha i contatori in mano, non per chi corregge un numero.
+
+Filtri puri condivisi in `lib/misuratori/riferimenti.ts`. La colonna viaggia fra le **opzionali**
+di `selectDegradante`: mai nella select principale, o un deploy prima della migration spegne il
+registro intero.
 
 ---
 

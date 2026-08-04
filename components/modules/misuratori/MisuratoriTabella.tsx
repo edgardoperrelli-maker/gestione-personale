@@ -6,29 +6,24 @@ import { STATO_ACCENT, STATO_TESTO } from './StatoBadge';
 import { useGrigliaCopiabile } from '@/components/ui/useGrigliaCopiabile';
 import { formatItalian } from '@/utils/date-it';
 
-type SortKey = 'data_esecuzione' | 'stato' | 'comune' | 'pallet' | 'cesta';
+type SortKey = 'data_esecuzione' | 'stato' | 'comune' | 'cesta';
 
 interface Props {
   rows: MisuratoreRimosso[];
-  onPatch: (id: string, patch: { stato?: StatoMisuratore; note?: string; pallet?: string; cesta?: string }) => Promise<void>;
+  onPatch: (id: string, patch: { stato?: StatoMisuratore; note?: string; cesta?: string }) => Promise<void>;
   /** Solo admin_plus può riportare indietro lo stato; gli altri possono solo avanzarlo. */
   isAdminPlus: boolean;
   /** Colonna PDR: il registro AcquaLatina non ne ha una (misuratori d'acqua). */
   mostraPdr?: boolean;
   /**
-   * Colonna Cesta (solo AcquaLatina): il numero che l'OPERATORE dichiara all'invio del
-   * rapportino, scaricando i contatori in magazzino. Qui si legge — e si corregge, perché un
-   * numero sbagliato di sera è un contatore cercato nella cesta sbagliata e il rapportino è
-   * ormai chiuso. È il gradino prima del pallet, e sta prima anche in tabella.
+   * Colonna Cesta + spunte di selezione. La cesta è il contenitore numerato con cui la
+   * riconsegna viaggia: si assegna in blocco dalla barra del client — «questi sono finiti nella
+   * stessa cesta» — oppure si scrive nella cella, una riga alla volta.
+   * Su AcquaLatina il numero lo dichiara l'OPERATORE all'invio del rapportino e qui si CORREGGE,
+   * perché un numero sbagliato di sera è un contatore cercato nella cesta sbagliata e il
+   * rapportino è ormai chiuso. Senza questa prop la tabella resta quella di sempre.
    */
   mostraCesta?: boolean;
-  /**
-   * Colonna Pallet + spunte di selezione: a cesta piena si selezionano i misuratori che ci sono
-   * finiti dentro e si assegna loro il numero del pallet, in blocco dalla barra del client —
-   * oppure si scrive nella cella, una riga alla volta. Attiva su ENTRAMBE le commesse dal
-   * 2026-08-03. Senza questa prop la tabella resta quella di sempre.
-   */
-  mostraPallet?: boolean;
   /** Id selezionati, posseduti dal client (la barra di assegnazione vive lì). */
   selezione?: ReadonlySet<string>;
   onSelezione?: (aggiorna: (prima: Set<string>) => Set<string>) => void;
@@ -42,7 +37,7 @@ interface Props {
 
 export default function MisuratoriTabella({
   rows, onPatch, isAdminPlus, mostraPdr = true, mostraCesta = false,
-  mostraPallet = false, selezione, onSelezione, salvando,
+  selezione, onSelezione, salvando,
 }: Props) {
   const [sortKey, setSortKey]         = useState<SortKey>('data_esecuzione');
   const [sortAsc, setSortAsc]         = useState(false);
@@ -54,24 +49,12 @@ export default function MisuratoriTabella({
   const notaAppenaChiusa = useRef<string | null>(null);
 
   /*
-    Pallet scrivibile nella cella, stesse regole della nota (Escape annulla, niente PATCH a
-    vuoto, il focus torna dov'era). Prima si poteva assegnare SOLO in blocco dalla barra della
-    cesta: giusto per il gesto vero — «la cesta è piena, questi ci sono finiti dentro» — ma per
+    Cesta scrivibile nella cella, stesse regole della nota (Escape annulla, niente PATCH a
+    vuoto, il focus torna dov'era). Si può assegnare anche in blocco dalla barra della
+    selezione: giusto per il gesto vero — «questi sono finiti nella stessa cesta» — ma per
     correggere un numero su una riga sola costringeva a selezionarla, aprire la barra e
-    riscrivere il pallet, cioè a rifare l'assegnazione per cambiare una cifra.
+    riscrivere il numero, cioè a rifare l'assegnazione per cambiare una cifra.
     Le due strade scrivono lo stesso campo e convivono.
-  */
-  const [editingPallet, setEditingPallet] = useState<string | null>(null);
-  const [palletValue, setPalletValue]     = useState('');
-  const annullaPallet = useRef(false);
-  const palletAppenaChiuso = useRef<string | null>(null);
-
-  /*
-    Cesta: stesso editor, gemello dichiarato del pallet. Restano due blocchi separati e non uno
-    generico perché i due campi hanno proprietari diversi — la cesta la SCRIVE l'operatore dal
-    campo e qui si corregge, il pallet nasce e vive in ufficio — e perché unificarli vorrebbe
-    dire riscrivere l'editor del pallet, che funziona e che le sue guardie (Escape, niente
-    PATCH a vuoto, niente doppio commit) se l'è già pagate una volta.
   */
   const [editingCesta, setEditingCesta] = useState<string | null>(null);
   const [cestaValue, setCestaValue]     = useState('');
@@ -95,7 +78,7 @@ export default function MisuratoriTabella({
   /*
     Il MODELLO delle colonne: intestazione, chiave d'ordinamento e testo da copiare, in un posto
     solo. Prima l'intestazione era un array inline e il corpo una sequenza di <td> scritti a
-    mano: due liste parallele che con PDR e Pallet condizionali erano già a rischio di sfalsarsi,
+    mano: due liste parallele che con PDR e Cesta condizionali erano già a rischio di sfalsarsi,
     e che una terza lista (i valori da copiare) avrebbe reso ingestibili.
 
     Il valore è il testo che si VEDE — data all'italiana, stato in chiaro — non il dato grezzo:
@@ -111,14 +94,11 @@ export default function MisuratoriTabella({
       { label: 'Matricola', key: null,              valore: r => r.matricola },
     ];
     if (mostraPdr) c.push({ label: 'PDR', key: null, valore: r => r.pdr ?? '' });
-    // Cesta prima di Pallet: è l'ordine del ciclo fisico (si scarica in cesta, poi la cesta
-    // piena finisce su un pallet) e leggere la riga da sinistra racconta il percorso.
     if (mostraCesta) c.push({ label: 'Cesta', key: 'cesta', valore: r => r.cesta?.trim() ?? '' });
-    if (mostraPallet) c.push({ label: 'Pallet', key: 'pallet', valore: r => r.pallet?.trim() ?? '' });
     c.push({ label: 'Stato', key: 'stato', valore: r => STATO_LABEL[r.stato] });
     c.push({ label: 'Note',  key: null,    valore: r => r.note ?? '' });
     return c;
-  }, [mostraPdr, mostraCesta, mostraPallet]);
+  }, [mostraPdr, mostraCesta]);
 
   /** Indice di una colonna per etichetta: le celle non contano le posizioni a mano. */
   const iCol = useCallback((label: string) => colonne.findIndex(c => c.label === label), [colonne]);
@@ -164,17 +144,14 @@ export default function MisuratoriTabella({
     [onPatch, noteValue, editingNote]
   );
 
-  const startPalletEdit = useCallback((row: MisuratoreRimosso) => {
-    setEditingPallet(row.id);
-    setPalletValue(row.pallet ?? '');
-  }, []);
-
   const startCestaEdit = useCallback((row: MisuratoreRimosso) => {
     setEditingCesta(row.id);
     setCestaValue(row.cesta ?? '');
   }, []);
 
   const commitCesta = useCallback(
+    // `undefined` ammesso: il tipo condiviso porta la cesta come opzionale, perché il registro
+    // resta vivo anche prima che la migration della colonna sia passata (`selectDegradante`).
     async (id: string, cestaOriginale: string | null | undefined) => {
       if (editingCesta !== id) return;
       setEditingCesta(null);
@@ -186,23 +163,6 @@ export default function MisuratoriTabella({
       await onPatch(id, { cesta: pulito });
     },
     [onPatch, cestaValue, editingCesta],
-  );
-
-  const commitPallet = useCallback(
-    // `undefined` ammesso: il registro ACEA non ha la colonna, e il tipo condiviso lo riflette.
-    async (id: string, palletOriginale: string | null | undefined) => {
-      // Stessa guardia di rientro della nota: su Invio l'editor si smonta e il blur che segue
-      // richiamerebbe il commit una seconda volta.
-      if (editingPallet !== id) return;
-      setEditingPallet(null);
-      palletAppenaChiuso.current = id;
-      const pulito = palletValue.trim();
-      if (pulito === (palletOriginale ?? '').trim()) return;
-      // Stringa vuota = TOGLIE il pallet (il server la traduce in NULL): è la correzione di un
-      // errore, e «ancora in cesta» è uno stato legittimo — non serve un secondo verbo.
-      await onPatch(id, { pallet: pulito });
-    },
-    [onPatch, palletValue, editingPallet],
   );
 
   /*
@@ -226,11 +186,6 @@ export default function MisuratoriTabella({
   }, [editingNote]);
 
   useEffect(() => {
-    if (editingPallet !== null) return;
-    tornaAlBottone('data-pallet-btn', palletAppenaChiuso);
-  }, [editingPallet]);
-
-  useEffect(() => {
     if (editingCesta !== null) return;
     tornaAlBottone('data-cesta-btn', cestaAppenaChiusa);
   }, [editingCesta]);
@@ -242,7 +197,7 @@ export default function MisuratoriTabella({
           : <ArrowDown className="ml-1 inline-block h-3 w-3 align-[-1px]" aria-hidden />)
       : null;
 
-  const conSpunte = mostraPallet && onSelezione !== undefined;
+  const conSpunte = mostraCesta && onSelezione !== undefined;
   const spuntate = selezione ?? new Set<string>();
   const visibiliSpuntate = conSpunte ? sorted.filter((r) => spuntate.has(r.id)).length : 0;
   const tutteSpuntate = conSpunte && sorted.length > 0 && visibiliSpuntate === sorted.length;
@@ -256,8 +211,8 @@ export default function MisuratoriTabella({
     });
   }, [onSelezione]);
 
-  // La spunta di testa lavora sulle righe VISIBILI (filtri e ordinamento correnti): «tutta la
-  // cesta» nella pratica è «tutto ciò che ho davanti dopo aver filtrato».
+  // La spunta di testa lavora sulle righe VISIBILI (filtri e ordinamento correnti): «tutte
+  // queste» nella pratica è «tutto ciò che ho davanti dopo aver filtrato».
   const toggleTutte = useCallback(() => {
     onSelezione?.((prima) => {
       const dopo = new Set(prima);
@@ -361,7 +316,7 @@ export default function MisuratoriTabella({
                 className={`whitespace-nowrap px-3 py-2 font-mono text-xs tabular-nums ${cella('ODS/ODL').classe}`}
                 style={conSpunte ? undefined : { boxShadow: `inset 3px 0 0 0 ${accent}` }}
               >{row.odl ?? '—'}</td>
-              {/* `text-xs` come OGNI cella-dato mono della riga (ODL, Matricola, PDR, Pallet):
+              {/* `text-xs` come OGNI cella-dato mono della riga (ODL, Matricola, PDR, Cesta):
                   era l'unica a 14, e i dati densi stanno al gradino 12 (§4). */}
               <td {...cella('Data').props} className={`whitespace-nowrap px-3 py-2 font-mono text-xs tabular-nums ${cella('Data').classe}`}>{formatItalian(row.data_esecuzione)}</td>
               <td {...cella('Esecutore').props} className={`whitespace-nowrap px-3 py-2 ${cella('Esecutore').classe}`}>{row.esecutore ?? '—'}</td>
@@ -380,7 +335,11 @@ export default function MisuratoriTabella({
                       value={cestaValue}
                       onChange={e => setCestaValue(e.target.value)}
                       aria-label={`Cesta per il misuratore ${row.matricola}`}
-                      // `inputMode` e non `type="number"`, come il pallet: è un riferimento.
+                      /*
+                        `inputMode` e non `type="number"`: la cesta è un RIFERIMENTO, non una
+                        quantità. Col campo numerico gli zeri di testa sparirebbero e le frecce
+                        del mouse potrebbero cambiarla per sbaglio scorrendo la tabella.
+                      */
                       inputMode="numeric"
                       onBlur={() => {
                         if (annullaCesta.current) { annullaCesta.current = false; return; }
@@ -403,51 +362,9 @@ export default function MisuratoriTabella({
                       aria-label={`Modifica cesta per il misuratore ${row.matricola}`}
                       onClick={() => startCestaEdit(row)}
                       className="w-full cursor-text rounded-[var(--radius-sm)] text-left font-mono text-xs tabular-nums text-[var(--brand-text-muted)] hover:text-[var(--brand-text-main)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
-                      title="La dichiara l'operatore allo scarico. Clicca per correggerla."
+                      title="Clicca per scrivere il numero della cesta"
                     >
                       {row.cesta?.trim() || '—'}
-                    </button>
-                  )}
-                </td>
-              )}
-              {mostraPallet && (
-                <td {...cella('Pallet').props} className={`whitespace-nowrap px-3 py-2 font-mono text-xs tabular-nums ${cella('Pallet').classe}`}>
-                  {editingPallet === row.id ? (
-                    <input
-                      autoFocus
-                      value={palletValue}
-                      onChange={e => setPalletValue(e.target.value)}
-                      aria-label={`Pallet per il misuratore ${row.matricola}`}
-                      /*
-                        `inputMode` e non `type="number"`: il pallet è un RIFERIMENTO, non una
-                        quantità. Col campo numerico gli zeri di testa sparirebbero e le frecce
-                        del mouse potrebbero cambiarlo per sbaglio scorrendo la tabella.
-                      */
-                      inputMode="numeric"
-                      onBlur={() => {
-                        if (annullaPallet.current) { annullaPallet.current = false; return; }
-                        void commitPallet(row.id, row.pallet);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') void commitPallet(row.id, row.pallet);
-                        if (e.key === 'Escape') {
-                          annullaPallet.current = true;
-                          palletAppenaChiuso.current = row.id;
-                          setEditingPallet(null);
-                        }
-                      }}
-                      className="w-20 rounded-[var(--radius-sm)] border border-[var(--brand-primary)] bg-[var(--brand-surface)] px-1.5 py-0.5 font-mono text-xs tabular-nums focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
-                    />
-                  ) : (
-                    <button
-                      type="button"
-                      data-pallet-btn={row.id}
-                      aria-label={`Modifica pallet per il misuratore ${row.matricola}`}
-                      onClick={() => startPalletEdit(row)}
-                      className="w-full cursor-text rounded-[var(--radius-sm)] text-left font-mono text-xs tabular-nums text-[var(--brand-text-muted)] hover:text-[var(--brand-text-main)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
-                      title="Clicca per scrivere il numero del pallet"
-                    >
-                      {row.pallet?.trim() || '—'}
                     </button>
                   )}
                 </td>
