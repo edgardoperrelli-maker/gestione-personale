@@ -329,6 +329,29 @@ export default function MisuratoriTabella({
               )}
               {mostraCesta && (
                 <td {...cella('Cesta').props} className={`whitespace-nowrap px-3 py-2 font-mono text-xs tabular-nums ${cella('Cesta').classe}`}>
+                  {/*
+                    Riga alla volta, non cella alla volta: il server legge lo stato PRIMA di
+                    scrivere la cesta (statoDopoCesta in aggiornaRegistro), e una seconda PATCH
+                    sulla stessa riga partita durante il volo della prima può leggere uno stato non
+                    ancora aggiornato e atterrare dopo, riscrivendo la cesta sopra l'esito della
+                    prima — invariante rotto dal ramo che dovrebbe difenderlo. `salvando` è ciò su
+                    cui poggia la serializzazione, qui e sulla cella Pallet sotto.
+
+                    Il BOTTONE usa `aria-disabled` + una guardia in cima all'`onClick`, non
+                    `disabled`: un bottone nativamente `disabled` esce dalla tab order e non riceve
+                    mai `.focus()`, e `tornaAlBottone` (sopra) lo chiama proprio mentre `salvando`
+                    è già valorizzato — `commitCesta` fa `setEditingCesta(null)` e SUBITO DOPO
+                    `onPatch(...)`, che aggiunge l'id a `salvando` in modo sincrono: stesso render,
+                    editor già smontato, bottone di destinazione già "disabilitato" se lo fosse
+                    stato per davvero. Con `disabled` vero il focus cadeva sul body a ogni modifica
+                    che cambiava il valore — la stessa traversata del modulo che il commento sul
+                    ritorno del focus (sopra) dice di aver già risolto una volta.
+
+                    L'INPUT invece resta `disabled={salvando?.has(row.id)}`: è di fatto inerte,
+                    perché l'editor si smonta PRIMA che la PATCH parta e quindi input montato e
+                    `salvando.has(id)` non coesistono mai — ma costa zero e resta una cintura in
+                    più se un giorno l'ordine dei due aggiornamenti di stato cambiasse.
+                  */}
                   {editingCesta === row.id ? (
                     <input
                       autoFocus
@@ -341,6 +364,7 @@ export default function MisuratoriTabella({
                         del mouse potrebbero cambiarla per sbaglio scorrendo la tabella.
                       */
                       inputMode="numeric"
+                      disabled={salvando?.has(row.id)}
                       onBlur={() => {
                         if (annullaCesta.current) { annullaCesta.current = false; return; }
                         void commitCesta(row.id, row.cesta);
@@ -353,15 +377,20 @@ export default function MisuratoriTabella({
                           setEditingCesta(null);
                         }
                       }}
-                      className="w-20 rounded-[var(--radius-sm)] border border-[var(--brand-primary)] bg-[var(--brand-surface)] px-1.5 py-0.5 font-mono text-xs tabular-nums focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+                      className="w-20 rounded-[var(--radius-sm)] border border-[var(--brand-primary)] bg-[var(--brand-surface)] px-1.5 py-0.5 font-mono text-xs tabular-nums focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] disabled:cursor-wait disabled:opacity-60"
                     />
                   ) : (
                     <button
                       type="button"
                       data-cesta-btn={row.id}
                       aria-label={`Modifica cesta per il misuratore ${row.matricola}`}
-                      onClick={() => startCestaEdit(row)}
-                      className="w-full cursor-text rounded-[var(--radius-sm)] text-left font-mono text-xs tabular-nums text-[var(--brand-text-muted)] hover:text-[var(--brand-text-main)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+                      onClick={() => {
+                        // Guardia al posto del `disabled` nativo: vedi il commento sopra.
+                        if (salvando?.has(row.id)) return;
+                        startCestaEdit(row);
+                      }}
+                      aria-disabled={salvando?.has(row.id)}
+                      className="w-full cursor-text rounded-[var(--radius-sm)] text-left font-mono text-xs tabular-nums text-[var(--brand-text-muted)] hover:text-[var(--brand-text-main)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] aria-disabled:cursor-wait aria-disabled:opacity-60"
                       title="Clicca per scrivere il numero della cesta"
                     >
                       {row.cesta?.trim() || '—'}

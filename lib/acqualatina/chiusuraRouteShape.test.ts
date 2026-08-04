@@ -2,13 +2,15 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-const route = readFileSync(
-  resolve(__dirname, '../../app/api/acea/ordini/route.ts'),
-  'utf8',
-);
+/*
+  La riconciliazione non vive più dentro /api/acea/ordini: è estratta in
+  `riconciliaRegistro.ts` perché anche il confronto esiti col sito la fa girare prima di
+  leggere il registro. Gli invarianti di forma restano gli stessi, sul file nuovo.
+*/
+const sorgente = readFileSync(resolve(__dirname, './riconciliaRegistro.ts'), 'utf8');
 /** Il sorgente senza commenti: qui si controlla il codice, non le spiegazioni. */
-const codice = route.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
-const funzione = codice.match(/async function chiudiOrdiniAcqualatinaCompletati[\s\S]*?\n\}/)?.[0] ?? '';
+const codice = sorgente.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+const funzione = codice.match(/export async function riconciliaChiusureAcqualatina[\s\S]*?\n\}/)?.[0] ?? '';
 
 describe('la riconciliazione AcquaLatina legge la voce', () => {
   it("chiede l'esito scritto nel rapportino, non solo quello dell'intervento", () => {
@@ -32,9 +34,18 @@ describe('la riconciliazione AcquaLatina legge la voce', () => {
   });
 
   it("l'aggancio voce↔intervento non si ricostruisce a posteriori", () => {
-    // `completati` e `idInterventi` si riempiono nello stesso ciclo: un secondo passaggio per
-    // riappaiarli sarebbe il posto dove si sfalsano.
-    expect(funzione).toMatch(/idInterventi\.push\(i\.id\)/);
-    expect(funzione).toMatch(/eseguitoPerIntervento\.get\(idInterventi\[i\]\)/);
+    // L'`id` viaggia DENTRO ogni concluso (select con `id` e push col campo `id`): l'esito
+    // della voce si riprende per chiave, mai riappaiando due array per indice — il posto
+    // dove si sfalserebbero.
+    expect(funzione).toMatch(/select\('id, ordine_id, data, esito'\)/);
+    expect(funzione).toMatch(/eseguitoPerIntervento\.get\(c\.id\)/);
+  });
+
+  it('entrambe le porte di lettura la fanno girare', () => {
+    // La tabella del registro e il confronto esiti guardano lo stesso registro: una riconciliata
+    // e una no è il «sempre 84» del 04/08.
+    for (const porta of ['../../app/api/acea/ordini/route.ts', '../../app/api/acqualatina/esiti/confronto/route.ts']) {
+      expect(readFileSync(resolve(__dirname, porta), 'utf8')).toMatch(/riconciliaChiusureAcqualatina\(\)/);
+    }
   });
 });

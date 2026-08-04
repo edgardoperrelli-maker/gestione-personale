@@ -303,7 +303,7 @@ se l'insieme qualificante è vuoto non cancella nulla (anti-svuotamento di massa
 Nota: la cascata `ON DELETE CASCADE` copre solo l'**eliminazione** dell'intervento,
 non la correzione dell'esito → per quest'ultima serve il Ricalcola.
 
-### AcquaLatina: registro gemello, e la CESTA la dichiara l'operatore
+### AcquaLatina: registro gemello, e l'invariante cesta↔stato
 La commessa `acqualatina` ha il **suo** registro (`acqualatina_misuratori_rimossi`), stessi stati
 e stesso motore di ricalcolo (`lib/misuratori/sincronizzaRegistro.ts`), senza PDR e **senza gate
 sul tipo** (una sola attività, già una sostituzione).
@@ -312,14 +312,33 @@ Il riferimento di magazzino è **UNO** e si chiama **`cesta`**: il contenitore n
 riconsegna al committente viaggia, su **entrambi** i registri. Per qualche giorno ne sono esistiti
 due — `cesta` e `pallet`, come due gradini di un ciclo che il magazzino non fa — fusi il 2026-08-04
 (migration `20260804090000`: su ACEA `pallet` **rinominato** in `cesta`, su AcquaLatina eliminato
-perché mai usato). A differenziare le due commesse resta **chi scrive il numero**:
-- su **AcquaLatina** lo dichiara l'**operatore** dal campo, all'invio del rapportino
-  (`/api/r/[token]/scarico-misuratori`): dichiararlo porta lo stato a `scaricato_deposito`.
-  L'ufficio lo corregge in cella o in blocco, non lo crea.
-- su **ACEA** lo scrive l'**ufficio**, in blocco dalla barra della selezione o in cella.
+perché mai usato). A differenziare le due commesse resta **chi scrive il numero, e cosa significa**:
+- su **ACEA** lo scrive l'**ufficio**, in blocco dalla barra della selezione o in cella. È un
+  riferimento e basta: **non tocca mai lo stato**.
+- su **AcquaLatina** vale l'**invariante cesta↔stato**, ed è l'unica delle due commesse ad averlo.
 
-⚠️ L'assegnazione d'ufficio (`POST .../misuratori/cesta`) **non tocca lo stato**: «dichiarare la
-cesta È lo scarico» vale per l'operatore che ha i contatori in mano, non per chi corregge un numero.
+#### L'invariante (solo AcquaLatina)
+> **`cesta` valorizzata ⟹ lo stato è almeno `scaricato_deposito`.**
+
+Mai il contrario: righe `scaricato_deposito` **senza** cesta restano legittime (è il pregresso, e
+oltre lo scarico togliere il numero non riporta indietro niente). Un numero di cesta è la prova che
+quel contatore è in deposito — la cesta sta in magazzino.
+
+Logica pura in `lib/misuratori/cestaStato.ts` (`statoDopoCesta`), applicata da quattro scrittori:
+- l'**operatore**, all'invio del rapportino (`/api/r/[token]/scarico-misuratori`): scrive `cesta` e
+  `stato` in una sola UPDATE — è da qui che l'invariante è nato;
+- l'**ufficio in cella** (`aggiornaRegistro`): **la crea**, non solo la corregge. Su una riga
+  `da_consegnare_deposito` dichiara con essa lo scarico avvenuto; svuotarla su `scaricato_deposito`
+  riporta lo stato indietro, e la riga rientra nella modale dell'operatore;
+- l'**ufficio in blocco** (`assegnaCesta`, `POST .../misuratori/cesta`): stesso significato, ma la
+  barra **dichiara prima** quante righe cambieranno stato — una selezione può contenere righe che
+  nessuno ha guardato;
+- la **regressione esplicita** dello stato a `da_consegnare_deposito` (tendina, solo `admin_plus`)
+  azzera la cesta: il numero rimasto sarebbe un riferimento falso in magazzino.
+
+⚠️ Ogni ramo che applica l'invariante è gated su `tabella === 'acqualatina_misuratori_rimossi'`.
+Prima del 2026-08-04 il discriminante era «ACEA non ha la colonna» e bastava il 400: con la colonna
+su entrambi i registri quella difesa è caduta, e il gate va scritto a mano.
 
 Filtri puri condivisi in `lib/misuratori/riferimenti.ts`. La colonna viaggia fra le **opzionali**
 di `selectDegradante`: mai nella select principale, o un deploy prima della migration spegne il

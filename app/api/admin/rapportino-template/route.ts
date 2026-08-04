@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
 import { TemplateSchema } from '@/lib/rapportini/templateSchema';
 import { normalizzaCollegamento } from '@/lib/rapportini/flussiGruppo';
+import { propagaAzioniAiRapportiniAperti, type EsitoPropagazione } from '@/lib/rapportini/propagaAzioni';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireAdmin } from '@/lib/apiAuth';
 import { modelloPlusInConflitto, type ModelloPlusRow } from '@/lib/rapportini/modelloPlus';
 import { maiuscolo, maiuscolaEtichette } from '@/lib/testo/maiuscolo';
 import { COLONNE_TEMPLATE_OPZIONALI, scriviSenzaColonnaMancante, selectDegradante } from '@/lib/rapportini/colonneOpzionali';
+import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 
 export const runtime = 'nodejs';
 
@@ -125,7 +127,23 @@ export async function PATCH(req: Request) {
       { status: 409 },
     );
   }
-  return NextResponse.json({ ok: true, updated_at: data?.[0]?.updated_at ?? null });
+
+  // Azioni modificate → riallinea gli snapshot dei rapportini ANCORA IN MANO agli operatori
+  // (in_corso, link valido), sia come modello del rapportino sia sulle voci del flusso: senza
+  // questo, il modulo mostrava azioni che il giro già generato non vedeva. Inviati e scaduti
+  // restano congelati. Best-effort: un errore qui non annulla il salvataggio del flusso, che
+  // è già a posto — lo si logga e i rapportini si riallineano al salvataggio successivo.
+  let propagazione: EsitoPropagazione | null = null;
+  if ('campi' in patch && data && data.length > 0) {
+    try {
+      propagazione = await propagaAzioniAiRapportiniAperti(
+        supabaseAdmin, body.id, patch.campi as TemplateCampo[], new Date().toISOString(),
+      );
+    } catch (e) {
+      console.error('[rapportino-template] propagazione azioni ai rapportini aperti fallita:', e);
+    }
+  }
+  return NextResponse.json({ ok: true, updated_at: data?.[0]?.updated_at ?? null, ...(propagazione ? { propagazione } : {}) });
 }
 
 export async function DELETE(req: Request) {

@@ -30,13 +30,17 @@ describe('buildCampiEditor', () => {
     expect(buildCampiEditor(null).map((x) => x.chiave)).toEqual(['sigillo', 'note']);
   });
 
-  it('esito select con sole opzioni positive → aggiunge "NO"', () => {
+  it('esito select con sole opzioni positive → aggiunge "NO" e "NESSUN PASSAGGIO"', () => {
     const campi = buildCampiEditor([c({ chiave: 'eseguito', etichetta: 'ESEGUITO', tipo: 'select', opzioni: ['SI'], ordine: 1 })]);
-    expect(campi.find((x) => x.chiave === 'eseguito')?.opzioni).toEqual(['SI', 'NO']);
+    expect(campi.find((x) => x.chiave === 'eseguito')?.opzioni).toEqual(['SI', 'NO', 'NESSUN PASSAGGIO']);
   });
-  it('esito select senza opzioni → SI + NO', () => {
+  it('esito select senza opzioni → i tre canonici', () => {
     const campi = buildCampiEditor([c({ chiave: 'esito', etichetta: 'Esito', tipo: 'select', ordine: 1 })]);
-    expect(campi.find((x) => x.chiave === 'esito')?.opzioni).toEqual(['SI', 'NO']);
+    expect(campi.find((x) => x.chiave === 'esito')?.opzioni).toEqual(['SI', 'NO', 'NESSUN PASSAGGIO']);
+  });
+  it('snapshot pre-«NESSUN PASSAGGIO» (SI/NO) → correggibile anche in «nessun passaggio»', () => {
+    const campi = buildCampiEditor([c({ chiave: 'eseguito', etichetta: 'ESEGUITO', tipo: 'select', opzioni: ['SI', 'NO'], ordine: 1 })]);
+    expect(campi.find((x) => x.chiave === 'eseguito')?.opzioni).toEqual(['SI', 'NO', 'NESSUN PASSAGGIO']);
   });
   it('esito select ACEA → preserva le opzioni esistenti (SI + NO già presenti)', () => {
     const campi = buildCampiEditor([c({ chiave: 'eseguito', etichetta: 'ESEGUITO', tipo: 'select', opzioni: ['SI', 'NESSUN PASSAGGIO', 'NO'], ordine: 1 })]);

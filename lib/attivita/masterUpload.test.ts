@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseMasterUpload, trovaHeaderMaster } from './masterUpload';
+import { parseMasterUpload, spartiUtenzaImpianto, trovaHeaderMaster } from './masterUpload';
 
 describe('trovaHeaderMaster', () => {
   it("trova l'header anche dopo righe di preambolo", () => {
@@ -145,5 +145,85 @@ describe('parseMasterUpload', () => {
   });
   it('senza colonna ODL lancia', () => {
     expect(() => parseMasterUpload([['Matricola'], ['M1']])).toThrow(/ODL\/ORDINE/);
+  });
+});
+
+describe('parseMasterUpload — battente AcquaLatina', () => {
+  // L'header vero del foglio OdL di «1BATTENTE_ODL_…», nelle posizioni reali che fregano i
+  // pattern generici: «Codice OdL» prima di «Codice Esterno», l'indirizzo «normalizzato»
+  // (sporco) prima di quello buono.
+  const HEADER = [
+    'Centro Operativo', 'Id', 'Codice OdL', 'Codice Esterno', 'Utenza/impianto',
+    'Ragione Sociale', 'Comune', 'Indirizzo utente normalizzato', 'Telefono',
+    'Comune Utente', 'Indirizzo Utente', 'Civico', 'Suffisso Civico',
+  ];
+  const riga = (over: Record<number, string>) => {
+    const r = ['CO LOTTO 2', '1', 'SCL289991', '12377727', '32843691 - BOSCHETTO LUCIA',
+      'BOSCHETTO LUCIA', 'PONTINIA', 'STRADA DELLA STRISCIA 1401 (no Norm. 1401)', '3892599774',
+      'PONTINIA', 'VIA STRISCIA', '1401', ''];
+    for (const [i, v] of Object.entries(over)) r[Number(i)] = v;
+    return r;
+  };
+
+  it("prende «Codice Esterno» come ODL (non «Codice OdL») e l'indirizzo utente (non il normalizzato)", () => {
+    const out = parseMasterUpload([HEADER, riga({})]);
+    expect(out.righe).toEqual([{
+      odl: '12377727', matricola: '', impianto: '32843691', indirizzo: 'VIA STRISCIA 1401',
+      cap: '', comune: 'PONTINIA', operazione: '', nominativo: 'BOSCHETTO LUCIA',
+      recapito: '3892599774',
+    }]);
+  });
+  it('civico «0» = senza civico; il suffisso si attacca col «/»; telefono «---» o «0» = vuoto', () => {
+    const out = parseMasterUpload([
+      HEADER,
+      riga({ 11: '0', 8: '---' }),
+      riga({ 3: '12379999', 11: '39', 12: 'INT', 8: '0' }),
+    ]);
+    expect(out.righe[0].indirizzo).toBe('VIA STRISCIA');
+    expect(out.righe[0].recapito).toBe('');
+    expect(out.righe[1].indirizzo).toBe('VIA STRISCIA 39/INT');
+    expect(out.righe[1].recapito).toBe('');
+  });
+
+  it("scioglie l'escaping del file: «''» è l'apostrofo, «''''» le virgolette", () => {
+    // Misurato sul battente reale: 97 nominativi e 13 vie. Senza questo l'import che
+    // sovrascrive il difforme riscriverebbe il registro coi valori storpiati.
+    const out = parseMasterUpload([
+      HEADER,
+      riga({ 5: "D''ONOFRIO FRANCESCO", 10: "VIA VALLE D''AOSTA" }),
+      riga({ 3: '12379999', 5: "''''HAPPY GELO'''' S.R.L." }),
+    ]);
+    expect(out.righe[0].nominativo).toBe("D'ONOFRIO FRANCESCO");
+    expect(out.righe[0].indirizzo).toBe("VIA VALLE D'AOSTA 1401");
+    expect(out.righe[1].nominativo).toBe('"HAPPY GELO" S.R.L.');
+  });
+  it("il nominativo cade sull'utenza quando manca la ragione sociale; righe senza Codice Esterno scartate", () => {
+    const out = parseMasterUpload([HEADER, riga({ 5: '' }), riga({ 3: '' })]);
+    expect(out.righe).toHaveLength(1);
+    expect(out.righe[0].nominativo).toBe('BOSCHETTO LUCIA');
+    expect(out.scartate).toBe(1);
+  });
+});
+
+describe('parseMasterUpload — il file degli esiti non è un master', () => {
+  it("rifiuta l'export ESECUZIONI indicando il posto giusto", () => {
+    // Caricato come master il 04/08: /odl/ agganciava il «Codice Odl» interno (SCL…) e 359
+    // ordini fantasma sono entrati a registro. La colonna «Codice Esterno dell'OdL» esiste
+    // solo in quell'export: è la firma del rifiuto.
+    expect(() => parseMasterUpload([
+      ['Codice Odl', "Codice Esterno dell'OdL", 'Codice Cliente', 'Esito'],
+      ['SCL289994', '12378834', '27410580', 'EFFETTUATO NO ANOMALIE'],
+    ])).toThrow(/Confronto esiti/);
+  });
+});
+
+describe('spartiUtenzaImpianto', () => {
+  it('spacca impianto e nominativo sul « - »', () => {
+    expect(spartiUtenzaImpianto('19054032 - SANTE DIONISIO-SANTI ANTONIA .'))
+      .toEqual({ impianto: '19054032', nominativo: 'SANTE DIONISIO-SANTI ANTONIA .' });
+  });
+  it('solo cifre = impianto senza intestatario; testo libero = niente', () => {
+    expect(spartiUtenzaImpianto('27410580')).toEqual({ impianto: '27410580', nominativo: '' });
+    expect(spartiUtenzaImpianto('BOSCHETTO LUCIA')).toEqual({ impianto: '', nominativo: '' });
   });
 });

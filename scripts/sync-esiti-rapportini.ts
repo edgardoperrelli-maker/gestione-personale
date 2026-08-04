@@ -36,17 +36,28 @@ async function main() {
 
   for (const r of (raps ?? []) as Array<{ id: string; staff_id: string; staff_name: string | null; campi_snapshot: unknown }>) {
     const campi = (r.campi_snapshot ?? []) as Parameters<typeof esitoInterventoDaVoce>[1];
-    const { data: voci } = await db.from('rapportino_voci').select('id, odl, risposte, intervento_id').eq('rapportino_id', r.id);
-    const { data: ints } = await db.from('interventi').select('id, odl, stato').eq('data', data).eq('staff_id', r.staff_id);
-    const byOdl = new Map<string, { id: string; stato: string }>();
-    for (const i of (ints ?? []) as Array<{ id: string; odl: string | null; stato: string }>) {
+    const { data: voci } = await db.from('rapportino_voci').select('id, odl, matricola, risposte, intervento_id').eq('rapportino_id', r.id);
+    const { data: ints } = await db.from('interventi').select('id, odl, stato, matricola_contatore').eq('data', data).eq('staff_id', r.staff_id);
+    // Per ODL può esserci PIÙ di un intervento (i condomìni acqualatina): la scelta va
+    // fatta come al runtime — unico candidato, oppure la matricola che ne indica
+    // esattamente uno. Il solo ODL chiuderebbe il contatore sbagliato.
+    const normM = (s: string | null | undefined) => String(s ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    type Int = { id: string; stato: string; matricola: string };
+    const byOdl = new Map<string, Int[]>();
+    for (const i of (ints ?? []) as Array<{ id: string; odl: string | null; stato: string; matricola_contatore: string | null }>) {
       const k = (i.odl ?? '').trim();
-      if (k) byOdl.set(k, { id: i.id, stato: i.stato });
+      if (k) byOdl.set(k, [...(byOdl.get(k) ?? []), { id: i.id, stato: i.stato, matricola: normM(i.matricola_contatore) }]);
     }
     let linkati = 0, fatti = 0, nonFatti = 0, neutri = 0, nomatch = 0;
-    for (const v of (voci ?? []) as Array<{ id: string; odl: string | null; risposte: Record<string, unknown> | null; intervento_id: string | null }>) {
+    for (const v of (voci ?? []) as Array<{ id: string; odl: string | null; matricola: string | null; risposte: Record<string, unknown> | null; intervento_id: string | null }>) {
       const k = (v.odl ?? '').trim();
-      const it = k ? byOdl.get(k) : undefined;
+      const candidati = k ? (byOdl.get(k) ?? []) : [];
+      let it: Int | undefined = candidati.length === 1 ? candidati[0] : undefined;
+      if (!it && candidati.length > 1) {
+        const m = normM(v.matricola);
+        const stessi = m === '' ? [] : candidati.filter((c) => c.matricola === m);
+        if (stessi.length === 1) it = stessi[0];
+      }
       if (!it) { nomatch++; continue; }
       if (v.intervento_id !== it.id) {
         const { error: eLink } = await db.from('rapportino_voci').update({ intervento_id: it.id }).eq('id', v.id);
