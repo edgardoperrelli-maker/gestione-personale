@@ -36,11 +36,10 @@ export default async function AcqualatinaMisuratoriPage() {
         sottotitolo="Contatori smontati in campo, dal deposito alla riconsegna al committente"
         mostraRicalcola
         mostraPdr={false}
-        // La cesta la dichiara l'operatore all'invio del rapportino: qui si legge, e si
-        // corregge. È il gradino prima del pallet — senza, l'impallettamento si fa aprendo
-        // le ceste e leggendo i contatori a mano.
+        // La cesta la dichiara l'operatore all'invio del rapportino: qui si legge, si corregge
+        // e si assegna in blocco alle righe arrivate senza numero. È il riferimento con cui la
+        // riconsegna viaggia — senza, si aprono le ceste e si leggono i contatori a mano.
         mostraCesta
-        mostraPallet
         // Sentence case (§4): era Title Case, l'ultimo rimasto dopo la ripulitura del PDF ACEA.
         titoloPdf="Registro misuratori rimossi — AcquaLatina"
         // Il rientro mancava anche qui (§7bis): la casa è AcquaLatina, e il breadcrumb lo dice

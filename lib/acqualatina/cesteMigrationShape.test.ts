@@ -18,8 +18,8 @@ describe('migrazione ceste AcquaLatina', () => {
   });
 
   it('la cesta è TEXT: è un riferimento, non una quantità', () => {
-    // Con un integer «A1» non entrerebbe e gli zeri di testa sparirebbero — lo stesso motivo
-    // per cui il pallet è text (20260731190000).
+    // Con un integer «A1» non entrerebbe e gli zeri di testa sparirebbero: è un RIFERIMENTO,
+    // non una quantità.
     expect(sql).not.toMatch(/add column if not exists cesta\s+(integer|int|numeric|bigint)/);
   });
 

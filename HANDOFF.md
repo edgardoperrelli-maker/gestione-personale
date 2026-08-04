@@ -4,7 +4,7 @@
 > Sostituisce l'handoff del redesign Cronoprogramma (2026-07-23): quel contenuto resta in git —
 > `git show 528c4c4:HANDOFF.md`.
 >
-> **La sezione più recente è la prima** (2026-08-03, scarico misuratori in cesta). Sotto, dal
+> **La sezione più recente è la prima** (2026-08-04, cesta unico riferimento). Sotto, dal
 > «Goal» in poi, c'è la sessione ACEA del 31/07: resta valida, non è storia da archiviare.
 
 **Branch**: `claude/acea-table-copy-schedule-filter-3xt700`, ripartito da `origin/main` (`93a514d`,
@@ -12,6 +12,43 @@ merge della PR #186; la vecchia PR #175 è chiusa, lo specchio `…okoirs` non s
 **Status**: modulo ACEA completo e in produzione dal 30/07. Il 31/07 il registro è diventato
 **multi-commessa**: la famiglia `acqualatina` (sostituzione misuratori Terracina) usa le stesse
 mani su tabella propria — migration `20260731170000` + backfill (4.196 righe) applicati in prod
+
+---
+
+## Sessione 2026-08-04 — Cesta e pallet erano la stessa cosa: ne resta UNA
+
+> Branch `feat/cesta-unico-riferimento`, da `origin/main` (`6e76fd6b`).
+> Questa sezione **corregge** quella sotto: dove il 03/08 si legge «il gradino prima del pallet»,
+> il gradino è uno solo. Il resto della sessione 03/08 (chi dichiara la cesta, quando, perché)
+> resta valido parola per parola.
+
+**Il dietrofront.** Il modello a due gradini — si scarica in CESTA, a cesta piena si va su un
+PALLET — descriveva un ciclo che il magazzino non fa: sono lo stesso contenitore numerato, con
+due nomi. Il pallet era un duplicato con la sua colonna, il suo filtro, la sua barra di
+assegnazione e la sua colonna PDF.
+
+**Perché si è potuto fare a costo zero.** Il pallet non era mai stato usato: **0 righe valorizzate
+su entrambi i registri** (AcquaLatina 0/293, ACEA 0/66). Niente da travasare — solo un nome di
+troppo da togliere prima che qualcuno ci scrivesse dentro.
+
+- **DB** (`20260804090000_cesta_unico_riferimento.sql`): su ACEA `pallet` **rinominato** in `cesta`
+  (+ indice parziale gemello); su AcquaLatina `pallet` **eliminato**. La drop ha una **guardia**:
+  se il pallet risultasse valorizzato la migration si ferma con l'istruzione per travasarlo.
+- **Codice**: `assegnaPallet` → `assegnaCesta`, rotte `…/misuratori/pallet` → `…/misuratori/cesta`,
+  `mostraPallet` sparisce (le spunte di selezione ora seguono `mostraCesta`), `riferimenti.ts`
+  perde il parametro `campo` — con un campo solo era una scelta da passare che non esiste più.
+- **La cesta è ora accesa su ENTRAMBI i registri**: a differenziarli resta chi scrive il numero
+  (AcquaLatina l'operatore allo scarico, ACEA l'ufficio).
+- ⚠️ **L'assegnazione d'ufficio non tocca lo stato**, e non è una dimenticanza: «dichiarare la
+  cesta È lo scarico» vale per l'operatore con i contatori in mano.
+
+**Falla trovata e chiusa in corsa (04/08).** Una riga aveva `cesta='2'` con stato ancora
+`da_consegnare_deposito` — combinazione che il flusso operatore non può produrre, perché scrive i
+due campi insieme. Veniva dalla correzione manuale d'ufficio, che scrive **solo** `cesta`: la riga
+restava nel bacino di `misuratoriDaScaricare()` e sarebbe ricomparsa nella modale al prossimo
+invio dell'operatore, che riscrivendo un'altra cesta avrebbe **sovrascritto in silenzio** quella
+d'ufficio. Riga sistemata a mano (stato allineato a `scaricato_deposito`); la scelta di fondo —
+chi vince fra ufficio e operatore — è ancora **aperta**.
 
 ---
 
