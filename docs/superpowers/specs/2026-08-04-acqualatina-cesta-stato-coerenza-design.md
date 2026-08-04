@@ -42,8 +42,14 @@ un gesto che l'ufficio ha già.
 Una frase, e il resto ne discende. Il verso opposto NON vale, di proposito: uno stato avanzato non
 implica una cesta. Righe `scaricato_deposito` senza cesta restano legittime — è il pregresso
 pre-migration, e più in generale la §4, dove oltre lo scarico svuotare la cesta non ha «nessun
-effetto» sullo stato. Vale solo su `acqualatina_misuratori_rimossi`: il registro ACEA non ha la
-colonna, e la PATCH lo respinge già con un 400.
+effetto» sullo stato. Vale solo su `acqualatina_misuratori_rimossi`.
+
+**Aggiornamento — la fusione cesta/pallet (PR #222, stesso giorno).** Quando questa frase è stata
+scritta, «vale solo su AcquaLatina» era garantito gratis: ACEA non aveva la colonna, e la PATCH la
+respingeva con un 400. Da quando `pallet` è stato rinominato in `cesta`, la colonna c'è su
+ENTRAMBI i registri — quella difesa è caduta, e il gate `tabella ===
+'acqualatina_misuratori_rimossi'` va scritto a mano in ogni ramo che applica l'invariante, cella e
+barra (§9). Su ACEA la cesta resta un riferimento e basta, esattamente come prima.
 
 Detta al contrario, che è il modo in cui si legge in magazzino: **un numero di cesta è la prova che
 quel contatore è in deposito.** Se il numero c'è, lo stato non può dire «da consegnare»; se lo stato
@@ -114,7 +120,7 @@ ingressi, non perché il client ne abbia bisogno.
 Era una delle strade sul tavolo — che `misuratoriDaScaricare()` saltasse le righe con una cesta già
 scritta — ed è stata scartata perché **sarebbe dannosa**.
 
-Con l'invariante tenuto da tutti e tre gli scrittori, la coppia (cesta valorizzata +
+Con l'invariante tenuto da tutti e quattro gli scrittori (§9), la coppia (cesta valorizzata +
 `da_consegnare_deposito`) non si forma più. Ma se un giorno si riformasse, quella riga **deve** tornare
 nella modale: un filtro `cesta IS NULL` la seppellirebbe esattamente come il buco che questa spec
 chiude. Il filtro giusto resta quello che c'è, lo stato.
@@ -137,7 +143,33 @@ Un `CHECK (cesta IS NULL OR stato <> 'da_consegnare_deposito')` varrebbe per qua
 anche per una query in console — ma non si può nemmeno aggiungere finché la riga in produzione lo
 viola, e un trigger porterebbe la regola lontano dagli occhi di chi legge il codice.
 
-Gli scrittori sono tre, stanno tutti in questo repo e sono tutti sotto test. Nessuna migration.
+Gli scrittori erano tre a questa riga; il §9 aggiunge il quarto. Stanno tutti in questo repo e
+sono tutti sotto test. Nessuna migration.
+
+### 9. La barra applica la STESSA cosa, in blocco — con una conferma che la cella non ha
+
+Decisione presa dopo il resto di questa spec, e ne ribalta un pezzo. `assegnaCesta` (la funzione
+dietro `POST .../misuratori/cesta`, la barra della selezione) scriveva un riferimento e basta,
+ovunque: «l'ufficio che corregge un numero non sta dicendo che quel contatore è appena arrivato in
+magazzino», diceva il commento originale in cima alla funzione. Non regge più: stessa colonna,
+stesso significato, anche quando la scrittura è in blocco. Scrivere o svuotare la cesta dalla
+barra applica `statoDopoCesta` come la cella — ma SOLO su AcquaLatina, mai su ACEA.
+
+La differenza dalla cella non è nella regola: è nella CONFERMA. La cella (§7) non ne chiede
+perché il gesto è su una riga sola, guardata apposta — vale ancora, e non si estende qui per
+simmetria. La barra invece sì, perché la spunta di testa prende tutte le righe VISIBILI sotto i
+filtri correnti: una selezione larga può includere righe che nessuno ha guardato una per una.
+Scrivere «5» su trenta righe spuntate in fretta può far avanzare lo stato di alcune di esse senza
+che chi ha cliccato se ne accorga — sulla cella l'effetto è sotto gli occhi (una riga, un colore
+che cambia), sulla barra no. Quindi la barra DICHIARA PRIMA quante righe cambieranno stato e in
+che verso, con lo stesso dialogo che già copriva la sovrascrittura di una cesta diversa già
+scritta — unificato in UN popup solo quando le due condizioni scattano insieme: due dialoghi in
+fila per un click solo sarebbero stati un attrito peggiore di uno solo. A scrittura riuscita, il
+toast conferma il numero vero tornato dal server.
+
+Tecnicamente, una sola UPDATE non basta più: la selezione può mescolare righe su gradini diversi,
+quindi la scrittura deve leggere prima, raggruppare per stato risultante e scrivere un gruppo alla
+volta — vedi "Server — assegnazione in blocco", sotto.
 
 ## L'architettura
 
@@ -188,11 +220,34 @@ più in parallelo dallo stesso client; resta la corsa se due richieste arrivano 
 (rete, un secondo client), e il caso perdente è un misuratore che finisce nello stato che l'altra
 scrittura voleva. Non vale una transazione.
 
+### Server — assegnazione in blocco
+
+`lib/misuratori/registro.ts` → `assegnaCesta()`, la funzione dietro `POST .../cesta` (barra della
+selezione, gemella su ACEA e AcquaLatina, §9). Stesso gate della cella
+(`tabella === 'acqualatina_misuratori_rimossi'`), ma una complicazione che la cella non ha: la
+selezione è un INSIEME di righe, e righe diverse possono stare su gradini diversi — una singola
+UPDATE con un `patch.stato` fisso non può servirle tutte.
+
+Solo dove il gate è acceso:
+
+1. Si LEGGONO gli stati correnti delle righe selezionate — `select('id, stato').in('id', …)`, a
+   blocchi di 200 come le UPDATE che seguono. Lettura FALLITA (non riga assente: stessa
+   distinzione di `statoAttuale`) → **500** col messaggio dell'errore, e NESSUNA scrittura:
+   ingoiarla scriverebbe la sola cesta senza stato su tutta la selezione — l'incoerenza di questa
+   spec, moltiplicata per il blocco.
+2. Ogni riga passa da `statoDopoCesta(stato, cestaNuova)`: il risultato (o l'assenza di un
+   cambio) è la chiave con cui le righe si RAGGRUPPANO.
+3. Una UPDATE per gruppo, non per riga: chi non cambia stato riceve `{ cesta }`, chi lo cambia
+   riceve `{ cesta, stato }`. Su ACEA (gate spento) il gruppo è uno solo, e la UPDATE è quella di
+   sempre — nessuna lettura, nessuna deduzione.
+4. La risposta aggiunge `cambiStato` alla forma esistente `{ ok, aggiornati, cesta }`: quante
+   righe, fra quelle scritte, hanno anche cambiato stato. Additiva — su ACEA resta sempre 0.
+
 ### Client ufficio
 
-`MisuratoriClient.tsx` → `handlePatch`: la risposta è già letta per il ramo d'errore; sul successo
-si fondono nella riga `stato` e `cesta`, quando il server li ha decisi da sé (niente refetch — la
-scelta di non rifare la fetch quando va bene resta) e si mostra il toast:
+`MisuratoriClient.tsx` → `handlePatch` (la cella): la risposta è già letta per il ramo d'errore;
+sul successo si fondono nella riga `stato` e `cesta`, quando il server li ha decisi da sé (niente
+refetch — la scelta di non rifare la fetch quando va bene resta) e si mostra il toast:
 
 - «Cesta 2 · il misuratore risulta **scaricato a deposito**.» — scrittura della cesta (§1).
 - «Cesta tolta · il misuratore torna fra quelli **da scaricare**.» — svuotamento (§2).
@@ -201,7 +256,20 @@ scelta di non rifare la fetch quando va bene resta) e si mostra il toast:
   dell'ottimistica): senza la guardia ogni regressione di stato annuncerebbe una rimozione anche
   su una riga che una cesta non l'aveva mai avuta.
 
-Colonne, filtri, PDF, `Ricalcola` e l'assegnazione del pallet non cambiano.
+`handleAssegnaCesta` (la barra, §9): PRIMA di partire, conta quante righe della selezione
+cambierebbero stato con `statoDopoCesta` — pura, importabile anche lato client — gated sulla prop
+esplicita `cestaDichiaraScarico` (accesa solo dalla pagina AcquaLatina, MAI dedotta da `apiBase`:
+due stringhe di endpoint non sono un contratto leggibile quanto un flag dichiarato dalla pagina).
+Se il conteggio è maggiore di zero, oppure se la selezione contiene righe con una cesta diversa
+già scritta (la conferma di sovrascrittura preesistente), si apre UN dialogo solo — mai due in
+fila quando le due condizioni scattano insieme — che dice il numero e il verso: «N misuratori
+risulteranno scaricati a deposito» quando si assegna, «torneranno fra quelli da scaricare» quando
+si toglie. A scrittura riuscita il toast riporta anche `cambiStato`, il numero vero tornato dal
+server, quando è maggiore di zero.
+
+Colonne, filtri, PDF e `Ricalcola` non cambiano. L'assegnazione in blocco della cesta invece sì
+(§9): è il quarto scrittore dell'invariante, e su ACEA resta bit per bit quella di sempre — il
+gate è la garanzia, non una coincidenza.
 
 ## Il pregresso in produzione
 
@@ -222,27 +290,42 @@ in commit, PR o documenti: questo repo è pubblico.
 - **Nessuna migration, nessun CHECK, nessun trigger.** Vedi §8.
 - **Nessun filtro `cesta IS NULL` nella modale dell'operatore.** Vedi §6: chiuderebbe il buco
   sbagliato.
-- **Nessun dialogo di conferma.** Vedi §7.
+- **Nessun dialogo di conferma sulla cella.** Vedi §7 — resta la scelta originale. La barra
+  (§9) un dialogo ce l'ha, ma per un motivo che sulla cella non esiste: lì la selezione può
+  contenere righe che nessuno ha guardato una per una; qui il gesto è deliberato, su una riga
+  sola. Non è un'incoerenza da sanare: sono due gesti diversi.
 - **Nessun nuovo stato logistico.** I cinque bastano, come bastavano il 3 agosto.
-- **Niente su ACEA.** Non ha la colonna e la PATCH la respinge già.
+- **Niente sull'invariante su ACEA.** La colonna oggi c'è su entrambi i registri (fusione
+  cesta/pallet, PR #222) e la PATCH non la respinge più con un 400 — quella difesa non è più
+  gratuita, ed è gated a mano (§9, e la nota in "L'invariante"). Ma la cesta resta un
+  riferimento e basta: nessuna lettura, nessuna deduzione, lo stato non si muove.
 
 ## Verifica
 
 - `lib/misuratori/cestaStato.test.ts` — tabella di verità pura di `statoDopoCesta`: 5 stati ×
   {valore, vuoto}. Non contiene il caso «lo stato esplicito vince»: la funzione è pura e non vede
   affatto lo stato esplicito della PATCH, quindi non può testarlo.
-- `lib/misuratori/registroCesta.test.ts` — test di COMPORTAMENTO su `aggiornaRegistro`: guarda il
-  `patch` passato alla UPDATE e il corpo della risposta, non il sorgente. È il presidio più forte
-  sull'invariante — copre lo stato esplicito che vince sull'implicito, la regressione che azzera la
-  cesta (anche quando `cesta` arriva nello STESSO corpo della regressione, cioè l'ordine dei due
-  blocchi in `registro.ts`), il 400 su ACEA e i 500 a lettura fallita (sia sul ramo cesta sia sul
-  gate `admin_plus`).
-- `lib/misuratori/cestaInvarianteShape.test.ts` — guardie di forma sul sorgente di `registro.ts`,
-  nello stile di `palletCellaShape.test.ts`: la regressione esplicita azzera la cesta; lo stato
-  implicito non passa dal gate `admin_plus`; la risposta porta lo stato risultante; il 400 sul
-  registro ACEA resta; e che `misuratoriDaScaricare()` continui a filtrare **per stato** e non per
-  cesta (§6) — è la decisione più facile da rovesciare per sbaglio leggendo solo il titolo di
-  questa spec.
+- `lib/misuratori/registroCesta.test.ts` — test di COMPORTAMENTO su `aggiornaRegistro` (la cella):
+  guarda il `patch` passato alla UPDATE e il corpo della risposta, non il sorgente. È il presidio
+  più forte sull'invariante — copre lo stato esplicito che vince sull'implicito, la regressione che
+  azzera la cesta (anche quando `cesta` arriva nello STESSO corpo della regressione, cioè l'ordine
+  dei due blocchi in `registro.ts`), il comportamento su ACEA (cesta scritta, stato mai toccato) e
+  i 500 a lettura fallita (sia sul ramo cesta sia sul gate `admin_plus`).
+- `lib/misuratori/assegnaCestaInvariante.test.ts` — lo stesso mestiere, per `assegnaCesta` (la
+  barra, §9): blocco compatto (tutte le righe sullo stesso gradino), selezione MISTA — stati
+  diversi nella stessa chiamata, il caso che una UPDATE sola non può servire, ed è quello che
+  conta di più — ACEA senza nessuna lettura di stato, 500 a lettura fallita, e un blocco sopra i
+  200 id per provare che lettura e scrittura restano a blocchi anche quando si raggruppa.
+- `lib/misuratori/cestaInvarianteShape.test.ts` — guardie di forma sul sorgente di `registro.ts` e
+  di `MisuratoriClient.tsx`: la regressione esplicita azzera la cesta; lo stato implicito non passa
+  dal gate `admin_plus`; la risposta porta lo stato risultante (`aggiornaRegistro`) e `cambiStato`
+  (`assegnaCesta`); il gate `tabella === 'acqualatina_misuratori_rimossi'` è scritto a mano in
+  entrambe le funzioni (dal 2026-08-04 non è più gratuito, vedi la nota in "L'invariante"); che
+  `misuratoriDaScaricare()` continui a filtrare **per stato** e non per cesta (§6) — è la decisione
+  più facile da rovesciare per sbaglio leggendo solo il titolo di questa spec; che la barra chiami
+  `chiediConferma` una volta sola (mai due dialoghi in fila, §9); e che la cella non la chiami
+  affatto (§7).
 - Prova sui dati veri dopo il deploy: scrittura della cesta su una riga `da_consegnare_deposito` →
-  stato e toast; svuotamento → ritorno indietro; e la riga che ricompare nella modale al giro
-  successivo.
+  stato e toast, sia dalla cella sia dalla barra; svuotamento → ritorno indietro; una selezione
+  mista dalla barra → il dialogo dice il numero giusto e il toast lo conferma; e la riga che
+  ricompare nella modale al giro successivo.
