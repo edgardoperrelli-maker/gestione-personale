@@ -388,11 +388,13 @@ Helper puri in `lib/acea/top.ts`. Spec:
 Le "limitazioni massive" sono un programma ACEA **per comune**. Regola cardine (data-driven,
 **mai hardcodare un comune**). Oggi i comuni attivi sono **Labico** e **Zagarolo**.
 
-### Il comune È il file master
-I comuni massive = i file MASTER scansionati dall'agente (`agente_file_colonne.is_master`,
-es. `LABICO.xlsx` → `LABICO`). Fonte unica: `comuniMaster()` (`lib/agente/comuni.ts`) e, lato
-Produzione economica, `caricaComuniMassive()` (`lib/produzione/comuniMassive.ts`). **Aggiungere
-un comune = aggiungere un master nella cartella**, nessuna modifica al codice.
+### Il comune viene dal REGISTRO
+I comuni massive = i comuni con almeno un ordine `famiglia = 'massive'` in `acea_ordini`. Fonte
+unica: `comuniMassiveDaRegistro()` (`lib/acea/comuniMassive.ts`) e, lato Produzione economica,
+`caricaComuniMassive()` (`lib/produzione/comuniMassive.ts`). **Aggiungere un comune = importarne
+gli ordini dal modulo ACEA**, nessuna modifica al codice.
+Fino al 04/08/2026 la fonte erano i file master scansionati dall'agente Playwright; è sparita col
+ritiro dell'agente.
 
 ### Classificazione in Produzione economica (`lib/produzione/attivitaCanonica.ts`)
 - La riclassificazione committente (gas `acea`→`italgas`, massive→`acea`) vive **QUI**, non nel DB.
