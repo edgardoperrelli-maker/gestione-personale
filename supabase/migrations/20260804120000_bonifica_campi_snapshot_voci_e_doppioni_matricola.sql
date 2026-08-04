@@ -634,7 +634,12 @@ begin
   select count(*) into n_non_sicure
   from _dedup d
   join public.rapportino_voci v on v.id = d.voce_id
-  where not (
+  -- `coalesce(..., false)` NON è cosmetico: senza, un NULL dentro la catena di AND (per esempio
+  -- una voce che nel frattempo ha perso `intervento_id` — la FK è ON DELETE SET NULL) renderebbe
+  -- `not(...)` a sua volta NULL, la riga non verrebbe contata come insicura e la DELETE
+  -- procederebbe cancellando un intervento che quella voce non referenzia più. Il NULL qui deve
+  -- valere «non lo so», e «non lo so» deve fermare tutto.
+  where not coalesce(
         v.manuale
     and coalesce(v.approvazione_stato, '') = 'approvato'
     and v.intervento_id = d.intervento_id
@@ -656,7 +661,7 @@ begin
     and not exists (select 1 from public.pi_contabilita_righe r          where r.intervento_id = d.intervento_id)
     and not exists (select 1 from public.interventi i where i.riconciliazione_rif_id = d.intervento_id)
     and not exists (select 1 from public.rapportino_righe r where r.voce_id = d.voce_id)
-  );
+  , false);
 
   if n_non_sicure > 0 then
     raise exception 'Dedup doppioni: % righe su % non soddisfano più le condizioni di sicurezza (intervento condiviso, consuntivato, registri agganciati o riga da tenere assente). Nessuna cancellazione eseguita.',
@@ -702,17 +707,21 @@ end $$;
 --    or (jsonb_typeof(v.campi_snapshot) = 'array' and jsonb_array_length(v.campi_snapshot) = 0);
 --
 --
--- V2. Il controllo che conta: nessuna voce scritta deve avere azioni diverse da quelle del suo
---     flusso. Atteso: 0 righe. Se ne esce qualcuna, un template è stato editato dopo la migration
---     (fisiologico) oppure la risoluzione ha cambiato idea (da guardare).
+-- V2. Coerenza delle righe toccate: `campi_snapshot` e `template_id` devono essere valorizzati
+--     insieme o non esserlo affatto. Una voce con le azioni ma senza modello (o viceversa) è uno
+--     stato che nessun lettore sa interpretare. Atteso: 0 e 0.
 --
--- select v.id, t.nome as template_voce
+-- select
+--   count(*) filter (where v.template_id is null
+--                      and v.campi_snapshot is not null
+--                      and jsonb_typeof(v.campi_snapshot) = 'array'
+--                      and jsonb_array_length(v.campi_snapshot) > 0)  as campi_senza_modello,
+--   count(*) filter (where v.template_id is not null
+--                      and (v.campi_snapshot is null
+--                           or (jsonb_typeof(v.campi_snapshot) = 'array'
+--                               and jsonb_array_length(v.campi_snapshot) = 0))) as modello_senza_campi
 -- from rapportino_voci v
--- join bak_campi_snapshot_20260804_voci b on b.id = v.id
--- join rapportino_template t on t.id = v.template_id
--- where v.campi_snapshot is not null
---   and jsonb_array_length(v.campi_snapshot) > 0
---   and v.template_id is null;
+-- join bak_campi_snapshot_20260804_voci b on b.id = v.id;
 --
 --
 -- V3. Il colore delle voci toccate NON deve essere cambiato. Il modo pratico di verificarlo senza
