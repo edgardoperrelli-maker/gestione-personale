@@ -263,7 +263,10 @@ export default function BarraAzioni({
               a h-8 campo e menu sporgevano di 2px sui bottoni della stessa barra — la classe
               esatta di disallineamento bonificata su tutta la console in questa PR.
             */
-            className={`h-[30px] w-[8.75rem] shrink-0 rounded-[var(--radius-md)] border bg-[var(--brand-surface)] px-2 text-sm text-[var(--brand-text-main)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ${
+            /* `w-[7.5rem]` = 120px: quanto basta a «04/08/2026» più l'icona del calendario.
+               Erano 140 e ne avanzavano venti: su questa riga venti pixel sono la differenza fra
+               una riga e due, misurata a 1280. */
+            className={`h-[30px] w-[7.5rem] shrink-0 rounded-[var(--radius-md)] border bg-[var(--brand-surface)] px-2 text-sm text-[var(--brand-text-main)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ${
               fuoriFinestra ? 'border-[var(--status-ko)]' : 'border-[var(--brand-border)]'
             }`}
           />
@@ -287,7 +290,9 @@ export default function BarraAzioni({
             value={staffId}
             onChange={(e) => setStaffId(e.target.value)}
             aria-label="Assegna a"
-            className="h-[30px] w-48 py-0 text-xs"
+            /* `w-[11.25rem]` = 180px invece di 192: i nomi lunghi («DE SANTIS ALESSANDRO · LAZIO
+               EST») si troncavano già a 192, e la lista aperta li mostra comunque per esteso. */
+            className="h-[30px] w-[11.25rem] py-0 text-xs"
             disabled={operatori.length === 0}
             // Il nome dell'attività per esteso sta qui: dentro una select da w-48
             // «LIMITAZIONI MASSIVE» usciva tagliato a metà parola.

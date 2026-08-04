@@ -77,7 +77,16 @@ export default function MenuColonne({
         sapere se sta finendo. Il conteggio è già annunciato dalla regione live della tabella,
         quindi qui basta il testo.
       */}
-      {avviso && (
+      {/*
+        In modo SELEZIONE (`compatto`) restano solo le colonne. Esporta vista, Ripristina colonne
+        e l'avviso di export sono gesti del modo vista — si guarda, si filtra, si esporta — e qui
+        pesavano insieme oltre 200px sulla riga che deve ospitare la barra azioni piena.
+
+        Le colonne invece RESTANO, ed è una richiesta esplicita dell'ufficio: capita di cambiare
+        le colonne visibili con delle righe già spuntate, e perderle costringeva a deselezionare e
+        ricominciare. Il resto torna alla deselezione, che è a un tasto di distanza.
+      */}
+      {avviso && !compatto && (
         <span className="text-xs tabular-nums text-[var(--brand-text-muted)]">{avviso}</span>
       )}
 
@@ -86,7 +95,7 @@ export default function MenuColonne({
         sopravvivono al ricaricamento: senza una via d'uscita, una colonna trascinata per sbaglio
         fuori vista resterebbe lì domani, e la tabella sembrerebbe rotta senza motivo apparente.
       */}
-      {onAzzeraLayout && (
+      {onAzzeraLayout && !compatto && (
         <Button variant="ghost" size="sm" onClick={onAzzeraLayout}>
           <RotateCcw size={14} aria-hidden="true" />
           Ripristina colonne
@@ -95,16 +104,18 @@ export default function MenuColonne({
 
       {/* Il motivo del blocco è scritto accanto, non in un `title`: su un elemento disabilitato il
           tooltip nativo spesso non compare proprio, perché non riceve eventi di puntatore. */}
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={onEsporta}
-        loading={esportando}
-        disabled={vuota}
-      >
-        <Download size={14} aria-hidden="true" />
-        Esporta vista
-      </Button>
+      {!compatto && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onEsporta}
+          loading={esportando}
+          disabled={vuota}
+        >
+          <Download size={14} aria-hidden="true" />
+          Esporta vista
+        </Button>
+      )}
     </div>
   );
 }
