@@ -69,3 +69,26 @@ describe('il bacino della modale operatore resta filtrato per STATO', () => {
     expect(senzaCommenti(query)).not.toMatch(/\.is\('cesta'/);
   });
 });
+
+describe("il registro d'ufficio mostra quello che il server ha deciso", () => {
+  const client = readFileSync(
+    resolve(__dirname, '../../components/modules/misuratori/MisuratoriClient.tsx'),
+    'utf8',
+  );
+
+  it("l'eco della PATCH si fonde nella riga", () => {
+    // Senza il merge la colonna Stato resterebbe quella vecchia: l'ottimistica applica solo
+    // i campi che il CLIENT ha mandato, e lo stato implicito non è fra quelli.
+    const src = senzaCommenti(client);
+    expect(src).toMatch(/eco\.stato !== undefined/);
+    expect(src).toMatch(/eco\.cesta !== undefined/);
+  });
+
+  it('il toast dell\'implicazione scatta solo su una PATCH che chiedeva la CESTA', () => {
+    // Se l'ufficio ha mosso lo stato dalla tendina, annunciarglielo è rumore: l'ha appena
+    // fatto di proposito.
+    const src = senzaCommenti(client);
+    expect(src).toMatch(/patch\.cesta !== undefined && eco\.stato === 'scaricato_deposito'/);
+    expect(src).toMatch(/patch\.cesta !== undefined && eco\.stato === 'da_consegnare_deposito'/);
+  });
+});

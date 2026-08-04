@@ -188,6 +188,9 @@ export default function MisuratoriClient({
     // `cesta`: la scrive l'operatore allo scarico, qui la si CORREGGE (rapportino ormai chiuso).
     async (id: string, patch: { stato?: StatoMisuratore; note?: string; pallet?: string; cesta?: string }) => {
       setSalvando(prev => new Set(prev).add(id));
+      // La cesta di PRIMA: serve a non annunciare una rimozione su una riga che non ne aveva
+      // una. È il motivo per cui `rows` sta nelle dipendenze qui sotto.
+      const cestaPrima = rows.find(r => r.id === id)?.cesta?.trim() || null;
       // Ottimistic update
       setRows(prev =>
         prev.map(r => r.id === id ? { ...r, ...patch } : r)
@@ -208,6 +211,35 @@ export default function MisuratoriClient({
           const msg = (await res.json().catch(() => ({})) as { error?: string }).error;
           await fetchData(filters);
           toast.error(msg ?? 'Salvataggio rifiutato dal server: la riga è tornata com\'era.');
+          return;
+        }
+        /*
+          Il server può aver deciso PIÙ di quello che gli si è chiesto: scrivere la cesta
+          dichiara lo scarico, svuotarla lo disfa, e riportare lo stato a «da consegnare» toglie
+          la cesta, che a quel punto è un riferimento falso. Quei campi tornano nella risposta e
+          si fondono nella riga — senza, la colonna resterebbe quella vecchia a schermo, perché
+          il successo di proposito NON rifà la fetch.
+        */
+        const eco = await res.json().catch(() => ({})) as { stato?: StatoMisuratore; cesta?: string | null };
+        const deciso: Partial<MisuratoreRimosso> = {};
+        if (eco.stato !== undefined) deciso.stato = eco.stato;
+        if (eco.cesta !== undefined) deciso.cesta = eco.cesta;
+        if (Object.keys(deciso).length > 0) {
+          setRows(prev => prev.map(r => r.id === id ? { ...r, ...deciso } : r));
+        }
+        /*
+          E si dice a parole, che è l'altra metà di «l'effetto non resta nascosto». Niente
+          dialogo di conferma: il gesto più frequente è correggere un refuso su una riga già
+          scaricata, dove non cambia niente, e nei casi in cui lo stato si muove l'ufficio sta
+          facendo proprio quello che intendeva. Il toast scatta SOLO quando il server ha deciso
+          da sé: se lo stato l'ha mosso la tendina, annunciarlo sarebbe rumore.
+        */
+        if (patch.cesta !== undefined && eco.stato === 'scaricato_deposito') {
+          toast.success(`Cesta ${patch.cesta.trim()} · il misuratore risulta scaricato a deposito.`);
+        } else if (patch.cesta !== undefined && eco.stato === 'da_consegnare_deposito') {
+          toast.success('Cesta tolta · il misuratore torna fra quelli da scaricare.');
+        } else if (patch.stato !== undefined && eco.cesta === null && cestaPrima) {
+          toast.success('Cesta tolta · il misuratore non risulta più in deposito.');
         }
       } catch {
         // Il caso peggiore era QUESTO: rete giù, rollback muto. La riga torna indietro e lo dice.
@@ -217,7 +249,7 @@ export default function MisuratoriClient({
         setSalvando(prev => { const s = new Set(prev); s.delete(id); return s; });
       }
     },
-    [apiBase, fetchData, filters]
+    [apiBase, fetchData, filters, rows]
   );
 
   const handleSync = useCallback(async () => {
