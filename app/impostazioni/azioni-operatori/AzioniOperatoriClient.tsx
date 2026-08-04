@@ -904,8 +904,8 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
         <div>
           <h2 className="text-xl font-semibold text-[var(--brand-text-main)]">Azioni operatori</h2>
           <p className="mt-0.5 max-w-[70ch] text-[13px] text-[var(--brand-text-muted)]">
-            Ogni attività ha le sue azioni: quello che l&apos;operatore compila sul campo. Le azioni valgono per i
-            rapportini generati da adesso; titolo e dettagli si aggiornano anche su quelli già in mano agli operatori.
+            Ogni attività ha le sue azioni: quello che l&apos;operatore compila sul campo. Le modifiche si aggiornano
+            anche sui rapportini già in mano agli operatori; quelli già inviati restano come sono stati compilati.
           </p>
         </div>
         <div className="flex gap-5 pt-1 text-right">
@@ -1173,7 +1173,7 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
         )}
         <p className="mt-3 flex items-start gap-2 rounded-[var(--radius-md)] bg-[var(--brand-surface-muted)] px-3 py-2 text-xs text-[var(--brand-text-muted)]">
           <span aria-hidden className="mt-px">ⓘ</span>
-          <span><b className="font-semibold">Le azioni</b> valgono per i rapportini generati da adesso. <b className="font-semibold">Titolo e dettagli</b> si aggiornano anche sui rapportini già in mano agli operatori oggi.</span>
+          <span><b className="font-semibold">Azioni, titolo e dettagli</b> si aggiornano anche sui rapportini già in mano agli operatori oggi. I rapportini <b className="font-semibold">già inviati</b> restano come sono stati compilati.</span>
         </p>
       </CardBox>
 
