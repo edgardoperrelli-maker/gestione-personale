@@ -813,7 +813,9 @@ export async function GET(req: Request) {
     */
     const eseguitoPerChiave = new Map<string, string>();
     const matricolaNuovaPerChiave = new Map<string, string>();
-    const serveEseguito = f.famiglia === 'massive';
+    // Anche AcquaLatina: la sua colonna «Esito» è questa. Non costa una query — la lettura di
+    // `rapportino_voci` per quella vista parte già, per `matricola_nuova`.
+    const serveEseguito = f.famiglia === 'massive' || acqua;
     if ((serveEseguito || acqua) && interventiPerChiave.size > 0) {
       try {
         const ids = [...new Set([...interventiPerChiave.values()].flat())];
