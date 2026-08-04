@@ -2,7 +2,6 @@ import type { ReactNode } from 'react';
 import {
   Activity,
   BedDouble,
-  Bot,
   Droplets,
   CalendarClock,
   ChartColumn,
@@ -16,7 +15,6 @@ import {
   Package,
   Settings,
   Siren,
-  Sparkles,
   Table,
   Waves,
   Wrench,
@@ -56,10 +54,8 @@ export const MODULE_ICONS: Record<AppModuleKey, ReactNode> = {
   acea: <Waves {...ICON_PROPS} />,
   misuratori: <Gauge {...ICON_PROPS} />,
   acqualatina: <Droplets {...ICON_PROPS} />,
-  agente: <Bot {...ICON_PROPS} />,
   performance: <ChartColumn {...ICON_PROPS} />,
   impostazioni: <Settings {...ICON_PROPS} />,
-  'assegnazione-ai': <Sparkles {...ICON_PROPS} />,
 };
 
 /** Icona "Dashboard / Home" usata in cima alla sidebar. */

@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import AnnuncioSquadre, { ANNUNCIO_SQUADRE_KEY } from '@/components/modules/cronoprogramma-personale/AnnuncioSquadre';
 import AnnuncioSegnalazione, { ANNUNCIO_SEGNALAZIONE_KEY } from '@/components/segnalazione/AnnuncioSegnalazione';
 import AnnuncioOdlPositivi, { ANNUNCIO_ODL_POSITIVI_KEY } from '@/components/modules/interventi/AnnuncioOdlPositivi';
-import AnnuncioConfrontoEsiti, { ANNUNCIO_CONFRONTO_ESITI_KEY } from '@/components/modules/assegnazione-ai/AnnuncioConfrontoEsiti';
 import AnnuncioGruppoAttivita, { ANNUNCIO_GRUPPO_ATTIVITA_KEY } from '@/components/modules/interventi/AnnuncioGruppoAttivita';
 import AnnuncioConsuntivazione, { ANNUNCIO_CONSUNTIVAZIONE_KEY } from '@/components/modules/consuntivazione/AnnuncioConsuntivazione';
 import AnnuncioAssistenza, { ANNUNCIO_ASSISTENZA_KEY } from '@/components/modules/assistenza/AnnuncioAssistenza';
@@ -26,11 +25,6 @@ const ANNUNCI: Annuncio[] = [
     key: ANNUNCIO_ODL_POSITIVI_KEY,
     title: 'Stop ai doppi esiti: un ODL positivo si chiude per sempre',
     subtitle: 'Un ordine eseguito positivo non può più essere riassegnato né esitato due volte; la pianificazione ti avvisa.',
-  },
-  {
-    key: ANNUNCIO_CONFRONTO_ESITI_KEY,
-    title: 'Controllo esiti DB ↔ ACEA',
-    subtitle: 'In Aggiorna stato ODL: doppia conferma dei positivi tra il nostro DB e il portale, con export Excel.',
   },
   {
     key: ANNUNCIO_GRUPPO_ATTIVITA_KEY,
@@ -169,7 +163,6 @@ export default function NovitaCenter() {
       <AnnuncioAssistenza open={openKey === ANNUNCIO_ASSISTENZA_KEY} onClose={chiudiModal} />
       <AnnuncioConsuntivazione open={openKey === ANNUNCIO_CONSUNTIVAZIONE_KEY} onClose={chiudiModal} />
       <AnnuncioOdlPositivi open={openKey === ANNUNCIO_ODL_POSITIVI_KEY} onClose={chiudiModal} />
-      <AnnuncioConfrontoEsiti open={openKey === ANNUNCIO_CONFRONTO_ESITI_KEY} onClose={chiudiModal} />
       <AnnuncioGruppoAttivita open={openKey === ANNUNCIO_GRUPPO_ATTIVITA_KEY} onClose={chiudiModal} />
       <AnnuncioSegnalazione open={openKey === ANNUNCIO_SEGNALAZIONE_KEY} onClose={chiudiModal} />
       <AnnuncioSquadre open={openKey === ANNUNCIO_SQUADRE_KEY} onClose={chiudiModal} />

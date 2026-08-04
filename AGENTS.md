@@ -160,8 +160,8 @@ type ValidRole = 'admin' | 'operatore';
 // AssignableRole aggiunge 'admin_plus' (super-admin: premialità, utenze).
 
 // La lista completa dei moduli (14+: dashboard, mappa, appuntamenti,
-// assegnazione-ai, hotel-calendar, interventi, consuntivazione, live,
-// lista-attesa, misuratori, agente, performance, impostazioni, …) vive in
+// hotel-calendar, interventi, consuntivazione, live, lista-attesa,
+// misuratori, acqualatina, performance, impostazioni, …) vive in
 // APP_MODULES (lib/moduleAccess.ts) — quella è la fonte di verità, con i
 // gruppi sidebar (Pianificazione · Operatività · Analisi · Sistema).
 type AppModuleKey = (typeof APP_MODULES)[number]['key'];
