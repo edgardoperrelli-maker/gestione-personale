@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { resolveUserRole } from '@/lib/moduleAccess';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { unioneCampi } from '@/utils/rapportini/campiDiVoce';
+import { campiConEsitoCorreggibile } from '@/utils/rapportini/opzioniEsito';
 import RapportinoEditor, { type VoceEditabile } from '@/components/modules/rapportini/RapportinoEditor';
 
 export const dynamic = 'force-dynamic';
@@ -49,13 +50,17 @@ export default async function ContenutoRapportinoPage({ params }: { params: Prom
     .order('ordine', { ascending: true });
 
   // Colonne = unione campi rapportino + per-voce (flussi del gruppo attività), foto escluse
-  // (non editabili in tabella).
-  const campi = unioneCampi(
-    (r.campi_snapshot ?? []) as TemplateCampo[],
-    ((vociRows ?? []) as Array<{ campi_snapshot?: unknown }>).map((v) =>
-      Array.isArray(v.campi_snapshot) ? (v.campi_snapshot as TemplateCampo[]) : null,
-    ),
-  ).filter((c) => c.tipo !== 'foto');
+  // (non editabili in tabella). Le select d'esito escono coi tre canonici garantiti
+  // (SI/NO/NESSUN PASSAGGIO): questo è un editor di CORREZIONE, e gli snapshot dei giorni
+  // passati possono essere nati prima di un esito che oggi serve per correggerli.
+  const campi = campiConEsitoCorreggibile(
+    unioneCampi(
+      (r.campi_snapshot ?? []) as TemplateCampo[],
+      ((vociRows ?? []) as Array<{ campi_snapshot?: unknown }>).map((v) =>
+        Array.isArray(v.campi_snapshot) ? (v.campi_snapshot as TemplateCampo[]) : null,
+      ),
+    ).filter((c) => c.tipo !== 'foto'),
+  );
   const voci = (vociRows ?? []) as VoceEditabile[];
 
   return (
