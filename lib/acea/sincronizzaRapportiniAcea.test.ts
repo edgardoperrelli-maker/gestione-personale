@@ -266,6 +266,34 @@ describe('sincronizzaRapportiniAcea', () => {
     expect(tables.mappa_piani).toHaveLength(0);
   });
 
+  // Caso 12383864/12383202: la bozza a metà di un ordine NON selezionato bloccava
+  // l'assegnazione completa di un altro. La generazione mirata (staffIds) riguarda solo la
+  // selezione: la riga a metà — che un esecutore non ce l'ha, quindi non può appartenere a
+  // nessuno degli operatori chiesti — si dice negli avvisi, non nel cancello.
+  it('generazione mirata: la bozza a metà di un ordine estraneo avvisa ma non blocca', async () => {
+    const { db, tables } = makeFakeDb(seed({
+      acea_ordini: [{ odl: '912999999', pianificato_il_bozza: DATA, pianificato_a_bozza: null }],
+    }));
+    const r = await sincronizzaRapportiniAcea(db, { data: DATA, attoreId: ATTORE, staffIds: ['s1'] });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.esiti).toHaveLength(1);
+    expect(r.esiti[0]).toMatchObject({ staff_id: 's1', esito: 'creato' });
+    expect(r.avvisi.join(' ')).toContain('912999999');
+    expect(tables.rapportini).toHaveLength(1);
+  });
+
+  it('generazione dell\'intera giornata: la stessa bozza a metà blocca con 409 e nomina gli ODL', async () => {
+    const { db } = makeFakeDb(seed({
+      acea_ordini: [{ odl: '912999999', pianificato_il_bozza: DATA, pianificato_a_bozza: null }],
+    }));
+    const r = await sincronizzaRapportiniAcea(db, { data: DATA, attoreId: ATTORE });
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.status).toBe(409);
+    expect(r.incomplete).toEqual(['912999999']);
+  });
+
   it('rifiuta una data non valida prima di toccare il database', async () => {
     const { db, tables } = makeFakeDb(seed());
     const r = await sincronizzaRapportiniAcea(db, { data: '28/07/2026', attoreId: ATTORE });

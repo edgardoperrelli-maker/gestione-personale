@@ -121,10 +121,34 @@ export async function sincronizzaRapportiniAcea(
     pianificazione diventa lavoro vero, ed è l'ultimo istante utile per accorgersene. Con
     `confermaIncomplete` si va avanti lo stesso — la decisione resta all'ufficio, ma presa.
 
+    MA il blocco vale solo per la generazione dell'INTERA giornata (senza `staffIds`). Quando si
+    genera dalla selezione — l'ufficio ha scelto delle righe e un operatore — una bozza con la
+    data e senza esecutore non può appartenere a nessuno degli operatori chiesti (un esecutore non
+    ce l'ha proprio): bloccare lì significa fermare un'assegnazione completa per un ordine che
+    NON è nella selezione, e chi guarda una griglia filtrata non può nemmeno capire quale sia
+    (caso 12383864/12383202). Sulla mirata la riga a metà si dice negli avvisi, non nel cancello.
+
     Si guardano solo le righe con la DATA di questo giorno: quelle con il solo esecutore non
     appartengono a nessun giorno e non possono bloccarne uno: si contano e si dicono, in fondo.
   */
-  if (!opts.confermaIncomplete) {
+  const generazioneMirata = (opts.staffIds?.length ?? 0) > 0;
+  if (!opts.confermaIncomplete && generazioneMirata) {
+    const { data: aMeta } = await db
+      .from(profilo.tabellaOrdini)
+      .select('odl, pianificato_a_bozza')
+      .eq('pianificato_il_bozza', opts.data);
+    const incomplete = ((aMeta ?? []) as Array<{ odl: string; pianificato_a_bozza: string | null }>)
+      .filter((r) => !r.pianificato_a_bozza)
+      .map((r) => r.odl);
+    if (incomplete.length > 0) {
+      avvisi.push(
+        incomplete.length === 1
+          ? `L'ordine ${incomplete[0]} è programmato per questo giorno ma non ha un esecutore: resta fuori da ogni rapportino.`
+          : `${incomplete.length} ordini (${incomplete.slice(0, 5).join(', ')}${incomplete.length > 5 ? ', …' : ''}) sono programmati per questo giorno senza esecutore: restano fuori da ogni rapportino.`,
+      );
+    }
+  }
+  if (!opts.confermaIncomplete && !generazioneMirata) {
     const { data: aMeta, error: eMeta } = await db
       .from(profilo.tabellaOrdini)
       .select('odl, pianificato_a_bozza')
