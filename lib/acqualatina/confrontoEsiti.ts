@@ -61,6 +61,13 @@ export type ConfrontoEsiti = {
   allineati: number;
   /** Sito «effettuato», registro ancora aperto: manca il NOSTRO esito (rapportino o consuntivazione). */
   daChiudereDaNoi: VoceDaChiudere[];
+  /**
+   * ODL con un intervento IN CORSO oggi: il sito li dà già per fatti (la squadra registra
+   * live dal campo), il nostro rapportino arriva a fine giornata. NON stanno in nessuna
+   * coda — metterli in «manca il nostro esito» mentre gli operatori lavorano creava solo
+   * confusione in ufficio (decisione utente 04/08): si contano e basta, senza elenco.
+   */
+  inLavorazioneOggi: number;
   /** Registro chiuso positivo, sito senza esito (o senza proprio l'ODL): manca la registrazione sul sito. */
   mancantiSulSito: VoceMancanteSito[];
   /** Righe del file senza esito: gli ODL che il sito stesso dà ancora da fare. */
@@ -135,6 +142,8 @@ function statoNostro(righe: readonly RigaRegistroPerConfronto[]): string {
 export function confrontaEsitiSito(
   file: readonly RigaEsecuzione[],
   registro: readonly RigaRegistroPerConfronto[],
+  /** Gli ODL con un intervento della giornata ancora aperto: esclusi dalle code, solo contati. */
+  inLavorazione: ReadonlySet<string> = new Set(),
 ): ConfrontoEsiti {
   const perOdlRegistro = new Map<string, RigaRegistroPerConfronto[]>();
   for (const r of registro) {
@@ -145,6 +154,7 @@ export function confrontaEsitiSito(
 
   let allineati = 0;
   let nonEsitatiSito = 0;
+  let inLavorazioneOggi = 0;
   const daChiudereDaNoi: VoceDaChiudere[] = [];
   const sconosciuti: string[] = [];
   const impiantiDifformi: ImpiantoDifforme[] = [];
@@ -168,6 +178,8 @@ export function confrontaEsitiSito(
     const chiusaPositiva = righe.some((r) => !r.aperto && r.esito_positivo === true);
     if (chiusaPositiva) {
       allineati++;
+    } else if (inLavorazione.has(f.odl)) {
+      inLavorazioneOggi++;
     } else {
       daChiudereDaNoi.push({
         odl: f.odl,
@@ -199,5 +211,8 @@ export function confrontaEsitiSito(
   mancantiSulSito.sort((a, b) => (a.chiusaIl ?? '').localeCompare(b.chiusaIl ?? '') || a.odl.localeCompare(b.odl));
   daChiudereDaNoi.sort((a, b) => a.dataSito.localeCompare(b.dataSito) || a.odl.localeCompare(b.odl));
 
-  return { allineati, daChiudereDaNoi, mancantiSulSito, nonEsitatiSito, sconosciuti, impiantiDifformi, totaleFile: file.length };
+  return {
+    allineati, daChiudereDaNoi, inLavorazioneOggi, mancantiSulSito, nonEsitatiSito,
+    sconosciuti, impiantiDifformi, totaleFile: file.length,
+  };
 }

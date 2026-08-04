@@ -7,6 +7,7 @@ import {
   confrontaEsitiSito, parseEsecuzioni, type RigaRegistroPerConfronto,
 } from '@/lib/acqualatina/confrontoEsiti';
 import { riconciliaChiusureAcqualatina } from '@/lib/acqualatina/riconciliaRegistro';
+import { partiRoma } from '@/lib/agente/orarioRoma';
 
 export const runtime = 'nodejs';
 
@@ -86,7 +87,33 @@ export async function POST(req: Request) {
       if (blocco.length < PAGINA) break;
     }
 
-    const confronto = confrontaEsitiSito(righe, registro);
+    /*
+      Gli ODL della GIORNATA IN CORSO: intervento di oggi non ancora concluso. La squadra
+      registra live sul sito, il nostro rapportino arriva a fine giornata — accusarli come
+      «manca il nostro esito» mentre gli operatori lavorano creava confusione in ufficio
+      (decisione utente 04/08). Il confronto li conta a parte, senza elencarli.
+    */
+    const oggi = partiRoma(new Date()).oggi;
+    const inLavorazione = new Set<string>();
+    for (let offset = 0; ; offset += PAGINA) {
+      const { data, error } = await supabaseAdmin
+        .from('interventi')
+        .select('odl')
+        .eq('committente', 'acqualatina')
+        .eq('data', oggi)
+        .not('stato', 'in', '(completato,annullato)')
+        .not('odl', 'is', null)
+        .range(offset, offset + PAGINA - 1);
+      if (error) throw error;
+      const blocco = (data ?? []) as Array<{ odl: string | null }>;
+      for (const r of blocco) {
+        const odl = String(r.odl ?? '').replace(/\s+/g, ' ').trim();
+        if (odl !== '') inLavorazione.add(odl);
+      }
+      if (blocco.length < PAGINA) break;
+    }
+
+    const confronto = confrontaEsitiSito(righe, registro, inLavorazione);
     return NextResponse.json(
       { ...confronto, righeFile: totale },
       { headers: { 'Cache-Control': 'no-store' } },

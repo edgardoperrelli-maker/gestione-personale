@@ -94,6 +94,22 @@ describe('confrontaEsitiSito', () => {
     expect(out.nonEsitatiSito).toBe(1);
   });
 
+  it('un ODL in lavorazione oggi non finisce in nessuna coda: si conta e basta', () => {
+    // La squadra registra live sul sito, il nostro rapportino arriva a fine giornata:
+    // accusarlo come «manca il nostro esito» mentre gli operatori lavorano crea confusione.
+    const out = confrontaEsitiSito(
+      [esec()],
+      [registro({ aperto: true, esito_positivo: null })],
+      new Set(['100001']),
+    );
+    expect(out.daChiudereDaNoi).toEqual([]);
+    expect(out.inLavorazioneOggi).toBe(1);
+    // Già chiusa da noi = allineato, anche se una nuova uscita è in corso.
+    const chiuso = confrontaEsitiSito([esec()], [registro()], new Set(['100001']));
+    expect(chiuso.allineati).toBe(1);
+    expect(chiuso.inLavorazioneOggi).toBe(0);
+  });
+
   it("l'ODL del file che il registro non conosce finisce fra gli sconosciuti", () => {
     const out = confrontaEsitiSito([esec({ odl: '999999' })], [registro()]);
     expect(out.sconosciuti).toEqual(['999999']);

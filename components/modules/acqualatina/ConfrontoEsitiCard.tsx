@@ -47,6 +47,7 @@ export default function ConfrontoEsitiCard() {
         [],
         ['Allineati (sito effettuato, noi chiusi)', esito.allineati],
         ['Manca il nostro esito (sito effettuato, noi aperti)', esito.daChiudereDaNoi.length],
+        ['In lavorazione oggi (esclusi dalle code)', esito.inLavorazioneOggi],
         ['Da registrare sul sito (noi chiusi, sito senza esito)', esito.mancantiSulSito.length],
         ['Non esitati dal sito', esito.nonEsitatiSito],
         ['Sconosciuti al registro', esito.sconosciuti.length],
@@ -171,13 +172,19 @@ export default function ConfrontoEsitiCard() {
 
       {esito && (
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
             <StatTile size="sm" label="Allineati" value={esito.allineati} tone="ok" />
             <StatTile
               size="sm"
               label="Manca il nostro esito"
               value={esito.daChiudereDaNoi.length}
               tone={esito.daChiudereDaNoi.length > 0 ? 'warn' : 'neutral'}
+            />
+            <StatTile
+              size="sm"
+              label="In lavorazione oggi"
+              value={esito.inLavorazioneOggi}
+              note="squadre ancora fuori: si chiudono col rapportino di stasera"
             />
             <StatTile
               size="sm"
