@@ -88,8 +88,14 @@ describe('aggiornaRegistro — invariante cesta↔stato (comportamento, non form
   });
 
   it('4. stato esplicito nel corpo vince su quello implicito', async () => {
-    // Avanza (scaricato → verificato): non è una regressione, passa a qualunque ruolo.
-    rigaCorrente = { stato: 'scaricato_deposito' };
+    // rigaCorrente a 'da_consegnare_deposito', non 'scaricato_deposito': con quest'ultimo
+    // statoDopoCesta('scaricato_deposito', '9') torna già null, quindi l'esplicito e l'implicito
+    // avrebbero coinciso e il test non avrebbe provato niente. Da 'da_consegnare_deposito' invece
+    // l'implicito calcolerebbe 'scaricato_deposito' — DIVERSO dall'esplicito 'verificato_deposito'
+    // sotto — ed è lo scarto fra i due a rendere l'asserzione non vacua.
+    // Avanza (da consegnare → verificato, salta un gradino): non è una regressione, passa a
+    // qualunque ruolo.
+    rigaCorrente = { stato: 'da_consegnare_deposito' };
     const res = await aggiornaRegistro(
       'acqualatina_misuratori_rimossi',
       'm1',
@@ -99,7 +105,8 @@ describe('aggiornaRegistro — invariante cesta↔stato (comportamento, non form
     const body = await res.json() as Record<string, unknown>;
 
     expect(res.status).toBe(200);
-    // Lo stato è quello ESPLICITO, non quello che statoDopoCesta avrebbe calcolato dal cesta.
+    // Lo stato è quello ESPLICITO, non quello che statoDopoCesta avrebbe calcolato dal cesta
+    // ('scaricato_deposito', il gradino subito dopo 'da_consegnare_deposito').
     expect(body).toMatchObject({ ok: true, stato: 'verificato_deposito', cesta: '9' });
     expect(ultimoPatch).toMatchObject({ stato: 'verificato_deposito', cesta: '9' });
   });
@@ -119,7 +126,28 @@ describe('aggiornaRegistro — invariante cesta↔stato (comportamento, non form
     expect(ultimoPatch).toMatchObject({ stato: 'da_consegnare_deposito', cesta: null });
   });
 
-  it('6. registro ACEA con cesta nel corpo: 400, nessuna scrittura', async () => {
+  it('6. regressione esplicita CON cesta nello STESSO corpo: vince lo stato, la cesta si azzera comunque', async () => {
+    // Il caso che il test 5 non prova: lì il corpo manda solo `stato`, quindi non c'è una cesta
+    // in arrivo che un blocco spostato possa riscrivere SOPRA l'azzeramento. Qui il corpo porta
+    // `{ stato: 'da_consegnare_deposito', cesta: '7' }` insieme (spec §5: «vince lo stato, e la
+    // cesta si azzera per la regola 3») — è la mutazione che le guardie di forma in
+    // cestaInvarianteShape.test.ts non vedono: se il blocco della regressione finisse sopra
+    // `if ('cesta' in body)`, quelle regex continuerebbero a passare mentre la UPDATE scriverebbe
+    // '7', non null. Ruolo admin_plus: serve per superare il gate di regressione sullo stato.
+    const res = await aggiornaRegistro(
+      'acqualatina_misuratori_rimossi',
+      'm1',
+      { stato: 'da_consegnare_deposito', cesta: '7' },
+      { role: 'admin_plus' },
+    );
+    const body = await res.json() as Record<string, unknown>;
+
+    expect(res.status).toBe(200);
+    expect(body).toMatchObject({ ok: true, stato: 'da_consegnare_deposito', cesta: null });
+    expect(ultimoPatch).toMatchObject({ stato: 'da_consegnare_deposito', cesta: null });
+  });
+
+  it('7. registro ACEA con cesta nel corpo: 400, nessuna scrittura', async () => {
     const res = await aggiornaRegistro('misuratori_rimossi', 'm1', { cesta: '3' }, null);
     const body = await res.json() as Record<string, unknown>;
 
@@ -128,7 +156,7 @@ describe('aggiornaRegistro — invariante cesta↔stato (comportamento, non form
     expect(updateChiamato).toBe(false);
   });
 
-  it('7. lettura dello stato fallita (ramo cesta): 500, nessuna scrittura', async () => {
+  it('8. lettura dello stato fallita (ramo cesta): 500, nessuna scrittura', async () => {
     // Copre l'intervento 1: ingoiare l'errore qui scriverebbe la sola cesta senza stato, la
     // stessa incoerenza che questo ramo esiste per chiudere — e in silenzio.
     erroreLettura = { message: 'connessione al DB persa' };
@@ -140,7 +168,7 @@ describe('aggiornaRegistro — invariante cesta↔stato (comportamento, non form
     expect(updateChiamato).toBe(false);
   });
 
-  it('8. lettura dello stato fallita (gate admin_plus): 500, fail-closed e non fail-open', async () => {
+  it('9. lettura dello stato fallita (gate admin_plus): 500, fail-closed e non fail-open', async () => {
     // Il secondo chiamante di statoAttuale (intervento 1): prima dell'intervento un errore di
     // lettura tornava `null`, il gate lo leggeva come "riga assente" e lasciava passare la
     // regressione. Qui il ruolo NON è admin_plus: senza il fix, la scrittura proseguirebbe.

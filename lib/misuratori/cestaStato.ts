@@ -1,8 +1,9 @@
 import type { StatoMisuratore } from '@/types/misuratori';
 
 /*
-  L'invariante del registro AcquaLatina: `cesta` valorizzata ⟺ lo stato è almeno
-  «scaricato deposito».
+  L'invariante del registro AcquaLatina: `cesta` valorizzata ⟹ lo stato è almeno
+  «scaricato deposito» — mai il contrario: righe scaricato_deposito senza cesta restano
+  legittime, è il pregresso pre-2026-08-04 (spec §4).
 
   Un numero di cesta è la PROVA che quel contatore è in deposito — la cesta sta in magazzino.
   Se il numero c'è, lo stato non può dire «da consegnare»; se lo stato dice «da consegnare», il

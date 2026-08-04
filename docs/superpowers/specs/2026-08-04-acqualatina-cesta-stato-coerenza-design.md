@@ -178,10 +178,14 @@ silenzio. Vale per ENTRAMBI i chiamanti della lettura, compreso il gate `admin_p
 che senza questa distinzione sarebbe fail-open su un errore di rete.
 
 **Concorrenza.** La lettura-poi-scrittura non è atomica. È la stessa corsa che il gate `admin_plus`
-ha già oggi. La UI serializza per riga con `salvando` — disabilitato su input e bottone di Cesta e
-di Pallet, oltre che sulla tendina di Stato — quindi due PATCH sulla stessa riga non partono più in
-parallelo dallo stesso client; resta la corsa se due richieste arrivano comunque ravvicinate (rete,
-un secondo client), e il caso perdente è un misuratore che finisce nello stato che l'altra
+ha già oggi. Sulle celle che toccano stato e cesta — Stato, Cesta e Pallet, non le Note, che non
+partecipano all'invariante e restano libere di partire durante il volo di una PATCH di cesta — la
+UI serializza per riga con `salvando`: l'input si disabilita, la tendina di Stato si disabilita, e
+il bottone di Cesta/Pallet resta focusabile ma rifiuta il click (`aria-disabled` con guardia
+nell'`onClick`, non `disabled`: un bottone nativamente disabilitato non riceve mai il focus che il
+ritorno a fine editing gli deve). Quindi due PATCH su stato o cesta della stessa riga non partono
+più in parallelo dallo stesso client; resta la corsa se due richieste arrivano comunque ravvicinate
+(rete, un secondo client), e il caso perdente è un misuratore che finisce nello stato che l'altra
 scrittura voleva. Non vale una transazione.
 
 ### Client ufficio
@@ -224,15 +228,21 @@ in commit, PR o documenti: questo repo è pubblico.
 
 ## Verifica
 
-- `lib/misuratori/cestaStato.test.ts` — tabella di verità completa: 5 stati × {valore, vuoto}, più il
-  caso «lo stato esplicito vince».
-- Guardie di forma sul sorgente di `registro.ts`, nello stile di `palletCellaShape.test.ts`: la
-  regressione esplicita azzera la cesta; lo stato implicito non passa dal gate `admin_plus`; la
-  risposta porta lo stato risultante.
-- Un test che la regola resti confinata ad AcquaLatina (la guardia a 400 su `misuratori_rimossi`
-  esiste già e non deve cadere).
-- Un test che `misuratoriDaScaricare()` continui a filtrare **per stato** e non per cesta (§6): è la
-  decisione più facile da rovesciare per sbaglio leggendo solo il titolo di questa spec.
+- `lib/misuratori/cestaStato.test.ts` — tabella di verità pura di `statoDopoCesta`: 5 stati ×
+  {valore, vuoto}. Non contiene il caso «lo stato esplicito vince»: la funzione è pura e non vede
+  affatto lo stato esplicito della PATCH, quindi non può testarlo.
+- `lib/misuratori/registroCesta.test.ts` — test di COMPORTAMENTO su `aggiornaRegistro`: guarda il
+  `patch` passato alla UPDATE e il corpo della risposta, non il sorgente. È il presidio più forte
+  sull'invariante — copre lo stato esplicito che vince sull'implicito, la regressione che azzera la
+  cesta (anche quando `cesta` arriva nello STESSO corpo della regressione, cioè l'ordine dei due
+  blocchi in `registro.ts`), il 400 su ACEA e i 500 a lettura fallita (sia sul ramo cesta sia sul
+  gate `admin_plus`).
+- `lib/misuratori/cestaInvarianteShape.test.ts` — guardie di forma sul sorgente di `registro.ts`,
+  nello stile di `palletCellaShape.test.ts`: la regressione esplicita azzera la cesta; lo stato
+  implicito non passa dal gate `admin_plus`; la risposta porta lo stato risultante; il 400 sul
+  registro ACEA resta; e che `misuratoriDaScaricare()` continui a filtrare **per stato** e non per
+  cesta (§6) — è la decisione più facile da rovesciare per sbaglio leggendo solo il titolo di
+  questa spec.
 - Prova sui dati veri dopo il deploy: scrittura della cesta su una riga `da_consegnare_deposito` →
   stato e toast; svuotamento → ritorno indietro; e la riga che ricompare nella modale al giro
   successivo.

@@ -66,8 +66,10 @@ export type RegistroProps = {
    */
   mostraPallet?: boolean;
   /**
-   * Cesta di magazzino (solo AcquaLatina): il gradino PRIMA del pallet, e l'unico che non
-   * scrive l'ufficio — lo dichiara l'operatore all'invio del rapportino, scaricando i contatori.
+   * Cesta di magazzino (solo AcquaLatina): il gradino PRIMA del pallet. La dichiara l'operatore
+   * all'invio del rapportino, scaricando i contatori — ma l'ufficio la scrive anche in cella, e
+   * lì scriverla o toglierla muove anche lo stato (invariante cesta↔stato, vedi AGENTS.md): non
+   * è più il campo che l'ufficio si limita a correggere senza conseguenze.
    * Porta con sé la colonna in tabella, il filtro («cosa c'è nella cesta 3?», che è la domanda
    * da cui parte l'impallettamento) e la colonna nel PDF.
    */

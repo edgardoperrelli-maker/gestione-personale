@@ -3,10 +3,11 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 /*
-  L'invariante «cesta valorizzata ⟺ stato almeno scaricato_deposito» vive nel CODICE, non nel DB:
-  nessun CHECK, nessun trigger (spec §8). Questi sono i guardiani di forma sui punti dove si
-  potrebbe rompere di nuovo — il comportamento vero sta in cestaStato.ts, che è puro e ha i suoi
-  test. Stesso mestiere di palletCellaShape.test.ts.
+  L'invariante «cesta valorizzata ⟹ stato almeno scaricato_deposito» (mai il contrario: righe
+  scaricato_deposito senza cesta restano legittime) vive nel CODICE, non nel DB: nessun CHECK,
+  nessun trigger (spec §8). Questi sono i guardiani di forma sui punti dove si potrebbe rompere di
+  nuovo — il comportamento vero sta in cestaStato.ts, che è puro e ha i suoi test. Stesso mestiere
+  di palletCellaShape.test.ts.
 */
 
 const registro = readFileSync(resolve(__dirname, './registro.ts'), 'utf8');
