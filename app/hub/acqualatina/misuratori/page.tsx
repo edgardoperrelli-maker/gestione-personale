@@ -40,6 +40,10 @@ export default async function AcqualatinaMisuratoriPage() {
         // e si assegna in blocco alle righe arrivate senza numero. È il riferimento con cui la
         // riconsegna viaggia — senza, si aprono le ceste e si leggono i contatori a mano.
         mostraCesta
+        // L'unica delle due commesse dove cesta e stato dicono la stessa cosa (AGENTS.md §13):
+        // scriverla o toglierla — anche da qui, in blocco — dichiara lo scarico e muove lo
+        // stato. Su ACEA questo flag resta spento: la cesta è solo un riferimento.
+        cestaDichiaraScarico
         // Sentence case (§4): era Title Case, l'ultimo rimasto dopo la ripulitura del PDF ACEA.
         titoloPdf="Registro misuratori rimossi — AcquaLatina"
         // Il rientro mancava anche qui (§7bis): la casa è AcquaLatina, e il breadcrumb lo dice

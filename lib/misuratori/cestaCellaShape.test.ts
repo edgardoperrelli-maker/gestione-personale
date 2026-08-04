@@ -147,14 +147,16 @@ describe('cesta: stessa funzione sulle due commesse', () => {
     expect(registro).not.toMatch(/cesta non prevista su questo registro/);
   });
 
-  it("l'assegnazione in blocco NON tocca lo stato", () => {
-    // «Dichiarare la cesta È lo scarico» vale per l'OPERATORE che ha i contatori in mano
-    // (lib/acqualatina/scaricoMisuratori); l'ufficio che corregge un numero non sta dicendo
-    // che quel contatore è appena arrivato in magazzino.
+  it("l'assegnazione in blocco tocca lo stato SOLO su AcquaLatina, con la stessa invariante della cella", () => {
+    // Decisione ribaltata il 2026-08-04 (docs/superpowers/specs/2026-08-04-…-design.md): fino
+    // ad allora la barra scriveva un riferimento e basta ovunque, «NON toccava lo stato». Ora
+    // dichiara la stessa cosa della cella — anche in blocco — ma resta gated: SOLO AcquaLatina,
+    // mai ACEA. Il comportamento pieno (raggruppamento, stati misti, 500 a lettura fallita) è
+    // nei test di comportamento in assegnaCestaInvariante.test.ts.
     const fn = registro.match(/export async function assegnaCesta[\s\S]*?\n\}/)?.[0] ?? '';
     expect(fn).not.toBe('');
-    expect(fn).toMatch(/update\(\{ cesta: valore, updated_at/);
-    expect(fn).not.toMatch(/stato/);
+    expect(fn).toMatch(/statoDopoCesta/);
+    expect(fn).toMatch(/tabella === 'acqualatina_misuratori_rimossi'/);
   });
 
   it('la SELECT chiede la cesta su entrambe le tabelle, e il PDR solo dove esiste', () => {
