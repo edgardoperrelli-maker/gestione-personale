@@ -1,7 +1,7 @@
 'use client';
 
 import { useId, useRef, useState } from 'react';
-import { Scale } from 'lucide-react';
+import { Download, Scale } from 'lucide-react';
 import Button from '@/components/Button';
 import { Card } from '@/components/Card';
 import StatTile from '@/components/ui/StatTile';
@@ -29,6 +29,81 @@ export default function ConfrontoEsitiCard() {
   const [esito, setEsito] = useState<Esito | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const idFile = useId();
+
+  /**
+   * L'export del confronto, per il controllo manuale in ufficio: le liste COMPLETE (a schermo
+   * si troncano a MAX_RIGHE), un foglio per coda più il riepilogo dei contatori. Stesso
+   * meccanismo dell'export vista del registro: xlsx caricato al click, file costruito dal
+   * dato già in memoria — nessuna nuova chiamata, si esporta ciò che il confronto ha detto.
+   */
+  const esporta = async () => {
+    if (!esito) return;
+    try {
+      const XLSX = await import('xlsx');
+      const wb = XLSX.utils.book_new();
+
+      const riepilogo = XLSX.utils.aoa_to_sheet([
+        ['Confronto esiti col sito AcquaLatina'],
+        [],
+        ['Allineati (sito effettuato, noi chiusi)', esito.allineati],
+        ['Manca il nostro esito (sito effettuato, noi aperti)', esito.daChiudereDaNoi.length],
+        ['Da registrare sul sito (noi chiusi, sito senza esito)', esito.mancantiSulSito.length],
+        ['Non esitati dal sito', esito.nonEsitatiSito],
+        ['Sconosciuti al registro', esito.sconosciuti.length],
+        ['Impianti difformi', esito.impiantiDifformi.length],
+        ['Righe nel file', esito.righeFile],
+      ]);
+      riepilogo['!cols'] = [{ wch: 48 }, { wch: 10 }];
+      XLSX.utils.book_append_sheet(wb, riepilogo, 'Riepilogo');
+
+      const daChiudere = XLSX.utils.aoa_to_sheet([
+        ['ODL', 'Nome utente', 'Comune', 'Esito sito', 'Data sito', 'Stato da noi'],
+        ...esito.daChiudereDaNoi.map((v) => [
+          v.odl, v.nominativo ?? '', v.comune ?? '', v.esitoSito, v.dataSito, v.statoNostro,
+        ]),
+      ]);
+      daChiudere['!cols'] = [{ wch: 12 }, { wch: 30 }, { wch: 16 }, { wch: 28 }, { wch: 18 }, { wch: 22 }];
+      XLSX.utils.book_append_sheet(wb, daChiudere, 'Manca il nostro esito');
+
+      const daRegistrare = XLSX.utils.aoa_to_sheet([
+        ['ODL', 'Nome utente', 'Comune', 'Chiusa il'],
+        ...esito.mancantiSulSito.map((v) => [v.odl, v.nominativo ?? '', v.comune ?? '', v.chiusaIl ?? '']),
+      ]);
+      daRegistrare['!cols'] = [{ wch: 12 }, { wch: 30 }, { wch: 16 }, { wch: 12 }];
+      XLSX.utils.book_append_sheet(wb, daRegistrare, 'Da registrare sul sito');
+
+      if (esito.impiantiDifformi.length > 0) {
+        const difformi = XLSX.utils.aoa_to_sheet([
+          ['ODL', 'Impianto sito', 'Impianto registro'],
+          ...esito.impiantiDifformi.map((v) => [v.odl, v.impiantoSito, v.impiantoRegistro]),
+        ]);
+        difformi['!cols'] = [{ wch: 12 }, { wch: 16 }, { wch: 18 }];
+        XLSX.utils.book_append_sheet(wb, difformi, 'Impianti difformi');
+      }
+      if (esito.sconosciuti.length > 0) {
+        XLSX.utils.book_append_sheet(
+          wb,
+          XLSX.utils.aoa_to_sheet([['ODL'], ...esito.sconosciuti.map((o) => [o])]),
+          'Sconosciuti al registro',
+        );
+      }
+
+      const buf = XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer;
+      const blob = new Blob([buf], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `confronto-esiti-acqualatina-${new Date().toISOString().slice(0, 10)}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Export non riuscito.');
+    }
+  };
 
   const confronta = async () => {
     if (!file) return;
@@ -82,6 +157,16 @@ export default function ConfrontoEsitiCard() {
           <Scale size={16} aria-hidden="true" />
           Confronta
         </Button>
+        {esito && (
+          <Button
+            variant="outline"
+            onClick={() => void esporta()}
+            title="Scarica il confronto in xlsx: le liste complete, un foglio per coda"
+          >
+            <Download size={16} aria-hidden="true" />
+            Esporta
+          </Button>
+        )}
       </div>
 
       {esito && (
