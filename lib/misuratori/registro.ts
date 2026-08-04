@@ -1,7 +1,8 @@
 import 'server-only';
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
-import { STATI_MISURATORE } from '@/types/misuratori';
+import { STATI_MISURATORE, type StatoMisuratore } from '@/types/misuratori';
+import { statoDopoCesta } from './cestaStato';
 import { resolveAssignableRole } from '@/lib/moduleAccess';
 import { selectDegradante } from '@/lib/rapportini/colonneOpzionali';
 
@@ -40,6 +41,28 @@ function colonne(tabella: TabellaRegistro): string {
  * rinomina, e fra il codice nuovo e la migration applicata il registro deve restare leggibile.
  */
 const COLONNE_OPZIONALI = ['cesta'];
+
+/**
+ * Lo stato attuale della riga. Il chiamante deve poter distinguere DUE modi di "non avere
+ * uno stato": la riga non esiste (`stato: null, error: null` — benigno, `maybeSingle` lo
+ * garantisce a costo zero) e la lettura è FALLITA (`error` valorizzato — rete, singhiozzo
+ * PostgREST). Confondere i due casi tornando sempre `null` fa calcolare "nessuno stato
+ * implicito" anche quando la riga c'è ma non si è riusciti a leggerla: la UPDATE scriverebbe
+ * la sola cesta, cioè l'incoerenza che questo file esiste per eliminare — e in silenzio,
+ * perché il client non riceve nessuna eco dell'errore inghiottito.
+ */
+async function statoAttuale(
+  tabella: TabellaRegistro,
+  id: string,
+): Promise<{ stato: StatoMisuratore | null; error: string | null }> {
+  const { data, error } = await supabaseAdmin
+    .from(tabella)
+    .select('stato')
+    .eq('id', id)
+    .maybeSingle();
+  if (error) return { stato: null, error: error.message };
+  return { stato: (data as { stato: StatoMisuratore } | null)?.stato ?? null, error: null };
+}
 
 /** GET del registro con i filtri di modulo (data, stato, comune, esecutore). */
 export async function leggiRegistro(tabella: TabellaRegistro, url: string) {
@@ -94,13 +117,13 @@ export async function aggiornaRegistro(
     }
     const ruolo = (appMetadata as { role?: unknown } | null | undefined)?.role;
     if (resolveAssignableRole(null, ruolo as never) !== 'admin_plus') {
-      const { data: corrente } = await supabaseAdmin
-        .from(tabella)
-        .select('stato')
-        .eq('id', id)
-        .maybeSingle();
-      if (corrente) {
-        const currIdx = (STATI_MISURATORE as readonly string[]).indexOf(corrente.stato);
+      // Fail-closed sulla lettura, non fail-open: prima un errore tornava indistinguibile da
+      // "riga assente", il gate non aveva niente da confrontare e lasciava passare proprio la
+      // regressione di stato che esiste per bloccare.
+      const lettura = await statoAttuale(tabella, id);
+      if (lettura.error) return NextResponse.json({ error: lettura.error }, { status: 500 });
+      if (lettura.stato) {
+        const currIdx = (STATI_MISURATORE as readonly string[]).indexOf(lettura.stato);
         const newIdx = (STATI_MISURATORE as readonly string[]).indexOf(body.stato as string);
         if (newIdx < currIdx) {
           return NextResponse.json(
@@ -122,8 +145,59 @@ export async function aggiornaRegistro(
   // Su AcquaLatina la scrive l'OPERATORE dal campo e qui si CORREGGE: un numero sbagliato
   // dichiarato di sera è un contatore che l'ufficio cerca nella cesta sbagliata, e doverlo far
   // correggere dall'operatore col rapportino ormai chiuso sarebbe una porta murata.
+  /*
+    L'invariante «cesta valorizzata ⟹ stato almeno scaricato_deposito» è di AcquaLatina soltanto:
+    là la cesta nasce dallo scarico dell'operatore e il numero è la prova che il contatore è in
+    deposito. Su ACEA la stessa colonna è il vecchio `pallet`, un riferimento che l'ufficio scrive
+    e che non dice niente sullo stato. Un flag solo, usato da tutti i rami che lo applicano.
+  */
+  const invarianteCesta = tabella === 'acqualatina_misuratori_rimossi';
+
   if ('cesta' in body) {
     patch.cesta = typeof body.cesta === 'string' ? body.cesta.trim() || null : null;
+
+    /*
+      Scrivere la cesta È dichiarare lo scarico, anche quando a scriverla è l'ufficio: il numero
+      e lo stato devono dire la stessa cosa. Senza questo blocco la riga corretta a mano restava
+      nel bacino della modale dell'operatore — che ne sovrascriveva il numero in silenzio — e la
+      cesta SVUOTATA lasciava lo stato avanti, cioè un contatore che nessuno avrebbe più chiesto
+      a nessuno.
+
+      SOLO AcquaLatina, e il gate va scritto a mano. Fino al 2026-08-04 il discriminante era «ACEA
+      non ha la colonna» e bastava il 400 che stava qui sopra; da quando `pallet` è stato fuso in
+      `cesta` la colonna c'è su entrambi i registri, e senza `invarianteCesta` la stessa riga
+      farebbe avanzare gli stati anche su ACEA — dove non esiste nessuno scarico d'operatore e la
+      cesta è un riferimento e basta.
+
+      Lo stato ESPLICITO vince: quello implicito si applica solo se il corpo non ne porta uno.
+      E non passa dal gate admin_plus di sopra, di proposito — chi può scrivere la cesta può
+      disfare la propria scrittura, e chiedere un admin lascerebbe il buco aperto nel frattempo.
+    */
+    if (invarianteCesta && !('stato' in patch)) {
+      // Riga inesistente (nessun errore, zero righe): niente stato implicito, e l'UPDATE più
+      // sotto non aggancerà niente — comportamento invariato. La lettura FALLITA è un caso
+      // diverso: qui non si può sapere se lo stato implicito andava calcolato, e procedere
+      // scriverebbe la sola cesta senza stato — l'incoerenza che questo blocco esiste per
+      // eliminare, e in silenzio. Meglio un salvataggio fallito e parlante (500) che una riga
+      // rotta e muta.
+      const lettura = await statoAttuale(tabella, id);
+      if (lettura.error) return NextResponse.json({ error: lettura.error }, { status: 500 });
+      const implicito = lettura.stato
+        ? statoDopoCesta(lettura.stato, patch.cesta as string | null)
+        : null;
+      if (implicito) patch.stato = implicito;
+    }
+  }
+
+  /*
+    L'altra faccia dell'invariante: dichiarare che il misuratore NON è in deposito toglie il
+    numero di cesta, che a quel punto è falso — e un riferimento falso in magazzino costa più di
+    un riferimento assente. È anche la porta da cui l'incoerenza è probabilmente entrata in
+    produzione: un admin_plus che riporta indietro lo stato dalla tendina, e la cesta che resta
+    scritta. Sul ritorno IMPLICITO qui sopra è un no-op: la cesta era già `null`.
+  */
+  if (invarianteCesta && patch.stato === 'da_consegnare_deposito') {
+    patch.cesta = null;
   }
 
   if (Object.keys(patch).length === 1) {
@@ -132,7 +206,16 @@ export async function aggiornaRegistro(
 
   const { error } = await supabaseAdmin.from(tabella).update(patch).eq('id', id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true });
+  /*
+    L'eco dei campi scritti. Il registro NON rifà la fetch quando il salvataggio riesce (scelta
+    voluta: si aggiorna in ottimistica), quindi senza questa risposta lo stato mosso dalla cesta
+    — e la cesta tolta dalla regressione — resterebbero invisibili fino al ricaricamento.
+    Additiva: il registro ACEA passa dallo stesso handler e semplicemente non riceve mai la cesta.
+  */
+  const risposta: Record<string, unknown> = { ok: true };
+  if (patch.stato !== undefined) risposta.stato = patch.stato;
+  if (patch.cesta !== undefined) risposta.cesta = patch.cesta;
+  return NextResponse.json(risposta);
 }
 
 /**
@@ -141,10 +224,24 @@ export async function aggiornaRegistro(
  * di un errore): l'assenza è uno stato legittimo («ancora in furgone»), non serve un secondo
  * verbo.
  *
- * Lo STATO non si tocca, ed è una scelta: qui si scrive un riferimento, mentre «dichiarare la
- * cesta È lo scarico a deposito» vale per l'operatore che ha i contatori in mano
- * (`lib/acqualatina/scaricoMisuratori`). L'ufficio che corregge un numero non sta dicendo che
- * quel contatore è appena arrivato in magazzino.
+ * Decisione ribaltata il 2026-08-04 (docs/superpowers/specs/2026-08-04-…-design.md): fino ad
+ * allora qui lo STATO non si toccava mai, di proposito — un riferimento e basta, mentre
+ * «dichiarare la cesta È lo scarico» valeva solo per l'operatore con i contatori in mano
+ * (`lib/acqualatina/scaricoMisuratori`). Su AcquaLatina quella distinzione è caduta: stessa
+ * colonna, stesso significato, **anche in blocco**. Scrivere o svuotare la cesta da qui applica
+ * la STESSA `statoDopoCesta` della cella (`aggiornaRegistro`, sopra) — è per questo che la barra
+ * (MisuratoriClient, `handleAssegnaCesta`) CHIEDE CONFERMA prima di partire, mentre la cella no:
+ * una selezione può contenere righe che nessuno ha guardato (la spunta di testa prende tutte le
+ * visibili), mentre sulla cella il gesto è su una riga sola e deliberato — la spec ha deciso
+ * niente dialogo lì (§7), e quella scelta non si estende qui per simmetria.
+ *
+ * Su ACEA la cesta resta un riferimento e basta: nessuna lettura, nessuna deduzione, lo stato
+ * non si muove — esattamente come prima del 2026-08-04.
+ *
+ * Una UPDATE sola non basta più: righe diverse della stessa selezione possono avere stati
+ * diversi e quindi richiedere destinazioni diverse (o nessun cambio). Si LEGGONO prima gli
+ * stati correnti — a blocchi di 200, come le UPDATE — si RAGGRUPPA per stato risultante e si
+ * scrive un gruppo alla volta: mai un round-trip per riga.
  */
 export async function assegnaCesta(
   // Entrambe le tabelle hanno la colonna e lo stesso gesto.
@@ -160,15 +257,56 @@ export async function assegnaCesta(
   }
   const valore = typeof cesta === 'string' ? cesta.trim() || null : null;
 
-  let aggiornati = 0;
-  for (let i = 0; i < elenco.length; i += 200) {
-    const { data, error } = await supabaseAdmin
-      .from(tabella)
-      .update({ cesta: valore, updated_at: new Date().toISOString() })
-      .in('id', elenco.slice(i, i + 200))
-      .select('id');
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    aggiornati += (data ?? []).length;
+  // SOLO AcquaLatina, il gate va scritto a mano: vedi il commento su invarianteCesta in
+  // aggiornaRegistro, la stessa storia vale qui.
+  const invarianteCesta = tabella === 'acqualatina_misuratori_rimossi';
+
+  /*
+    Chiave '' = "nessun cambio di stato": è il gruppo che riceve TUTTA la selezione su ACEA
+    (l'invariante non si legge nemmeno) ed è anche il gruppo di chi, su AcquaLatina, non sta sul
+    gradino adiacente (statoDopoCesta torna null — la sola correzione di cifra, il caso più
+    frequente). Nessuno stato reale di STATI_MISURATORE è la stringa vuota, quindi la chiave
+    non collide mai con uno vero.
+  */
+  const gruppi = new Map<string, string[]>();
+
+  if (invarianteCesta) {
+    for (let i = 0; i < elenco.length; i += 200) {
+      const blocco = elenco.slice(i, i + 200);
+      const { data, error } = await supabaseAdmin.from(tabella).select('id, stato').in('id', blocco);
+      // Fail-closed come statoAttuale: ingoiare l'errore qui scriverebbe la sola cesta senza
+      // stato su TUTTA la selezione — l'incoerenza che l'invariante esiste per chiudere, e in
+      // blocco invece che su una riga sola.
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      for (const riga of (data ?? []) as { id: string; stato: StatoMisuratore }[]) {
+        const nuovo = statoDopoCesta(riga.stato, valore) ?? '';
+        const gruppo = gruppi.get(nuovo);
+        if (gruppo) gruppo.push(riga.id);
+        else gruppi.set(nuovo, [riga.id]);
+      }
+    }
+  } else {
+    gruppi.set('', elenco);
   }
-  return NextResponse.json({ ok: true, aggiornati, cesta: valore });
+
+  let aggiornati = 0;
+  let cambiStato = 0;
+  for (const [statoNuovo, idsGruppo] of gruppi) {
+    for (let i = 0; i < idsGruppo.length; i += 200) {
+      const patch: Record<string, unknown> = { cesta: valore, updated_at: new Date().toISOString() };
+      if (statoNuovo) patch.stato = statoNuovo;
+      const { data, error } = await supabaseAdmin
+        .from(tabella)
+        .update(patch)
+        .in('id', idsGruppo.slice(i, i + 200))
+        .select('id');
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      const n = (data ?? []).length;
+      aggiornati += n;
+      if (statoNuovo) cambiStato += n;
+    }
+  }
+  // Additiva su { ok, aggiornati, cesta }: cambiStato serve al toast del client, che senza
+  // questo numero non saprebbe dire quante righe hanno anche cambiato stato (nessun refetch).
+  return NextResponse.json({ ok: true, aggiornati, cesta: valore, cambiStato });
 }

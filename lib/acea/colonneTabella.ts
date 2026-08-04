@@ -269,8 +269,19 @@ export const COLONNE_ACQUALATINA: DefColonna[] = [
   // l'imbuto in più su una colonna che nessuno filtra è rumore in testata. Si cerca comunque
   // dalla ricerca libera, che attraversa anche il nome utente.
   { chiave: 'recapito', intestazione: 'Recapito', predefinita: true, mono: true, larghezza: 130 },
-  // 175: «Aperta — non eseguita» è la riga da ripassare, e va letta per intero.
-  { chiave: 'stato', intestazione: 'Stato', predefinita: true, larghezza: 175, filtro: F.stato },
+  /*
+    L'ESITO scritto nel rapportino, al posto dello stato che il nostro motore deriva.
+
+    Era la colonna «Stato», e diceva «Aperta» su quasi tutte le righe: l'ufficio la guardava per
+    sapere com'è finita un'uscita e non lo trovava lì. Qui c'è la risposta di chi ci è andato —
+    `SI`, `NO`, `NESSUN PASSAGGIO` — la stessa che dal 04/08 decide anche la scheda: SI e NO
+    chiudono, «nessun passaggio» resta da lavorare (`lib/acqualatina/chiusuraRegistro.ts`).
+
+    Senza imbuto, e non è una dimenticanza: il valore non sta nel registro ma nelle risposte, e un
+    filtro sulle sole righe caricate direbbe una bugia sul conteggio — stessa scelta di «Eseguito»
+    nelle massive. La distinzione grossa (fatto / da fare) la danno le schede.
+  */
+  { chiave: 'eseguito', intestazione: 'Esito', predefinita: true, larghezza: 175 },
   { chiave: 'pianificato_a', intestazione: 'Esecutore', predefinita: true, larghezza: 140, filtro: F.esecutore },
   { chiave: 'pianificato_il', intestazione: 'Data pianificata', predefinita: true, mono: true, larghezza: 140, filtro: F.dataPianificata },
   { chiave: 'note', intestazione: 'Note', predefinita: true, larghezza: 240, filtro: F.note },

@@ -25,6 +25,14 @@ export type InterventoConcluso = {
   ordine_id: string | null;
   data: string | null;
   esito: string | null;
+  /**
+   * La risposta `eseguito` della VOCE di rapportino: `SI` | `NO` | `NESSUN PASSAGGIO`.
+   *
+   * Serve perché `interventi.esito` distingue solo il positivo da tutto il resto, e la regola di
+   * questa commessa vive proprio nella differenza fra i due negativi: il NO è definitivo, il
+   * «nessun passaggio» è un giro che non c'è stato.
+   */
+  eseguito?: string | null;
 };
 
 /** Un intervento SENZA il collegamento: `ordine_id` mai scritto. Anche APERTO — l'aggancio
@@ -100,8 +108,8 @@ export type PatchRiga = {
 };
 
 export type GruppoChiusura = {
-  /** `true` se il gruppo porta l'esito POSITIVO: è l'unico che chiude la riga. */
-  positivo: boolean;
+  /** Cosa diventa la riga: decide la patch e l'ordine di applicazione. */
+  esito: EsitoRiga;
   /** Gli `acqualatina_ordini.id` da aggiornare con questa patch. */
   ids: string[];
   patch: PatchRiga;
@@ -128,6 +136,28 @@ export const STATO_CHIUSA_ESEGUITA = 'Chiusa — eseguita';
  */
 export const STATO_APERTA_NON_ESEGUITA = 'Aperta — non eseguita';
 
+/**
+ * Riga CHIUSA senza che il lavoro sia stato fatto: l'esito `NO` della commessa.
+ *
+ * Su AcquaLatina il NO è definitivo — il contatore non c'è più, l'impianto è dismesso, l'utente
+ * rifiuta — quindi non c'è niente da ripianificare e tenere la riga in coda è rumore. È lo stato
+ * che mancava: prima una riga o era fatta, o era ancora da fare.
+ */
+export const STATO_CHIUSA_NON_ESEGUITA = 'Chiusa — non eseguita';
+
+/**
+ * Il `NO` chiude solo dalle uscite di questo giorno in poi.
+ *
+ * La riconciliazione rigira su TUTTI gli interventi completati a ogni apertura della tabella:
+ * senza barriera chiuderebbe anche le righe già esitate NO prima che la regola esistesse, che per
+ * decisione esplicita restano dove sono. Invecchia da sola — fra un mese non filtra più niente e
+ * resta come traccia del giorno in cui la regola è cambiata.
+ */
+export const NO_CHIUDE_DAL = '2026-08-05';
+
+/** Cosa diventa la riga di registro dopo un'uscita. */
+export type EsitoRiga = 'positivo' | 'chiusa_non_eseguita' | 'aperta_non_eseguita';
+
 const PATCH_ESEGUITA = (data: string | null): PatchRiga => ({
   aperto: false,
   stato: 'CHIUSO',
@@ -147,6 +177,50 @@ const PATCH_NON_ESEGUITA: PatchRiga = {
     «Esecutore»/«Data pianificata», che è dove si guarda chi c'è già andato.
   */
   data_completamento: null,
+};
+
+const PATCH_CHIUSA_NON_ESEGUITA = (data: string | null): PatchRiga => ({
+  aperto: false,
+  stato: 'CHIUSO',
+  stato_desc: STATO_CHIUSA_NON_ESEGUITA,
+  esito_positivo: false,
+  // L'uscita c'è stata ed è quella che ha chiuso la partita: «Chiusa il» ha un giorno da mostrare.
+  data_completamento: data,
+});
+
+/** La risposta della voce, confrontabile: gli operatori scrivono con spazi e maiuscole loro. */
+function rispostaNorm(v: string | null | undefined): string {
+  return String(v ?? '').trim().toUpperCase();
+}
+
+/**
+ * Cosa diventa la riga, data l'uscita.
+ *
+ * L'ordine dei controlli È la regola:
+ *  1. il POSITIVO vince sempre, anche su una voce che dice altro (un residuo non riapre il lavoro);
+ *  2. il NO chiude, ma solo dalle uscite dal giorno del taglio in poi;
+ *  3. tutto il resto — «nessun passaggio», nessuna risposta, un NO troppo vecchio — lascia la riga
+ *     aperta, che è il caso che la decisione del 03/08 proteggeva.
+ */
+export function esitoRiga(c: InterventoConcluso): EsitoRiga {
+  if (c.esito === 'eseguito_positivo') return 'positivo';
+  const risposta = rispostaNorm(c.eseguito);
+  // Senza data non si sa da che parte del taglio sta l'uscita: non si chiude.
+  if (risposta === 'NO' && (c.data ?? '') >= NO_CHIUDE_DAL) return 'chiusa_non_eseguita';
+  return 'aperta_non_eseguita';
+}
+
+/** L'ordine di applicazione a parità di giorno: il positivo per ultimo, così vince lui. */
+const RANGO: Record<EsitoRiga, number> = {
+  aperta_non_eseguita: 0,
+  chiusa_non_eseguita: 1,
+  positivo: 2,
+};
+
+const PATCH_PER_ESITO: Record<EsitoRiga, (data: string | null) => PatchRiga> = {
+  positivo: PATCH_ESEGUITA,
+  chiusa_non_eseguita: PATCH_CHIUSA_NON_ESEGUITA,
+  aperta_non_eseguita: () => PATCH_NON_ESEGUITA,
 };
 
 /**
@@ -210,27 +284,27 @@ export function idsSenzaConcluso(
  *
  * Un `update` per gruppo e non per riga: i giorni di campagna sono pochi, le righe tante.
  *
- * L'ordine è DETERMINISTICO — per giorno crescente, e a parità di giorno il negativo prima del
- * positivo — così su un'unità con più uscite l'ultima parola resta all'uscita più recente, e non
- * all'ordine in cui una `Map` capita di essere percorsa.
+ * L'ordine è DETERMINISTICO — per giorno crescente, e a parità di giorno secondo `RANGO` — così su
+ * un'unità con più uscite l'ultima parola resta all'uscita più recente e, a parità di giorno, al
+ * lavoro fatto. Non all'ordine in cui una `Map` capita di essere percorsa.
  */
 export function gruppiChiusura(conclusi: readonly InterventoConcluso[]): GruppoChiusura[] {
   const gruppi = new Map<string, GruppoChiusura & { data: string | null }>();
   for (const c of conclusi) {
     if (!c.ordine_id) continue;
-    const positivo = c.esito === 'eseguito_positivo';
-    const k = `${c.data ?? ''}|${positivo}`;
+    const esito = esitoRiga(c);
+    const k = `${c.data ?? ''}|${esito}`;
     const g = gruppi.get(k) ?? {
-      positivo,
+      esito,
       data: c.data,
       ids: [],
-      patch: positivo ? PATCH_ESEGUITA(c.data) : PATCH_NON_ESEGUITA,
+      patch: PATCH_PER_ESITO[esito](c.data),
     };
     g.ids.push(c.ordine_id);
     gruppi.set(k, g);
   }
   return [...gruppi.values()]
     .sort((a, b) => (a.data ?? '').localeCompare(b.data ?? '')
-      || Number(a.positivo) - Number(b.positivo))
-    .map(({ positivo, ids, patch }) => ({ positivo, ids, patch }));
+      || RANGO[a.esito] - RANGO[b.esito])
+    .map(({ esito, ids, patch }) => ({ esito, ids, patch }));
 }

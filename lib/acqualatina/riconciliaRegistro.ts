@@ -55,8 +55,11 @@ export async function riconciliaChiusureAcqualatina(): Promise<void> {
   const idsRegistro = new Set(righeRegistro.map((r) => r.id));
   const chiusePositive = righeRegistro
     .filter((r) => !r.aperto && r.esito_positivo === true).map((r) => r.id);
+  // TUTTE le non eseguite, aperte («Aperta — non eseguita») E chiuse («Chiusa — non
+  // eseguita», il NO definitivo): se l'uscita che le ha marcate sparisce dal modulo
+  // interventi, entrambe tornano «Aperta».
   const nonEseguite = righeRegistro
-    .filter((r) => r.aperto && r.esito_positivo === false).map((r) => r.id);
+    .filter((r) => r.esito_positivo === false).map((r) => r.id);
 
   // 2) I conclusi agganciati. Un `ordine_id` che non esiste più a registro (riga cancellata
   //    da una fusione) si AZZERA subito: l'intervento torna «sciolto» e il passo 3 lo
@@ -138,22 +141,54 @@ export async function riconciliaChiusureAcqualatina(): Promise<void> {
   }
 
   /*
-    4) PRIMA dei gruppi, le due pulizie simmetriche.
+    4) L'esito SCRITTO NELLA VOCE, per tutti i conclusi (anche quelli appena agganciati).
+
+    `interventi.esito` distingue solo il positivo da tutto il resto: NO e NESSUN PASSAGGIO
+    gli arrivano identici, e la regola della commessa vive proprio in quella differenza — il
+    NO è definitivo e CHIUDE (dal taglio `NO_CHIUDE_DAL`), il «nessun passaggio» è un giro
+    che non c'è stato. La risposta vera sta in `rapportino_voci.risposte.eseguito`.
+
+    Best-effort: se la lettura salta si resta alla regola vecchia (chiude solo il positivo)
+    invece di far fallire la riconciliazione. Una riga chiusa in ritardo si recupera al giro
+    dopo, una tabella che non si apre no.
+  */
+  const eseguitoPerIntervento = new Map<string, string>();
+  try {
+    const idInterventi = completati.map((c) => c.id);
+    for (let i = 0; i < idInterventi.length; i += 200) {
+      const { data, error } = await supabaseAdmin
+        .from('rapportino_voci')
+        .select('intervento_id, risposte')
+        .in('intervento_id', idInterventi.slice(i, i + 200));
+      if (error) throw error;
+      for (const v of (data ?? []) as Array<{ intervento_id: string | null; risposte: Record<string, unknown> | null }>) {
+        if (!v.intervento_id || eseguitoPerIntervento.has(v.intervento_id)) continue;
+        const risposta = String((v.risposte ?? {})['eseguito'] ?? '').trim();
+        if (risposta !== '') eseguitoPerIntervento.set(v.intervento_id, risposta);
+      }
+    }
+  } catch (e) {
+    console.error('[riconcilia acqualatina] esiti delle voci non letti, chiusura sul solo positivo:', e);
+  }
+  const conEsito = completati.map((c) => ({ ...c, eseguito: eseguitoPerIntervento.get(c.id) ?? null }));
+
+  /*
+    5) PRIMA dei gruppi, le due pulizie simmetriche.
 
     Le chiuse positive rimaste senza il loro intervento positivo si RIAPRONO — è l'esito
     corretto in consuntivazione dopo la chiusura (04/08/2026), l'unico caso in cui «il
     positivo è definitivo» mentiva. Regola in `idsDaRiaprire`; l'ordine sta qui: riaperta la
-    riga, l'eventuale uscita negativa superstite la rimarca subito «Aperta — non eseguita»
-    nel giro dei gruppi qui sotto.
+    riga, l'eventuale uscita superstite la rimarca subito nel giro dei gruppi qui sotto.
 
-    E le «Aperta — non eseguita» rimaste senza NESSUN concluso dietro (l'uscita a vuoto
-    azzerata o cancellata dal modulo interventi) tornano «Aperta»: l'imbuto «da ripassare»
-    non deve tenere in coda righe mai davvero visitate. Regola in `idsSenzaConcluso`.
+    E le «non eseguita» — aperta o chiusa dal NO — rimaste senza NESSUN concluso dietro
+    (l'uscita azzerata o cancellata dal modulo interventi) tornano «Aperta»: l'imbuto «da
+    ripassare» non deve tenere in coda righe mai davvero visitate. Regola in
+    `idsSenzaConcluso`.
 
     Entrambe idempotenti per costruzione: una riga sistemata non ricompare al giro dopo.
   */
-  const daRiaprire = idsDaRiaprire(chiusePositive, completati);
-  const daRipulire = idsSenzaConcluso(nonEseguite, completati);
+  const daRiaprire = idsDaRiaprire(chiusePositive, conEsito);
+  const daRipulire = idsSenzaConcluso(nonEseguite, conEsito);
   for (const ids of [daRiaprire, daRipulire]) {
     for (let i = 0; i < ids.length; i += 200) {
       const { error } = await supabaseAdmin
@@ -164,36 +199,29 @@ export async function riconciliaChiusureAcqualatina(): Promise<void> {
     }
   }
 
-  for (const g of gruppiChiusura(completati)) {
+  for (const g of gruppiChiusura(conEsito)) {
     for (let i = 0; i < g.ids.length; i += 200) {
       const blocco = g.ids.slice(i, i + 200);
-      const q = supabaseAdmin
+      /*
+        UNA guardia sola: non contraddire il positivo, che è definitivo.
+
+        Le righe non positive si riscrivono a ogni riconciliazione con gli stessi valori — è
+        un'update a vuoto su poche righe al minuto, e vale il prezzo di far vincere sempre
+        l'ultima uscita (NO che diventa «nessun passaggio» e viceversa si correggono da soli)
+        invece di dover indovinare quali righe hanno già lo stato giusto.
+      */
+      const { error } = await supabaseAdmin
         .from('acqualatina_ordini')
         .update(g.patch)
-        .in('id', blocco);
-      /*
-        Le due guardie. Servono a due cose insieme: non contraddire il positivo (che è
-        definitivo, e nessuna uscita successiva può riaprire) e restare IDEMPOTENTI — questa
-        riconciliazione rigira a ogni lettura, e senza guardia riscriverebbe ogni minuto
-        righe già a posto.
-
-        Il positivo chiude tutto ciò che non è già chiuso positivo: anche una riga che un'uscita
-        negativa aveva lasciato aperta, che è il caso normale del ripasso riuscito.
-
-        Il negativo tocca solo la riga che ha qualcosa da correggere — mai esitata, oppure chiusa
-        negativa dalla vecchia regola, che è la riga da riaprire (le 12 del 03/08). Su una riga
-        già «aperta e non eseguita» non scrive, e su una chiusa POSITIVA non entra mai.
-      */
-      const { error } = await (g.positivo
-        ? q.not('esito_positivo', 'is', true)
-        : q.or('esito_positivo.is.null,and(esito_positivo.is.false,aperto.is.false)'));
+        .in('id', blocco)
+        .not('esito_positivo', 'is', true);
       if (error) throw error;
 
       // La DATA di chiusura segue l'ultima uscita positiva anche sulle righe GIÀ chiuse:
       // l'ufficio può spostare la giornata di un intervento dopo la chiusura, e la guardia
       // qui sopra — giusta per lo stato — terrebbe «Chiusa il» sulla data vecchia. Solo il
       // campo data, solo dove differisce: al giro dopo è un no-op.
-      if (g.positivo && g.patch.data_completamento) {
+      if (g.esito === 'positivo' && g.patch.data_completamento) {
         const { error: eData } = await supabaseAdmin
           .from('acqualatina_ordini')
           .update({ data_completamento: g.patch.data_completamento })

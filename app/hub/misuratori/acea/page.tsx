@@ -39,6 +39,9 @@ export default async function MisuratoriAceaPage() {
         isAdminPlus={isAdminPlus}
         titolo="Misuratori rimossi — ACEA"
         mostraCesta
+        // L'invariante per cui scrivere o togliere il numero dichiara anche lo scarico a
+        // deposito resta SOLO di AcquaLatina (AGENTS.md §13): qui la cesta è un riferimento e
+        // basta, e questo registro non accende quel flag — resta sul suo default spento.
         breadcrumb={
           <Breadcrumb items={[{ label: 'Misuratori', href: '/hub/misuratori' }, { label: 'ACEA' }]} />
         }
