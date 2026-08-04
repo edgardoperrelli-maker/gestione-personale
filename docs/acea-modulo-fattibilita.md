@@ -465,6 +465,11 @@ delle 26 forme di scrittura.
 
 ## 9. Fasi
 
+> ⚠️ **Superato (2026-08-04):** la Fase 1 descritta in questa sezione presupponeva l'agente
+> Playwright ancora acceso (vedi «Cut-over» più sotto). L'agente è stato ritirato il 04/08/2026
+> e `tools/limitazioni-sync/` non esiste più. Il resto del documento resta come studio di
+> fattibilità.
+
 **Fase 1 — il modulo.** Registro e import manuale, tabella di pianificazione completa (inclusi
 editing di cella e copia/incolla), foglia massive, spostamento di Misuratori, motore rapportini
 ACEA, export del pianificato.

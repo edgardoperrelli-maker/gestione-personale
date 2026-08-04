@@ -423,6 +423,9 @@ la coda delle riaperture e gli strumenti di cella. Lo studio con le decisioni nu
   esecutori con chi fa LIMITAZIONI MASSIVE, l'export col comune nel nome.
 - [ ] **Cut-over dal master** (piano in PR #175, sezione «Dopo il merge»): import con finestra
   larga, backfill dal collaudo, due giorni in parallelo con l'agente acceso.
+  **Decaduta (2026-08-04)**: l'agente Playwright è stato ritirato — il cut-over in due giorni
+  in parallelo con l'agente acceso non è più eseguibile. I dati ACEA arrivano ora dall'**import
+  del modulo ACEA**.
 - [ ] **Editor in cella per le Note**: oggi si scrivono solo per incolla. Data ed Esecutore
   hanno il loro editor; se serve anche per le Note, il pattern è in `TabellaOrdini` (rami
   `inEditor`/`inEditorEsecutore`) + `useEditingGriglia` (`apriEditor*`).
