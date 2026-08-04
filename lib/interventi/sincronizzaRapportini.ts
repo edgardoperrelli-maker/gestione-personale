@@ -200,6 +200,9 @@ export async function sincronizzaRapportini(
     });
   }
 
+  // Orfani NON eliminati perché protetti (inviato con skipInviati, o voci di altri motori):
+  // si segnalano in interventiWarning invece di sparire in silenzio.
+  const orfaniProtetti: Array<{ id: string; staff_id: string; staff_name: string | null; stato: string; motivo: string }> = [];
   const currentStaffIds = (ops ?? []).map((o) => String(o.staff_id));
   if (currentStaffIds.length > 0) {
     const { data: existingRaps } = await db
@@ -207,24 +210,68 @@ export async function sincronizzaRapportini(
     const righe = (existingRaps as Array<{
       id: string; staff_id: string; staff_name: string | null; stato: string; submitted_at: string | null;
     }>) ?? [];
-    const toRemove = orphanRapportini(righe, currentStaffIds);
-    if (toRemove.length > 0) {
-      const eliminati = righe.filter((r) => toRemove.includes(r.id));
-      await db.from('rapportini').delete().in('id', toRemove);
-      // Sparizione silenziosa per definizione: l'utente ha salvato un piano, non chiesto di
-      // cancellare un rapportino. Il 03/08 è mancata proprio questa riga.
-      await registraAzione({
-        azione: 'rapportino.orfano.elimina',
-        attore,
-        entita: 'mappa_piani',
-        entitaId: pianoId,
-        dettaglio: {
-          data: piano.data,
-          motivo: 'operatore non più nel piano',
-          n_rapportini_eliminati: eliminati.length,
-          rapportini_eliminati: eliminati,
-        },
-      });
+    const candidati = orphanRapportini(righe, currentStaffIds);
+    if (candidati.length > 0) {
+      /*
+        GUARDIE ANTI-DISTRUZIONE del blocco orfani. Il loop per-operatore più sotto ha le sue
+        (skipInviati salta gli inviati, il delete tocca solo origine='task'), ma questo blocco
+        gira PRIMA e cancella l'INTERO rapportino: senza guardie, togliere un operatore dal
+        piano (anche per un payload PUT stantio) radeva via un rapportino inviato o pieno di
+        voci acea compilate — l'incidente PASTORELLI riaperto dall'altro verso.
+
+         1. con opts.skipInviati (sync automatico dal Salva) un rapportino INVIATO non si
+            elimina mai: la stessa promessa che skipInviati fa nel loop voci vale qui;
+         2. un rapportino con voci di ALTRI motori (origine != 'task': acea o manuale) non è
+            posseduto da questo motore e non si elimina MAI — il motore commessa lo
+            ri-adotterà al prossimo Genera (regola 1 di scegliPianoCommessa).
+      */
+      const conVociAltrui = new Set<string>();
+      {
+        const sel = await db.from('rapportino_voci')
+          .select('rapportino_id').in('rapportino_id', candidati).neq('origine', 'task');
+        if (!sel.error) {
+          for (const v of (sel.data ?? []) as Array<{ rapportino_id: string }>) conVociAltrui.add(String(v.rapportino_id));
+        } else if (/origine/i.test(sel.error.message) && /column|schema/i.test(sel.error.message)) {
+          // Migration `origine` non applicata: il filtro storico è `manuale != false`.
+          const selFallback = await db.from('rapportino_voci')
+            .select('rapportino_id').in('rapportino_id', candidati).neq('manuale', false);
+          for (const v of (selFallback.data ?? []) as Array<{ rapportino_id: string }>) conVociAltrui.add(String(v.rapportino_id));
+        }
+      }
+      const motivoProtezione = (r: { id: string; stato: string }): string | null => {
+        if (opts.skipInviati && r.stato === 'inviato') return 'rapportino inviato (skipInviati)';
+        if (conVociAltrui.has(r.id)) return 'contiene voci di altri moduli (commessa/+)';
+        return null;
+      };
+      for (const r of righe) {
+        if (!candidati.includes(r.id)) continue;
+        const motivo = motivoProtezione(r);
+        if (motivo) orfaniProtetti.push({ id: r.id, staff_id: r.staff_id, staff_name: r.staff_name, stato: r.stato, motivo });
+      }
+      const protettiIds = new Set(orfaniProtetti.map((p) => p.id));
+      const toRemove = candidati.filter((id) => !protettiIds.has(id));
+      if (toRemove.length > 0) {
+        const eliminati = righe.filter((r) => toRemove.includes(r.id));
+        await db.from('rapportini').delete().in('id', toRemove);
+        // Sparizione silenziosa per definizione: l'utente ha salvato un piano, non chiesto di
+        // cancellare un rapportino. Il 03/08 è mancata proprio questa riga.
+        await registraAzione({
+          azione: 'rapportino.orfano.elimina',
+          attore,
+          entita: 'mappa_piani',
+          entitaId: pianoId,
+          dettaglio: {
+            data: piano.data,
+            motivo: 'operatore non più nel piano',
+            n_rapportini_eliminati: eliminati.length,
+            rapportini_eliminati: eliminati,
+            // Rapportini orfani risparmiati dalle guardie: chi legge il log deve vedere anche
+            // cosa NON è stato cancellato e perché.
+            n_rapportini_protetti: orfaniProtetti.length,
+            rapportini_protetti: orfaniProtetti,
+          },
+        });
+      }
     }
   }
 
@@ -250,6 +297,37 @@ export async function sincronizzaRapportini(
   const { data: intRows } = await db
     .from('interventi').select('id, staff_id, odl, matricola_contatore, pdr, stato, committente, gruppo_attivita, indirizzo').eq('piano_id', pianoId);
   const resolveIntervento = buildVoceInterventoLinker((intRows ?? []) as InterventoLinkRow[]);
+
+  /*
+    Cintura same-piano per i task `acea:*` — completa G1 e taskAceaAltrove, che coprono
+    rispettivamente lo STESSO rapportino e i rapportini di ALTRI piani. Il buco era il caso
+    stesso-piano-altro-operatore: un task acea spostato in pianifica da PASTORELLI a ROSSI
+    lascia la voce acea (magari compilata) nel rapportino di PASTORELLI, e senza questa mappa
+    ROSSI riceverebbe una voce 'task' doppione sullo stesso lavoro. Chi possiede la voce acea
+    resta l'unico a rendicontarla: il task sotto un altro operatore non genera niente.
+    Letta DOPO il blocco orfani/conflitti, così riflette i rapportini davvero sopravvissuti.
+  */
+  const aceaStaffByTask = new Map<string, Set<string>>();
+  {
+    const { data: rapsPiano } = await db.from('rapportini').select('id, staff_id').eq('piano_id', pianoId);
+    const staffByRapPiano = new Map(((rapsPiano ?? []) as Array<{ id: string; staff_id: string }>)
+      .map((r) => [String(r.id), String(r.staff_id)]));
+    if (staffByRapPiano.size > 0) {
+      const { data: vociPiano } = await db
+        .from('rapportino_voci')
+        .select('rapportino_id, task_id')
+        .in('rapportino_id', [...staffByRapPiano.keys()]);
+      for (const v of (vociPiano ?? []) as Array<{ rapportino_id: string; task_id: string | null }>) {
+        const tid = String(v.task_id ?? '');
+        if (!tid.startsWith('acea:')) continue;
+        const sid = staffByRapPiano.get(String(v.rapportino_id));
+        if (!sid) continue;
+        const set = aceaStaffByTask.get(tid) ?? new Set<string>();
+        set.add(sid);
+        aceaStaffByTask.set(tid, set);
+      }
+    }
+  }
 
   // Rapportino per-attività: ogni voce prende le azioni dal flusso del GRUPPO ATTIVITA' del suo
   // intervento (collegamento su rapportino_template); il modello risolto sopra resta il
