@@ -41,14 +41,26 @@ function colonneOpzionali(tabella: TabellaRegistro): string[] {
   return tabella === 'misuratori_rimossi' ? ['pallet'] : ['pallet', 'cesta'];
 }
 
-/** Lo stato attuale della riga. `null` se non esiste: nessun chiamante deve dedurre niente. */
-async function statoAttuale(tabella: TabellaRegistro, id: string): Promise<StatoMisuratore | null> {
-  const { data } = await supabaseAdmin
+/**
+ * Lo stato attuale della riga. Il chiamante deve poter distinguere DUE modi di "non avere
+ * uno stato": la riga non esiste (`stato: null, error: null` — benigno, `maybeSingle` lo
+ * garantisce a costo zero) e la lettura è FALLITA (`error` valorizzato — rete, singhiozzo
+ * PostgREST). Confondere i due casi tornando sempre `null` fa calcolare "nessuno stato
+ * implicito" anche quando la riga c'è ma non si è riusciti a leggerla: la UPDATE scriverebbe
+ * la sola cesta, cioè l'incoerenza che questo file esiste per eliminare — e in silenzio,
+ * perché il client non riceve nessuna eco dell'errore inghiottito.
+ */
+async function statoAttuale(
+  tabella: TabellaRegistro,
+  id: string,
+): Promise<{ stato: StatoMisuratore | null; error: string | null }> {
+  const { data, error } = await supabaseAdmin
     .from(tabella)
     .select('stato')
     .eq('id', id)
     .maybeSingle();
-  return (data as { stato: StatoMisuratore } | null)?.stato ?? null;
+  if (error) return { stato: null, error: error.message };
+  return { stato: (data as { stato: StatoMisuratore } | null)?.stato ?? null, error: null };
 }
 
 /** GET del registro con i filtri di modulo (data, stato, comune, esecutore). */
@@ -104,9 +116,13 @@ export async function aggiornaRegistro(
     }
     const ruolo = (appMetadata as { role?: unknown } | null | undefined)?.role;
     if (resolveAssignableRole(null, ruolo as never) !== 'admin_plus') {
-      const attuale = await statoAttuale(tabella, id);
-      if (attuale) {
-        const currIdx = (STATI_MISURATORE as readonly string[]).indexOf(attuale);
+      // Fail-closed sulla lettura, non fail-open: prima un errore tornava indistinguibile da
+      // "riga assente", il gate non aveva niente da confrontare e lasciava passare proprio la
+      // regressione di stato che esiste per bloccare.
+      const lettura = await statoAttuale(tabella, id);
+      if (lettura.error) return NextResponse.json({ error: lettura.error }, { status: 500 });
+      if (lettura.stato) {
+        const currIdx = (STATI_MISURATORE as readonly string[]).indexOf(lettura.stato);
         const newIdx = (STATI_MISURATORE as readonly string[]).indexOf(body.stato as string);
         if (newIdx < currIdx) {
           return NextResponse.json(
@@ -151,10 +167,16 @@ export async function aggiornaRegistro(
       disfare la propria scrittura, e chiedere un admin lascerebbe il buco aperto nel frattempo.
     */
     if (!('stato' in patch)) {
-      // Riga inesistente: niente stato implicito, e l'UPDATE più sotto non aggancerà niente.
-      const attuale = await statoAttuale(tabella, id);
-      const implicito = attuale
-        ? statoDopoCesta(attuale, patch.cesta as string | null)
+      // Riga inesistente (nessun errore, zero righe): niente stato implicito, e l'UPDATE più
+      // sotto non aggancerà niente — comportamento invariato. La lettura FALLITA è un caso
+      // diverso: qui non si può sapere se lo stato implicito andava calcolato, e procedere
+      // scriverebbe la sola cesta senza stato — l'incoerenza che questo blocco esiste per
+      // eliminare, e in silenzio. Meglio un salvataggio fallito e parlante (500) che una riga
+      // rotta e muta.
+      const lettura = await statoAttuale(tabella, id);
+      if (lettura.error) return NextResponse.json({ error: lettura.error }, { status: 500 });
+      const implicito = lettura.stato
+        ? statoDopoCesta(lettura.stato, patch.cesta as string | null)
         : null;
       if (implicito) patch.stato = implicito;
     }

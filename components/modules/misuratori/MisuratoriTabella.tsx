@@ -374,6 +374,15 @@ export default function MisuratoriTabella({
               )}
               {mostraCesta && (
                 <td {...cella('Cesta').props} className={`whitespace-nowrap px-3 py-2 font-mono text-xs tabular-nums ${cella('Cesta').classe}`}>
+                  {/*
+                    `disabled={salvando?.has(row.id)}` su input E bottone, come sulla tendina di
+                    Stato: il server legge lo stato PRIMA di scrivere la cesta (statoDopoCesta in
+                    aggiornaRegistro), e una seconda PATCH sulla stessa riga partita durante il
+                    volo della prima può leggere uno stato non ancora aggiornato e atterrare
+                    dopo, riscrivendo la cesta sopra l'esito della prima — invariante rotto dal
+                    ramo che dovrebbe difenderlo. La serializzazione per riga è ciò su cui poggia
+                    la lettura-poi-scrittura del server.
+                  */}
                   {editingCesta === row.id ? (
                     <input
                       autoFocus
@@ -382,6 +391,7 @@ export default function MisuratoriTabella({
                       aria-label={`Cesta per il misuratore ${row.matricola}`}
                       // `inputMode` e non `type="number"`, come il pallet: è un riferimento.
                       inputMode="numeric"
+                      disabled={salvando?.has(row.id)}
                       onBlur={() => {
                         if (annullaCesta.current) { annullaCesta.current = false; return; }
                         void commitCesta(row.id, row.cesta);
@@ -394,7 +404,7 @@ export default function MisuratoriTabella({
                           setEditingCesta(null);
                         }
                       }}
-                      className="w-20 rounded-[var(--radius-sm)] border border-[var(--brand-primary)] bg-[var(--brand-surface)] px-1.5 py-0.5 font-mono text-xs tabular-nums focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+                      className="w-20 rounded-[var(--radius-sm)] border border-[var(--brand-primary)] bg-[var(--brand-surface)] px-1.5 py-0.5 font-mono text-xs tabular-nums focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] disabled:cursor-wait disabled:opacity-60"
                     />
                   ) : (
                     <button
@@ -402,7 +412,8 @@ export default function MisuratoriTabella({
                       data-cesta-btn={row.id}
                       aria-label={`Modifica cesta per il misuratore ${row.matricola}`}
                       onClick={() => startCestaEdit(row)}
-                      className="w-full cursor-text rounded-[var(--radius-sm)] text-left font-mono text-xs tabular-nums text-[var(--brand-text-muted)] hover:text-[var(--brand-text-main)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+                      disabled={salvando?.has(row.id)}
+                      className="w-full cursor-text rounded-[var(--radius-sm)] text-left font-mono text-xs tabular-nums text-[var(--brand-text-muted)] hover:text-[var(--brand-text-main)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] disabled:cursor-wait disabled:opacity-60"
                       title="La dichiara l'operatore allo scarico. Clicca per correggerla."
                     >
                       {row.cesta?.trim() || '—'}
@@ -412,6 +423,7 @@ export default function MisuratoriTabella({
               )}
               {mostraPallet && (
                 <td {...cella('Pallet').props} className={`whitespace-nowrap px-3 py-2 font-mono text-xs tabular-nums ${cella('Pallet').classe}`}>
+                  {/* Stessa guardia della cella Cesta qui sopra: una PATCH alla volta per riga. */}
                   {editingPallet === row.id ? (
                     <input
                       autoFocus
@@ -424,6 +436,7 @@ export default function MisuratoriTabella({
                         del mouse potrebbero cambiarlo per sbaglio scorrendo la tabella.
                       */
                       inputMode="numeric"
+                      disabled={salvando?.has(row.id)}
                       onBlur={() => {
                         if (annullaPallet.current) { annullaPallet.current = false; return; }
                         void commitPallet(row.id, row.pallet);
@@ -436,7 +449,7 @@ export default function MisuratoriTabella({
                           setEditingPallet(null);
                         }
                       }}
-                      className="w-20 rounded-[var(--radius-sm)] border border-[var(--brand-primary)] bg-[var(--brand-surface)] px-1.5 py-0.5 font-mono text-xs tabular-nums focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+                      className="w-20 rounded-[var(--radius-sm)] border border-[var(--brand-primary)] bg-[var(--brand-surface)] px-1.5 py-0.5 font-mono text-xs tabular-nums focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] disabled:cursor-wait disabled:opacity-60"
                     />
                   ) : (
                     <button
@@ -444,7 +457,8 @@ export default function MisuratoriTabella({
                       data-pallet-btn={row.id}
                       aria-label={`Modifica pallet per il misuratore ${row.matricola}`}
                       onClick={() => startPalletEdit(row)}
-                      className="w-full cursor-text rounded-[var(--radius-sm)] text-left font-mono text-xs tabular-nums text-[var(--brand-text-muted)] hover:text-[var(--brand-text-main)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+                      disabled={salvando?.has(row.id)}
+                      className="w-full cursor-text rounded-[var(--radius-sm)] text-left font-mono text-xs tabular-nums text-[var(--brand-text-muted)] hover:text-[var(--brand-text-main)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] disabled:cursor-wait disabled:opacity-60"
                       title="Clicca per scrivere il numero del pallet"
                     >
                       {row.pallet?.trim() || '—'}

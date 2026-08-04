@@ -91,4 +91,11 @@ describe("il registro d'ufficio mostra quello che il server ha deciso", () => {
     expect(src).toMatch(/patch\.cesta !== undefined && eco\.stato === 'scaricato_deposito'/);
     expect(src).toMatch(/patch\.cesta !== undefined && eco\.stato === 'da_consegnare_deposito'/);
   });
+
+  it('il toast della regressione esplicita scatta solo se la riga aveva già una cesta', () => {
+    // `cestaPrima` evita di annunciare una rimozione su una riga che una cesta non l'aveva mai
+    // avuta: senza la guardia ogni regressione di stato dalla tendina mostrerebbe «cesta tolta».
+    const src = senzaCommenti(client);
+    expect(src).toMatch(/patch\.stato !== undefined && eco\.cesta === null && cestaPrima/);
+  });
 });

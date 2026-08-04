@@ -37,10 +37,13 @@ un gesto che l'ufficio ha già.
 
 ## L'invariante
 
-> **`cesta` valorizzata ⟺ lo stato è almeno `scaricato_deposito`.**
+> **`cesta` valorizzata ⟹ lo stato è almeno `scaricato_deposito`.**
 
-Una frase, e il resto ne discende. Vale solo su `acqualatina_misuratori_rimossi`: il registro ACEA
-non ha la colonna, e la PATCH lo respinge già con un 400.
+Una frase, e il resto ne discende. Il verso opposto NON vale, di proposito: uno stato avanzato non
+implica una cesta. Righe `scaricato_deposito` senza cesta restano legittime — è il pregresso
+pre-migration, e più in generale la §4, dove oltre lo scarico svuotare la cesta non ha «nessun
+effetto» sullo stato. Vale solo su `acqualatina_misuratori_rimossi`: il registro ACEA non ha la
+colonna, e la PATCH lo respinge già con un 400.
 
 Detta al contrario, che è il modo in cui si legge in magazzino: **un numero di cesta è la prova che
 quel contatore è in deposito.** Se il numero c'è, lo stato non può dire «da consegnare»; se lo stato
@@ -162,24 +165,37 @@ inline in `aggiornaRegistro`, dove si legge accanto al blocco che valida lo stat
    `patch.stato` **solo se** non c'è già uno stato esplicito (§5), e **senza** passare dal gate
    `admin_plus` (§2).
 2. `patch.stato === 'da_consegnare_deposito'` → `patch.cesta = null` (§3).
-3. La risposta diventa `{ ok: true, stato? }`, con lo stato risultante quando è cambiato. Additiva:
-   il registro ACEA usa lo stesso handler e semplicemente non lo riceve mai.
+3. La risposta diventa `{ ok: true, stato?, cesta? }`: lo stato quando lo muove l'implicito o la
+   regressione, la cesta quando la regressione la azzera. Additiva: il registro ACEA usa lo stesso
+   handler e semplicemente non riceve mai questi campi.
 
-Se la riga non esiste, la lettura torna vuota, lo stato implicito non si calcola e l'UPDATE non
-aggancia niente — cioè quello che succede già oggi.
+Se la riga non esiste (zero righe, nessun errore), la lettura torna vuota, lo stato implicito non
+si calcola e l'UPDATE non aggancia niente — cioè quello che succede già oggi. Se invece la lettura
+FALLISCE (rete, singhiozzo PostgREST), `aggiornaRegistro` rifiuta la scrittura con **500** e il
+messaggio dell'errore, come già fa per l'errore della UPDATE: ingoiarla e trattarla come riga
+assente scriverebbe la sola cesta senza stato — la stessa incoerenza che questa spec chiude, e in
+silenzio. Vale per ENTRAMBI i chiamanti della lettura, compreso il gate `admin_plus` del punto 1,
+che senza questa distinzione sarebbe fail-open su un errore di rete.
 
 **Concorrenza.** La lettura-poi-scrittura non è atomica. È la stessa corsa che il gate `admin_plus`
-ha già oggi, la UI serializza per riga con `salvando`, e il caso perdente è un misuratore che finisce
-nello stato che l'altra scrittura voleva. Non vale una transazione.
+ha già oggi. La UI serializza per riga con `salvando` — disabilitato su input e bottone di Cesta e
+di Pallet, oltre che sulla tendina di Stato — quindi due PATCH sulla stessa riga non partono più in
+parallelo dallo stesso client; resta la corsa se due richieste arrivano comunque ravvicinate (rete,
+un secondo client), e il caso perdente è un misuratore che finisce nello stato che l'altra
+scrittura voleva. Non vale una transazione.
 
 ### Client ufficio
 
-`MisuratoriClient.tsx` → `handlePatch`: la risposta è già letta per il ramo d'errore; sul successo si
-fonde `stato` nella riga (niente refetch — la scelta di non rifare la fetch quando va bene resta) e
-si mostra il toast:
+`MisuratoriClient.tsx` → `handlePatch`: la risposta è già letta per il ramo d'errore; sul successo
+si fondono nella riga `stato` e `cesta`, quando il server li ha decisi da sé (niente refetch — la
+scelta di non rifare la fetch quando va bene resta) e si mostra il toast:
 
-- «Cesta 2 · il misuratore risulta **scaricato a deposito**.»
-- «Cesta tolta · il misuratore torna fra quelli **da scaricare**.»
+- «Cesta 2 · il misuratore risulta **scaricato a deposito**.» — scrittura della cesta (§1).
+- «Cesta tolta · il misuratore torna fra quelli **da scaricare**.» — svuotamento (§2).
+- «Cesta tolta · il misuratore non risulta più in deposito.» — regressione esplicita dalla
+  tendina (§3). Scatta solo se la riga aveva già una cesta (`cestaPrima`, letta PRIMA
+  dell'ottimistica): senza la guardia ogni regressione di stato annuncerebbe una rimozione anche
+  su una riga che una cesta non l'aveva mai avuta.
 
 Colonne, filtri, PDF, `Ricalcola` e l'assegnazione del pallet non cambiano.
 

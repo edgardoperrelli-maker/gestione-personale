@@ -291,14 +291,22 @@ se l'insieme qualificante è vuoto non cancella nulla (anti-svuotamento di massa
 Nota: la cascata `ON DELETE CASCADE` copre solo l'**eliminazione** dell'intervento,
 non la correzione dell'esito → per quest'ultima serve il Ricalcola.
 
-### AcquaLatina: registro gemello, e la CESTA la dichiara l'operatore
+### AcquaLatina: registro gemello, e l'invariante cesta↔stato
 La commessa `acqualatina` ha il **suo** registro (`acqualatina_misuratori_rimossi`), stessi stati
 e stesso motore di ricalcolo (`lib/misuratori/sincronizzaRegistro.ts`), senza PDR e **senza gate
 sul tipo** (una sola attività, già una sostituzione). Due riferimenti di magazzino, in ordine di
 ciclo fisico:
-- **`cesta`** — la scrive l'**operatore** dal campo, all'invio del rapportino
-  (`/api/r/[token]/scarico-misuratori`): dichiararla porta lo stato a `scaricato_deposito`.
-  L'ufficio la corregge in cella, non la crea.
+- **`cesta`** — invariante: `cesta` valorizzata ⟹ lo stato è almeno `scaricato_deposito` (mai il
+  contrario: righe `scaricato_deposito` senza cesta restano legittime, è il pregresso pre-2026-08-04).
+  Logica pura in `lib/misuratori/cestaStato.ts`; tre scrittori la tengono, tutti in
+  `aggiornaRegistro` (`lib/misuratori/registro.ts`) tranne il primo:
+  - l'**operatore**, all'invio del rapportino (`/api/r/[token]/scarico-misuratori`): scrive
+    `cesta` e `stato` in una sola UPDATE;
+  - l'**ufficio**, in cella — **la crea**, non solo la corregge: su una riga
+    `da_consegnare_deposito` dichiara con essa lo scarico avvenuto (stato → `scaricato_deposito`);
+    svuotarla su `scaricato_deposito` riporta lo stato indietro;
+  - la **regressione esplicita** dello stato a `da_consegnare_deposito` (tendina, solo
+    `admin_plus`) azzera la cesta: il numero rimasto sarebbe un riferimento falso in magazzino.
 - **`pallet`** — lo assegna l'**ufficio** in blocco quando la cesta è piena (entrambi i registri).
 
 Filtri puri condivisi in `lib/misuratori/riferimenti.ts` (il campo è un parametro). Le due colonne
