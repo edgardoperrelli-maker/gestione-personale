@@ -924,7 +924,7 @@ export default function TabellaOrdini({
                         */}
                         {c.chiave === 'odl' && top && (
                           <span
-                            className="mr-1.5 rounded-[var(--radius-sm)] bg-[var(--status-warn)] px-1 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white"
+                            className="mr-1.5 rounded-[var(--radius-sm)] bg-[var(--status-warn)] px-1 py-0.5 text-[11px] font-bold uppercase tracking-wide text-white"
                             title="Segnalato TOP da ACEA: da lavorare per primo"
                           >TOP</span>
                         )}

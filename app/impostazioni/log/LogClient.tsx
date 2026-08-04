@@ -39,6 +39,7 @@ const ETICHETTE: Record<string, string> = {
   'piano.operatore.rimuovi': 'Operatore rimosso dal piano',
   'rapportino.orfano.elimina': 'Rapportino eliminato (operatore fuori dal piano)',
   'rapportino.conflitto.sostituisci': 'Rapportino sostituito (conflitto)',
+  'ordine.top': 'Ordini segnati/tolti da TOP',
 };
 
 /**
