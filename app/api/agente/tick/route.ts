@@ -2,7 +2,7 @@ import 'server-only';
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { chiaveValida } from '@/lib/apiExportKey';
-import { partiRoma } from '@/lib/agente/orarioRoma';
+import { partiRoma } from '@/lib/orarioRoma';
 import { decideEsecuzione, diffColonne, normalizzaAvvisiSync, type RegolaMappa } from '@/lib/agente/decisione';
 
 export const runtime = 'nodejs';

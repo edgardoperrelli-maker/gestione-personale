@@ -8,7 +8,7 @@ import {
   serveIncrocio, filtriPianificazioneAttivi, ordinamentoDaIncrociare,
   ORDINAMENTI, type FiltriOrdini, type FiltriPianificazione,
 } from '@/lib/acea/filtriOrdini';
-import { partiRoma } from '@/lib/agente/orarioRoma';
+import { partiRoma } from '@/lib/orarioRoma';
 import {
   chiaviAggancio, isAttivitaSaracinesca, saracinescaContemplata, FRAMMENTI_SARACINESCA,
 } from '@/lib/acea/saracinesche';

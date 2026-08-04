@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 import { getAllowedModulesForUser, resolveUserRole } from '@/lib/moduleAccess';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { normalizzaAvvisiSync, statoAgente } from '@/lib/agente/decisione';
-import { partiRoma } from '@/lib/agente/orarioRoma';
+import { partiRoma } from '@/lib/orarioRoma';
 import AgenteClient from '@/components/modules/agente/AgenteClient';
 import type {
   AgenteConfigRow,

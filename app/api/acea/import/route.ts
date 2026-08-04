@@ -17,7 +17,7 @@ import {
 import { indiceTassonomiaCached } from '@/lib/acea/indiceTassonomia';
 import { sincronizzaRegistro, COMMESSA_ACEA, type EsitoSync } from '@/lib/misuratori/sincronizzaRegistro';
 import { daPotare, type ImportArchiviato } from '@/lib/acea/retentionArchivio';
-import { partiRoma } from '@/lib/agente/orarioRoma';
+import { partiRoma } from '@/lib/orarioRoma';
 import type { RigaOrdineAcea } from '@/lib/acea/tipi';
 
 export const runtime = 'nodejs';

@@ -2,7 +2,7 @@ import 'server-only';
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireAdmin } from '@/lib/apiAuth';
-import { partiRoma } from '@/lib/agente/orarioRoma';
+import { partiRoma } from '@/lib/orarioRoma';
 import { COMMITTENTE_ACQUALATINA, ATTIVITA_SOSTITUZIONE_MISURATORE } from '@/lib/acqualatina/contratto';
 import { ordiniDaMaster, type OrdineEsistente, type RigaMaster } from '@/lib/acqualatina/ordiniDaMaster';
 // Lo stato della riga mai lavorata, dalla stessa fonte degli altri due: sono le voci dell'imbuto

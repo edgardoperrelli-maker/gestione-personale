@@ -15,7 +15,7 @@ import {
 } from '@/lib/acqualatina/contratto';
 import { MOTIVO_SOLO_ATTIVAZIONI, soloAttivazioni } from '@/lib/acea/giorniProgrammabili';
 import { eRiapertura } from '@/lib/acea/scadenza';
-import { partiRoma } from '@/lib/agente/orarioRoma';
+import { partiRoma } from '@/lib/orarioRoma';
 
 export const runtime = 'nodejs';
 
