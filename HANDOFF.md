@@ -15,6 +15,41 @@ mani su tabella propria — migration `20260731170000` + backfill (4.196 righe) 
 
 ---
 
+## Sessione 2026-08-04 — Gli ODL TOP, dal dunning al rapportino
+
+> Branch `feat/acea-odl-top`, da `origin/main` (`6e76fd6b`). Spec e piano in
+> `docs/superpowers/specs/2026-08-04-acea-odl-top-design.md` e `…/plans/2026-08-04-acea-odl-top.md`.
+
+**Il buco chiuso.** ACEA segnala certe attività come TOP e quella segnalazione moriva in ufficio:
+arrivava per telefono, chi pianificava se la ricordava, e l'operatore apriva il rapportino
+trovando una voce identica a tutte le altre. L'unico canale era la colonna Note, che è prosa
+libera — buona per «citofonare interno 4», inadatta a una proprietà su cui si vuole ordinare.
+
+**Come funziona.** L'ufficio spunta le righe e preme «Segna TOP» (o «Togli TOP») nella barra
+della selezione; la riga diventa ambra col badge. L'operatore se le trova **in cima** al
+rapportino, con la pill TOP in lista e un banner sulla card.
+
+**Le decisioni che non vanno riscoperte:**
+- **Il flag vive sul REGISTRO, non nella voce.** `acea_ordini.top`, letto live dalla pagina
+  dell'operatore a ogni caricamento. Fotografarlo in `raw_json` come la nota lo renderebbe cieco
+  alle marcature fatte a giro già partito — che sono il caso per cui la funzione esiste.
+- **La colonna sta su ENTRAMBE le tabelle** del registro: la select è una sola per due tabelle.
+  Migration additiva, quindi applicata PRIMA del deploy.
+- **Ambra, mai rosso** (nel dunning è già revoca e scaduto) e **sempre col badge testuale**: il
+  significato non può dipendere dalla tinta. La revoca resta prima nella catena dei colori.
+- **Ordinamento stabile e `index` invariato:** si riordina la lista, non i dati.
+- **Almeno una riga TOP ⇒ voce TOP** (il registro ha chiave `odl|numero_operazione`, l'operatore
+  ha solo l'ODL).
+- Fuori scope, deciso: nota obbligatoria sui TOP non eseguiti, filtro/conteggio in ufficio,
+  marcatura dalla vista AcquaLatina.
+
+**Da sapere:** durante la verifica una spunta sbagliata (quella di TESTATA, «seleziona tutte le
+righe caricate») ha marcato ~180 ordini invece di uno. Rimediato subito con un `update ... set
+top = false`, e lo stato di partenza era esattamente «tutti false» perché la colonna era appena
+nata. L'audit ha registrato il gesto: è servito il giorno stesso in cui è stato scritto.
+
+---
+
 ## Sessione 2026-08-03 — AcquaLatina: lo scarico in cesta lo dichiara l'operatore
 
 > Task ATLAS `70d360ae`. Branch `feat/acqualatina-scarico-ceste`, da `origin/main` (`d777a5d9`).
