@@ -1,7 +1,8 @@
 // lib/interventi/storico/modifica.test.ts
 import { describe, it, expect } from 'vitest';
 import {
-  buildCampiEditor, estraiFotoPaths, anagraficaPatchValida, anagraficaPatchIntervento, campiPerChiusuraStorico,
+  buildCampiEditor, estraiFotoPaths, anagraficaPatchValida, anagraficaPatchIntervento,
+  anagraficaPatchRegistro, campiPerChiusuraStorico,
 } from './modifica';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 
@@ -109,5 +110,40 @@ describe('anagraficaPatchIntervento', () => {
   });
   it('vuoto → vuoto', () => {
     expect(anagraficaPatchIntervento({})).toEqual({});
+  });
+});
+
+describe('anagraficaPatchRegistro', () => {
+  it('pdr → impianto, nominativo/comune/cap invariati', () => {
+    expect(anagraficaPatchRegistro({ pdr: 'P1', nominativo: 'ROSSI', comune: 'TERRACINA', cap: '04019' }))
+      .toEqual({ impianto: 'P1', nominativo: 'ROSSI', comune: 'TERRACINA', cap: '04019' });
+  });
+
+  it("via spezza l'indirizzo in via + civico, come il registro lo tiene", () => {
+    expect(anagraficaPatchRegistro({ via: 'VIA ROMA 10' })).toEqual({ via: 'VIA ROMA', civico: '10' });
+  });
+
+  it('un indirizzo senza numero finale: tutto in via, civico null', () => {
+    expect(anagraficaPatchRegistro({ via: 'VIA ROMA' })).toEqual({ via: 'VIA ROMA', civico: null });
+  });
+
+  it('via cancellata (null): svuota anche il civico', () => {
+    expect(anagraficaPatchRegistro({ via: null })).toEqual({ via: null, civico: null });
+  });
+
+  it("odl e matricola NON entrano: sono la chiave e l'identità della riga di registro, non anagrafica", () => {
+    expect(anagraficaPatchRegistro({ odl: '100001', matricola: 'M1', pdr: 'P1' })).toEqual({ impianto: 'P1' });
+  });
+
+  it('attivita e fascia_oraria NON entrano: classificazione dell\'intervento, non anagrafica del punto', () => {
+    expect(anagraficaPatchRegistro({ attivita: 'BONIFICHE', fascia_oraria: '8-12' })).toEqual({});
+  });
+
+  it('un campo cancellato (null) propaga null: la cancellazione è una correzione', () => {
+    expect(anagraficaPatchRegistro({ nominativo: null })).toEqual({ nominativo: null });
+  });
+
+  it('vuoto → vuoto', () => {
+    expect(anagraficaPatchRegistro({})).toEqual({});
   });
 });
