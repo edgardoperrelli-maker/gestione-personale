@@ -499,6 +499,23 @@ via `chiaviAggancio`, anche dal misuratore dell'ordine madre nel registro), con 
 completato > aperto > primo — mai una mappa first-wins, che sceglierebbe a caso tra un figlio
 chiuso già pagato e uno nuovo.
 
+### Voci di rapportino: MAI orfane (caso 957327236, 2026-08-05)
+Una voce con `intervento_id NULL` è un esito che non arriva da nessuna parte: lo Storico
+(che legge la voce) dice SI, l'intervento resta `assegnato`, il motore economico lo conta
+negativo. L'aggancio voce→intervento (`buildVoceInterventoLinker`) vive in QUATTRO punti e
+tutti con fallback alle colonne della voce (`odl`/`matricola`/`pdr`), non solo al `raw_json`:
+1. generazione (`sincronizzaRapportini`) — e sul fallback FK-race si RILEGGE il piano e si
+   riaggancia prima di salvare a NULL;
+2. salvataggio operatore (`/api/r/[token]/voce`) — auto-aggancio live;
+3. **invio** (`/api/r/[token]/invia`) — aggancio d'ultima istanza PRIMA del loop di
+   propagazione, che salta le voci senza intervento;
+4. sanatoria storica: migration `20260805150000` (54 ricollegate su 3 livelli di chiave,
+   19 SI; positivi persi ripristinati con guardie: non annullato, esito null, motivo vuoto,
+   nessun altro positivo sull'ODL). Le voci `-1`/`-2` AcquaLatina NON sono mislink: è la
+   convenzione multi-misuratore.
+Nel client Storico il drawer si azzera se la riga selezionata esce dalle righe caricate
+(prima restava aperto su un intervento che la ricerca non mostrava più).
+
 ### Guardia DB: niente annullamenti muti su lavoro dichiarato SI
 Trigger `interventi_blocca_annullamento_voce_si` (migration `20260805100000`): un intervento la
 cui voce di rapportino dichiara `eseguito = SI` NON può passare ad `annullato` senza

@@ -118,7 +118,12 @@ export default function StoricoInterventiClient({ staff, gruppi, territori, comm
       const data = (await res.json()) as {
         righe: RigaStorico[]; total: number; troncato: boolean; pageSize: number; contatori?: ContatoriStorico;
       };
-      setRighe(Array.isArray(data.righe) ? data.righe : []);
+      const nuove = Array.isArray(data.righe) ? data.righe : [];
+      setRighe(nuove);
+      // Il drawer non sopravvive alla riga che mostra: dopo un filtro/ricerca la selezione
+      // vecchia resterebbe aperta accanto a una tabella che parla d'altro — è il caso del
+      // 2026-08-05: ricerca 957327236 in tabella, pannello e «Modifica» ancora su 957275953.
+      setDettaglio((cur) => (cur && nuove.some((r) => r.id === cur.id) ? cur : null));
       setTotal(typeof data.total === 'number' ? data.total : 0);
       setTroncato(Boolean(data.troncato));
       setPageSize(typeof data.pageSize === 'number' ? data.pageSize : 100);

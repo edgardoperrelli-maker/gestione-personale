@@ -25,7 +25,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   // 'scaduto' resta bloccato (l'ufficio può riaprire).
   if (stato === 'scaduto')
     return NextResponse.json({ error: 'non_modificabile' }, { status: 409 });
-  const colonne = 'id, intervento_id, raw_json, risposte, campi_snapshot';
+  const colonne = 'id, intervento_id, raw_json, risposte, campi_snapshot, odl, matricola, pdr';
   let { data: voce } = await supabaseAdmin
     .from('rapportino_voci')
     .select(colonne)
@@ -68,7 +68,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   // Propagazione live SOLO sui salvataggi di un rapportino ancora modificabile:
   // su un 'inviato' stiamo solo completando foto pendenti, non si ri-propaga l'esito.
   if (stato === 'valido') try {
-    const vAny = voce as { intervento_id: string | null; raw_json: unknown };
+    const vAny = voce as { intervento_id: string | null; raw_json: unknown; odl: string | null; matricola: string | null; pdr: string | null };
     const rapAny = rap as { campi_snapshot: unknown; data: string; staff_id: string | null };
     let interventoId = vAny.intervento_id;
 
@@ -83,11 +83,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
         .eq('data', rapAny.data)
         .neq('stato', 'annullato');
       const resolve = buildVoceInterventoLinker((cand ?? []) as InterventoLinkRow[]);
+      // Fallback alle COLONNE della voce, come fa la generazione: il caso 957327236
+      // (2026-08-05) era una voce col raw_json senza chiavi utili ricollegabile solo
+      // dall'odl di colonna — senza fallback restava orfana per sempre.
       const found = resolve({
         staff_id: rapAny.staff_id,
-        odl: (raw.odl as string | null | undefined) ?? (raw.odsin as string | null | undefined),
-        matricola: raw.matricola as string | null | undefined,
-        pdr: raw.pdr as string | null | undefined,
+        odl: (raw.odl as string | null | undefined) ?? (raw.odsin as string | null | undefined) ?? vAny.odl,
+        matricola: (raw.matricola as string | null | undefined) ?? vAny.matricola,
+        pdr: (raw.pdr as string | null | undefined) ?? vAny.pdr,
       });
       if (found) {
         interventoId = found;

@@ -207,11 +207,28 @@ describe('sincronizzaRapportini — preserva le voci ACEA (modulo commessa)', ()
 });
 
 describe('sincronizzaRapportini — fallback FK su race', () => {
-  it("se l'insert voci va in FK violation, salva le voci SENZA collegamento e non fallisce", async () => {
+  const FK_MSG = 'violates foreign key constraint "rapportino_voci_intervento_id_fkey"';
+
+  it('FK violation una volta → rilegge il piano e RIAGGANCIA (niente voce orfana)', async () => {
+    // La race vera: gli interventi sono stati ricreati da una generazione concorrente. Rileggendo
+    // lo stato fresco l'aggancio riesce — salvare a NULL avrebbe prodotto una voce orfana per
+    // sempre (il caso 957327236: «SI» nello storico, intervento fermo ad assegnato).
     const { db, tables } = makeFakeDb(seedBase({
       mappa_piani_operatori: [{ piano_id: 'p1', staff_id: 's1', staff_name: 'Mario', tasks: [{ id: 't1', odl: 'ODL1' }] }],
       interventi: [{ id: 'i1', piano_id: 'p1', staff_id: 's1', odl: 'ODL1', stato: 'assegnato' }],
-    }), { failVociInsertOnce: 'violates foreign key constraint "rapportino_voci_intervento_id_fkey"' });
+    }), { failVociInsertOnce: FK_MSG });
+    const res = await sincronizzaRapportini(db, 'p1', { templateId: 'tpl1' });
+    expect(res.ok).toBe(true);
+    const voce = tables.rapportino_voci.find((v) => v.task_id === 't1');
+    expect(voce).toBeTruthy();
+    expect(voce?.intervento_id).toBe('i1');
+  });
+
+  it('FK violation anche al retry → ultima spiaggia: voci SENZA collegamento, ma niente 500', async () => {
+    const { db, tables } = makeFakeDb(seedBase({
+      mappa_piani_operatori: [{ piano_id: 'p1', staff_id: 's1', staff_name: 'Mario', tasks: [{ id: 't1', odl: 'ODL1' }] }],
+      interventi: [{ id: 'i1', piano_id: 'p1', staff_id: 's1', odl: 'ODL1', stato: 'assegnato' }],
+    }), { failVociInsertOnce: FK_MSG, failVociInsertTimes: 2 });
     const res = await sincronizzaRapportini(db, 'p1', { templateId: 'tpl1' });
     expect(res.ok).toBe(true);
     const voce = tables.rapportino_voci.find((v) => v.task_id === 't1');

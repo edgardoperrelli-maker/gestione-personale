@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { tokenStatus } from '@/utils/rapportini/tokenStatus';
+import { buildVoceInterventoLinker, type InterventoLinkRow } from '@/lib/interventi/voceInterventoLink';
 import { esitoInterventoDaVoce } from '@/lib/interventi/esitoDaVoce';
 import { chiavePositivo, decidiChiusuraConPositivi, indicizzaPositivi } from '@/lib/interventi/odlPositivi';
 import { rimuoviVociBloccate, sweepDopoPositivi } from '@/lib/interventi/sweepOdlPositivo';
@@ -16,7 +17,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ token:
   const { token } = await params;
   const { data: rap } = await supabaseAdmin
     .from('rapportini')
-    .select('id, stato, data, staff_name, campi_snapshot, riaperto_at, tipo, template_id')
+    .select('id, stato, data, staff_id, staff_name, campi_snapshot, riaperto_at, tipo, template_id')
     .eq('token', token)
     .maybeSingle();
   if (!rap) return NextResponse.json({ error: 'not_found' }, { status: 404 });
@@ -129,8 +130,45 @@ export async function POST(_req: Request, { params }: { params: Promise<{ token:
   const campi = (rap.campi_snapshot ?? []) as TemplateCampo[];
   const { data: voci } = await supabaseAdmin
     .from('rapportino_voci')
-    .select('intervento_id, risposte, updated_at, matricola, pdr, odl, via, comune, campi_snapshot')
+    .select('id, intervento_id, raw_json, risposte, updated_at, matricola, pdr, odl, via, comune, campi_snapshot')
     .eq('rapportino_id', rap.id);
+  /*
+    Aggancio d'ULTIMA ISTANZA: il loop qui sotto salta le voci senza intervento, quindi una voce
+    rimasta scollegata (race di generazione, o compilata prima dell'auto-aggancio del
+    salvataggio) uscirebbe dall'invio con l'esito dichiarato e MAI propagato — il caso
+    957327236 (2026-08-05): «ESEGUITO SI» nello storico, intervento fermo ad `assegnato`,
+    ODL fra i «senza rapportino». Prima di propagare, le orfane vengono ricollegate con lo
+    stesso risolutore della generazione (fallback alle colonne della voce incluso).
+  */
+  try {
+    const orfane = ((voci ?? []) as Array<{ id: string; intervento_id: string | null }>).filter((v) => !v.intervento_id);
+    const staffId = (rap as { staff_id?: string | null }).staff_id ?? null;
+    if (orfane.length > 0 && staffId) {
+      const { data: cand } = await supabaseAdmin
+        .from('interventi')
+        .select('id, staff_id, odl, matricola_contatore, pdr')
+        .eq('staff_id', staffId)
+        .eq('data', rap.data)
+        .neq('stato', 'annullato');
+      const resolve = buildVoceInterventoLinker((cand ?? []) as InterventoLinkRow[]);
+      for (const v of (voci ?? []) as Array<{ id: string; intervento_id: string | null; raw_json: unknown; odl: string | null; matricola: string | null; pdr: string | null }>) {
+        if (v.intervento_id) continue;
+        const raw = (v.raw_json ?? {}) as { odl?: unknown; odsin?: unknown; matricola?: unknown; pdr?: unknown };
+        const found = resolve({
+          staff_id: staffId,
+          odl: (raw.odl as string | null | undefined) ?? (raw.odsin as string | null | undefined) ?? v.odl,
+          matricola: (raw.matricola as string | null | undefined) ?? v.matricola,
+          pdr: (raw.pdr as string | null | undefined) ?? v.pdr,
+        });
+        if (found) {
+          v.intervento_id = found;
+          await supabaseAdmin.from('rapportino_voci').update({ intervento_id: found }).eq('id', v.id);
+        }
+      }
+    }
+  } catch (e) {
+    console.error('[invia] riaggancio voci orfane fallito:', e instanceof Error ? e.message : String(e));
+  }
   const misuratoriFermi: Array<{
     intervento_id: string;
     rapportino_id: string;
