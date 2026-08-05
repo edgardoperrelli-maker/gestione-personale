@@ -34,6 +34,15 @@ export interface RegistroRiga {
 }
 export interface PortaleRiga {
   statoNorm: string; // es. 'COMPLETATO'
+  /*
+    Esito della chiusura ACEA, non solo il suo stato: true = esecuzione pagabile (causa
+    scostamento E%, o ultimo tentativo ESEGUITO nel registro Cruscotto), false = ordine
+    ARCHIVIATO NEGATIVO (causale non-E: NPRT, NMNT…). La distinzione è nata dai 639 ordini del
+    2026-08-05: un COMPLETATO del portale con causale non-E e il nostro esito negativo sono i
+    due libri che CONCORDANO sul non-fatto — l'audit li segnalava come discrepanza («consuntivato
+    ma non positivo nel DB») leggendo il solo stato, e 639 concordi seppellivano i ~75 veri.
+  */
+  esitoPositivoAcea: boolean;
 }
 export interface RiconciliazioneInput {
   db: Map<string, DbRiga>;
@@ -87,7 +96,15 @@ export function riconcilia(input: RiconciliazioneInput, opts: RiconciliaOpts = {
     const inPortale = p != null;
     const positivo = inDb && d!.esitoOk === true;
     const completato = inPortale && p!.statoNorm === 'COMPLETATO';
-    const produttivo = positivo || completato;
+    /*
+      Chiusura CONCORDE sul non-fatto (i 639 del 2026-08-05): ACEA ha archiviato l'ordine con
+      esito negativo (causale non-E a nostro carico) e da noi non c'è un positivo. Non è una
+      discrepanza da nessun lato — né di presenza (un ordine morto mai entrato nel DB non ha più
+      nulla da tracciare) né di SAL (non c'è denaro né rapportino da reclamare). Le classi si
+      tacciono; se invece il nostro DB lo dà POSITIVO, le classi normali restano a parlare.
+    */
+    const archiviatoNegativoAcea = completato && !p!.esitoPositivoAcea && !positivo;
+    const produttivo = positivo || (completato && p!.esitoPositivoAcea);
     const voceNota = (inDb ? d!.voce : null) ?? (inRegistro ? m!.voce : null);
 
     const classi: ClasseDiscrepanza[] = [];
@@ -96,16 +113,18 @@ export function riconcilia(input: RiconciliazioneInput, opts: RiconciliaOpts = {
     // Le classi del registro si emettono SOLO se il registro è popolato: con una lettura fallita
     // ogni ODL risulterebbe «non nel registro», e l'audit diventerebbe un muro di falsi.
     if (inPortale && !inDb && !inRegistro) {
-      if (portalePop) classi.push('SOLO_PORTALE');
+      if (portalePop && !archiviatoNegativoAcea) classi.push('SOLO_PORTALE');
     } else if (registroPop) {
       if (inDb && !inRegistro) classi.push('DB_NON_IN_REGISTRO');
-      if (inRegistro && !inDb) classi.push('REGISTRO_NON_IN_DB');
+      if (inRegistro && !inDb && !archiviatoNegativoAcea) classi.push('REGISTRO_NON_IN_DB');
     }
 
     // produzione vs SAL (basata sul portale): solo se lo snapshot portale è popolato.
     if (portalePop && (inDb || inRegistro)) {
       if (positivo && !completato) classi.push('POSITIVO_DB_NON_COMPLETATO_PORTALE');
-      if (completato && !positivo) classi.push('COMPLETATO_PORTALE_NON_POSITIVO_DB');
+      // Il COMPLETATO conta come «ACEA dice eseguito» solo se la chiusura è positiva: quello
+      // archiviato negativo concorda col nostro non-positivo, non lo contraddice.
+      if (completato && p!.esitoPositivoAcea && !positivo) classi.push('COMPLETATO_PORTALE_NON_POSITIVO_DB');
     }
 
     // voce discorde (richiede il registro popolato)

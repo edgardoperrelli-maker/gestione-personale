@@ -628,7 +628,13 @@ export async function caricaProduzioneEconomica(
     // salRighe: l'audit lo deduplicava già via Map, l'Esitato no.
     if (portaleAudit.has(odl)) continue;
     const statoNorm = (p.stato_norm ?? '').trim();
-    portaleAudit.set(odl, { statoNorm });
+    portaleAudit.set(odl, {
+      statoNorm,
+      // La chiusura è un'esecuzione se la causale è pagabile (E%) o se l'ultimo tentativo del
+      // registro è ESEGUITO; altrimenti è un archiviato negativo, che con un nostro esito
+      // negativo CONCORDA (i 639 del 2026-08-05) e non deve accendere l'audit.
+      esitoPositivoAcea: scostamentoPagato(p.causa_scostamento) || registroUltimo.get(odl)?.positivo === true,
+    });
     if (statoNorm !== 'COMPLETATO') continue;
     odlCompletatoAny.add(odl);
     /*

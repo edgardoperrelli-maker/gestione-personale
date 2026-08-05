@@ -24,7 +24,12 @@ export function valutaEsito(risposte: Record<string, unknown>, campi: TemplateCa
   return patch.esito === 'eseguito_positivo' ? 'positivo' : 'negativo';
 }
 
-/** Riga per il registro misuratori_rimossi (chiave upsert = intervento_id). */
+/** Nome delle due tabelle-registro: mai la stessa riga per due commesse, mai le stesse colonne
+ *  (AcquaLatina non ha `pdr`). */
+export type TabellaMisuratori = 'misuratori_rimossi' | 'acqualatina_misuratori_rimossi';
+
+/** Riga per il registro misuratori (chiave upsert = intervento_id). `pdr` solo su ACEA: la
+ *  tabella gemella di AcquaLatina non ha quella colonna. */
 export type MisuratoreRimossoRow = {
   intervento_id: string;
   rapportino_id: string | null;
@@ -34,7 +39,7 @@ export type MisuratoreRimossoRow = {
   indirizzo: string | null;
   comune: string | null;
   matricola: string;
-  pdr: string | null;
+  pdr?: string | null;
 };
 
 export type DatiEsitazione = {
@@ -81,6 +86,9 @@ export type RisultatoEsitazione = {
   decisione: DecisioneChiusura;
   patch: PatchEsitazione;
   misuratore: MisuratoreRimossoRow | null;
+  /** Su quale registro scrivere `misuratore` — `null` quando `misuratore` è null. Il chiamante
+   *  non deve indovinarla da `d.committente`: la deriva la stessa funzione che decide la riga. */
+  misuratoreTabella: TabellaMisuratori | null;
 };
 
 /**
@@ -129,6 +137,7 @@ export function calcolaEsitazione(d: DatiEsitazione): RisultatoEsitazione {
         riconciliazione_rif_id: decisione.rifId,
       },
       misuratore: null,
+      misuratoreTabella: null,
     };
   }
 
@@ -138,25 +147,39 @@ export function calcolaEsitazione(d: DatiEsitazione): RisultatoEsitazione {
     patch.riconciliazione_rif_id = decisione.rifId;
   }
 
-  // Registro misuratori: stesse condizioni di /invia (positivo + matricola voce + acea + rimozione).
+  /*
+    Registro misuratori: stesse condizioni di /invia, la STESSA asimmetria fra le due commesse —
+    non solo il nome della tabella.
+     - ACEA: positivo + matricola + tipo di RIMOZIONE (il catalogo ACEA ne ha molte altre, e le
+       rimozioni di impianti ABUSIVI non devono entrare a magazzino).
+     - AcquaLatina: positivo + matricola, NESSUN gate sul tipo — la commessa ha una sola attività
+       ed è già una sostituzione, quindi ogni voce eseguita è per definizione una rimozione
+       (isRimozioneTipo è tarato sul testo libero ACEA e non riconoscerebbe comunque l'attività
+       di AcquaLatina). Prima mancava del tutto: un ordine AcquaLatina chiuso da qui non finiva
+       né qui né lì, a differenza dello stesso esito chiuso dall'operatore.
+  */
   const matricola = (d.voce.matricola ?? '').trim();
-  const misuratore: MisuratoreRimossoRow | null =
+  const registrabile =
     esitoVoce === 'positivo' &&
-    matricola &&
-    d.committente === 'acea' &&
-    isRimozioneTipo(d.interventoTipo)
-      ? {
-          intervento_id: d.interventoId,
-          rapportino_id: d.rapportinoId,
-          odl: d.voce.odl ?? null,
-          data_esecuzione: ymdLocal(new Date(d.esecuzioneIso)),
-          esecutore: d.esecutori[0]?.staff_name ?? null,
-          indirizzo: d.voce.via ?? null,
-          comune: d.voce.comune ?? null,
-          matricola,
-          pdr: d.voce.pdr ?? null,
-        }
-      : null;
+    matricola !== '' &&
+    (d.committente === 'acea' ? isRimozioneTipo(d.interventoTipo) : d.committente === 'acqualatina');
+  const misuratore: MisuratoreRimossoRow | null = registrabile
+    ? {
+        intervento_id: d.interventoId,
+        rapportino_id: d.rapportinoId,
+        odl: d.voce.odl ?? null,
+        data_esecuzione: ymdLocal(new Date(d.esecuzioneIso)),
+        esecutore: d.esecutori[0]?.staff_name ?? null,
+        indirizzo: d.voce.via ?? null,
+        comune: d.voce.comune ?? null,
+        matricola,
+        // Solo ACEA: la tabella gemella di AcquaLatina non ha la colonna `pdr`.
+        ...(d.committente === 'acea' ? { pdr: d.voce.pdr ?? null } : {}),
+      }
+    : null;
+  const misuratoreTabella: TabellaMisuratori | null = !misuratore
+    ? null
+    : d.committente === 'acea' ? 'misuratori_rimossi' : 'acqualatina_misuratori_rimossi';
 
-  return { esitoVoce, decisione, patch, misuratore };
+  return { esitoVoce, decisione, patch, misuratore, misuratoreTabella };
 }

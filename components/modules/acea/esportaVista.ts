@@ -55,6 +55,7 @@ export async function esportaVista(
   righe: readonly RigaTabella[],
   colonne: readonly DefColonna[],
   nomeFile: string,
+  nomeFoglio: string,
 ): Promise<void> {
   const XLSX = await import('xlsx');
   const intestazione = colonne.map((c) => c.intestazione);
@@ -66,7 +67,7 @@ export async function esportaVista(
   const ws = XLSX.utils.aoa_to_sheet([intestazione, ...corpo]);
   ws['!cols'] = colonne.map((c) => ({ wch: Math.max(10, Math.round(c.larghezza / 8)) }));
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'ACEA');
+  XLSX.utils.book_append_sheet(wb, ws, nomeFoglio);
 
   const buf = XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer;
   const blob = new Blob([buf], {
