@@ -10,11 +10,10 @@ import { estraiSigillo, normSigillo } from '@/lib/interventi/manuali/estraiSigil
 import { usernameFromEmail } from '@/lib/auth/usernameFromEmail';
 import { fotoPresentiVerificate, pathMancanti } from '@/lib/interventi/manuali/verificaFotoStorage';
 import type { DatiInterventoManuale, CommittenteManuale } from '@/lib/interventi/manuali/types';
-import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { caricaTassonomia } from '@/lib/attivita/caricaTassonomia';
-import { buildTassonomiaIndex, risolviGruppo, committenteEquivalente } from '@/lib/attivita/tassonomia';
+import { buildTassonomiaIndex, risolviGruppo } from '@/lib/attivita/tassonomia';
 import { caricaFlussi } from '@/lib/consuntivazione/flusso';
-import { risolviFlussoPerGruppo, templateCollegato } from '@/lib/rapportini/flussiGruppo';
+import { risolviFlussoVoceManuale } from '@/lib/interventi/manuali/risolviFlussoVoceManuale';
 import { messaggioErroreManuale } from '@/lib/interventi/manuali/messaggioErroreManuale';
 
 export const runtime = 'nodejs';
@@ -272,20 +271,12 @@ async function handlePOST(req: Request, { params }: { params: Promise<{ id: stri
   // gruppo da cui risolvere), e fino a qui la voce ripiegava sul modulo del rapportino padre —
   // sbagliato quando quel rapportino è di un ALTRO committente (rapportini misti). Non sovrascrive
   // mai un `campi_snapshot` già presente (es. già congelato alla creazione dal fix del "+").
+  // Committente e gruppo, MAI il territorio: vedi risolviFlussoVoceManuale.
   if (richiesta.voce_id) {
-    let campiFlussoGruppo: TemplateCampo[] | null = null;
-    let flussoGruppoId: string | null = null;
+    let flussoVoce: ReturnType<typeof risolviFlussoVoceManuale> = null;
     if (record.gruppo_attivita) {
       const flussi = await caricaFlussi(supabaseAdmin);
-      const flussoGruppo = risolviFlussoPerGruppo(
-        committenteEquivalente(record.committente),
-        record.gruppo_attivita,
-        flussi.filter((f) => templateCollegato(f)),
-      );
-      if (flussoGruppo && Array.isArray(flussoGruppo.campi) && flussoGruppo.campi.length > 0) {
-        campiFlussoGruppo = flussoGruppo.campi as TemplateCampo[];
-        flussoGruppoId = flussoGruppo.id;
-      }
+      flussoVoce = risolviFlussoVoceManuale(record.committente, record.gruppo_attivita, flussi);
     }
 
     const { data: voceEsistente } = await supabaseAdmin
@@ -301,7 +292,7 @@ async function handlePOST(req: Request, { params }: { params: Promise<{ id: stri
         intervento_id: intRow!.id,
         approvazione_stato: 'approvato',
         ...colonneAnagraficaVoce(dati),
-        ...(!haGiaSnapshot && campiFlussoGruppo ? { template_id: flussoGruppoId, campi_snapshot: campiFlussoGruppo } : {}),
+        ...(!haGiaSnapshot && flussoVoce ? { template_id: flussoVoce.templateId, campi_snapshot: flussoVoce.campi } : {}),
       })
       .eq('id', richiesta.voce_id);
   }
