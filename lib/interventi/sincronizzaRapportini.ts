@@ -530,10 +530,36 @@ export async function sincronizzaRapportini(
       });
       let { error: eVoci } = await db.from('rapportino_voci').insert(vociRows);
       // Race: una generazione concorrente può aver ricreato gli interventi (id cambiati) →
-      // FK violation su intervento_id. Fallback: salva le voci SENZA collegamento intervento
-      // (campo opzionale), che si ricollega alla generazione successiva. Evita il 500.
+      // FK violation su intervento_id. PRIMA di rinunciare al collegamento si rilegge lo stato
+      // fresco degli interventi del piano e si riaggancia: gli id sono cambiati ma le chiavi
+      // (ODL/matricola/PDR) no. Il fallback a NULL resta solo come ultima spiaggia: una voce
+      // salvata scollegata che nessuno risalva più resta orfana per sempre (i 267 del
+      // 2026-08-05, col «SI» che non arrivava mai all'intervento).
       if (eVoci && isInterventoFkError(eVoci.message)) {
-        ({ error: eVoci } = await db.from('rapportino_voci').insert(vociRows.map((r) => ({ ...r, intervento_id: null }))));
+        const { data: intFreschi } = await db
+          .from('interventi')
+          .select('id, staff_id, odl, matricola_contatore, pdr, stato, committente, gruppo_attivita, indirizzo')
+          .eq('piano_id', pianoId);
+        const resolveFresco = buildVoceInterventoLinker((intFreschi ?? []) as InterventoLinkRow[]);
+        const riagganciate = vociRows.map((r) => {
+          const raw = ((r as { raw_json?: unknown }).raw_json ?? {}) as { odl?: unknown; odsin?: unknown; matricola?: unknown; pdr?: unknown };
+          const v = r as { odl?: string | null; matricola?: string | null; pdr?: string | null; via?: string | null };
+          return {
+            ...r,
+            intervento_id: resolveFresco({
+              staff_id: op.staff_id,
+              odl: (raw.odl as string | null | undefined) ?? (raw.odsin as string | null | undefined) ?? v.odl,
+              matricola: (raw.matricola as string | null | undefined) ?? v.matricola,
+              pdr: (raw.pdr as string | null | undefined) ?? v.pdr,
+              via: v.via,
+              taskVia: isTaskVia(r as never),
+            }),
+          };
+        });
+        ({ error: eVoci } = await db.from('rapportino_voci').insert(riagganciate));
+        if (eVoci && isInterventoFkError(eVoci.message)) {
+          ({ error: eVoci } = await db.from('rapportino_voci').insert(vociRows.map((r) => ({ ...r, intervento_id: null }))));
+        }
       }
       // Migration voci per-attività non ancora applicata (colonne assenti nello schema cache):
       // riprova senza le colonne per-voce — comportamento identico al pre-feature.

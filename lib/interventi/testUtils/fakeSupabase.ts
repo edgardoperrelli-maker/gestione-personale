@@ -13,12 +13,15 @@ type Filtro =
   | ['isNull' | 'notNull', string, null];
 
 /** Fake Supabase client: simula le tabelle in memoria con le query chain usate dal motore. */
-export function makeFakeDb(seed: Tables, opts: { failVociInsertOnce?: string } = {}): { db: SupabaseClient; tables: Tables } {
+export function makeFakeDb(seed: Tables, opts: { failVociInsertOnce?: string; failVociInsertTimes?: number } = {}): { db: SupabaseClient; tables: Tables } {
   const tables: Tables = {};
   for (const k of Object.keys(seed)) tables[k] = seed[k].map((r) => ({ ...r }));
   let counter = 0;
   const genId = () => `gen_${++counter}`;
   let failVociPending: string | null = opts.failVociInsertOnce ?? null;
+  // Quante insert COLLEGATE devono fallire: 1 simula la race che il retry risolve, 2 una race
+  // persistente che costringe al fallback scollegato. Le insert con soli intervento_id null passano.
+  let failVociResidui = opts.failVociInsertTimes ?? (failVociPending ? 1 : 0);
 
   class Builder {
     table: string;
@@ -69,9 +72,10 @@ export function makeFakeDb(seed: Tables, opts: { failVociInsertOnce?: string } =
 
     insert(rows: Row | Row[]) {
       const arr = Array.isArray(rows) ? rows : [rows];
-      if (this.table === 'rapportino_voci' && failVociPending && arr.some((r) => r.intervento_id != null)) {
+      if (this.table === 'rapportino_voci' && failVociPending && failVociResidui > 0 && arr.some((r) => r.intervento_id != null)) {
         const message = failVociPending;
-        failVociPending = null; // consuma: il retry (intervento_id null) passa
+        failVociResidui -= 1;
+        if (failVociResidui === 0) failVociPending = null; // consumati: l'insert scollegato passa
         return { then: (resolve: (v: unknown) => void) => resolve({ error: { message } }) };
       }
       const inserted = arr.map((r) => {
