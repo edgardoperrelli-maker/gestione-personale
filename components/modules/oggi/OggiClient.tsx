@@ -38,15 +38,37 @@ function TitoloCard({ children }: { children: React.ReactNode }) {
 }
 
 /** Statistica del giro: numero mono tabulare + etichetta muted. */
-function Stat({ valore, etichetta }: { valore: number; etichetta: string }) {
+function Stat({
+  valore,
+  etichetta,
+  colore,
+  grande = false,
+}: {
+  valore: number;
+  etichetta: string;
+  /** Colore CSS del numero; default il testo principale. */
+  colore?: string;
+  grande?: boolean;
+}) {
   return (
     <div className="min-w-0">
-      <div className="font-mono text-2xl font-semibold leading-none tracking-[-0.02em] text-[var(--brand-text-main)] tabular-nums">
+      <div
+        className={`font-mono font-semibold leading-none tracking-[-0.02em] tabular-nums ${grande ? 'text-3xl' : 'text-2xl'}`}
+        style={{ color: colore ?? 'var(--brand-text-main)' }}
+      >
         {valore}
       </div>
       <div className="mt-1 text-xs text-[var(--brand-text-muted)]">{etichetta}</div>
     </div>
   );
+}
+
+/**
+ * Il display_name in anagrafica è spesso TUTTO MAIUSCOLO: a video si ammorbidisce
+ * in Title Case (solo presentazione, i dati non cambiano).
+ */
+function nomeProprio(s: string): string {
+  return s.toLowerCase().replace(/(^|[\s'’-])\p{L}/gu, (c) => c.toUpperCase());
 }
 
 /**
@@ -147,7 +169,7 @@ export default function OggiClient({
         sub={
           <>
             {dataEstesa}
-            {operatore && <> · {operatore}</>}
+            {operatore && <> · {nomeProprio(operatore)}</>}
           </>
         }
       />
@@ -181,10 +203,17 @@ export default function OggiClient({
               )}
             </div>
 
+            {/* Gerarchia: il numero che guida la giornata è «da fare» (ambra finché
+                c'è lavoro, verde a giro chiuso); totale in coda, attenuato. */}
             <div className="mt-4 flex flex-wrap items-end gap-x-8 gap-y-3">
-              <Stat valore={giro.totale} etichetta="interventi in totale" />
+              <Stat
+                valore={giro.daFare}
+                etichetta="da fare"
+                grande
+                colore={giro.daFare > 0 ? 'var(--warning)' : 'var(--success)'}
+              />
               <Stat valore={giro.completate} etichetta="completati" />
-              <Stat valore={giro.daFare} etichetta="da fare" />
+              <Stat valore={giro.totale} etichetta="in totale" colore="var(--brand-text-muted)" />
             </div>
 
             {/* Barra di avanzamento sottile: completati sul lavorabile (esclusi gli annullati). */}
@@ -202,11 +231,24 @@ export default function OggiClient({
                 >
                   <span
                     className="block h-full rounded-full"
-                    style={{ width: `${pct}%`, backgroundColor: 'var(--brand-primary)' }}
+                    style={{
+                      width: `${pct}%`,
+                      backgroundColor: pct === 100 ? 'var(--success)' : 'var(--brand-primary)',
+                    }}
                   />
                 </div>
               );
             })()}
+
+            {giro.daFare === 0 && giro.stato === 'valido' && (
+              <p
+                className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium"
+                style={{ color: 'var(--success)' }}
+              >
+                <Check className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
+                Tutto fatto: ricordati di inviare il rapportino.
+              </p>
+            )}
 
             <div className="mt-5">
               {giro.stato === 'scaduto' ? (
@@ -215,7 +257,8 @@ export default function OggiClient({
                 </p>
               ) : (
                 <Button
-                  variant="primary"
+                  // Inviato = niente più azioni attese: la CTA scende di tono (outline).
+                  variant={giro.stato === 'inviato' ? undefined : 'primary'}
                   size="touch"
                   className="w-full sm:w-auto"
                   onClick={() => router.push(`/r/${giro.token}`)}
