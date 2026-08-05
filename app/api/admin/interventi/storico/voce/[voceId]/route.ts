@@ -13,6 +13,7 @@ import { sweepDopoPositivi } from '@/lib/interventi/sweepOdlPositivo';
 import { esitoDichiarato, matricoleObbligatorieCompilate } from '@/utils/rapportini/voceColore';
 import {
   buildCampiEditor, anagraficaPatchValida, anagraficaPatchIntervento, ANAGRAFICA_COLONNE, estraiFotoPaths,
+  campiPerChiusuraStorico,
 } from '@/lib/interventi/storico/modifica';
 import {
   esecutoreIdValido, scegliRapportinoDestinazione, prossimoOrdine, esecutoriConNuovoPrimario,
@@ -204,8 +205,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ voceId
   const v = voce as { intervento_id: string | null; rapportino_id: string; risposte: Record<string, unknown> | null; campi_snapshot?: unknown };
 
   const { data: rap } = await supabaseAdmin
-    .from('rapportini').select('campi_snapshot').eq('id', v.rapportino_id).maybeSingle();
-  const campi = campiEffettivi(v.campi_snapshot, rap?.campi_snapshot);
+    .from('rapportini').select('campi_snapshot, data').eq('id', v.rapportino_id).maybeSingle();
+  // Le matricole obbligatorie (es. MATRICOLA NUOVO MISURATORE) non si pretendono sulle voci
+  // di rapportini nati prima del gate che le ha introdotte — vedi `campiPerChiusuraStorico`.
+  const campi = campiPerChiusuraStorico(
+    campiEffettivi(v.campi_snapshot, rap?.campi_snapshot),
+    (rap as { data?: string | null } | null)?.data ?? null,
+  );
 
   const merged = risposteIn
     ? mergeRisposte(v.risposte ?? {}, risposteIn, { soloCompletamentoFoto: false })
