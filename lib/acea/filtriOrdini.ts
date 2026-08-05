@@ -538,10 +538,13 @@ export const PREFISSO_SCHEDA_COMUNE = 'comune:';
  * I comuni arrivano dal registro (quelli con almeno un ordine APERTO): un comune nuovo compare al
  * primo import che lo contiene, uno finito sparisce da solo — la sua storia resta in «Chiusi».
  *
- * ACQUALATINA — due schede sole: «Da lavorare» e «Chiusi». La campagna è UN comune (Terracina),
- * quindi le schede-comune non dividerebbero niente; riaperture e saracinesche sono concetti ACEA
- * (codici SLA, master snapshot) che qui non esistono. Aperto e chiuso coprono ogni riga: «Tutti»
- * diluirebbe come nelle massive.
+ * ACQUALATINA — tre schede: «Da lavorare», «Chiusi» e «Tutti». La campagna è UN comune
+ * (Terracina), quindi le schede-comune non dividerebbero niente; riaperture e saracinesche sono
+ * concetti ACEA (codici SLA, master snapshot) che qui non esistono.
+ *
+ * «Tutti» è tornata su richiesta: aperto e chiuso coprono ogni riga uno alla volta, ma un
+ * controllo — o un incolla — che deve attraversare ENTRAMBI (una ricerca ODL che non sa ancora
+ * se la riga è aperta o chiusa) altrimenti costringe a guardare due schede di seguito.
  */
 export function schedeVista(
   famiglia: Famiglia,
@@ -552,7 +555,7 @@ export function schedeVista(
       .map((s) => ({ value: s, label: ETICHETTE_STATO[s] }));
   }
   if (famiglia === 'acqualatina') {
-    return (['aperti', 'chiusi'] as StatoFiltro[])
+    return (['aperti', 'chiusi', 'tutti'] as StatoFiltro[])
       .map((s) => ({ value: s, label: ETICHETTE_STATO[s] }));
   }
   return [
