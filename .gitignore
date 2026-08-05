@@ -32,3 +32,6 @@ playwright.local.config.ts
 # firma Android (ricreata in CI dai secrets, mai nel repo)
 /android/key.properties
 /android/keystore/
+
+# artefatti Playwright MCP (screenshot/log locali di verifica: possono contenere dati reali)
+/.playwright-mcp/
