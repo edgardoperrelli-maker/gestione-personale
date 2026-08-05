@@ -477,6 +477,14 @@ di una riga esitata da solo-registro è il `data_completamento` dell'ultimo tent
 data del passaggio fallito a rapportino. Helper puro: `odlImputabileAlSal`
 (`lib/produzione/salUfficiale.ts`); mappa `registroUltimo` in `lib/produzione/load.ts`.
 
+⚠️ **Audit a tre vie: COMPLETATO ≠ eseguito** (correzione utente 2026-08-05, «i 639»):
+`PortaleRiga.esitoPositivoAcea` distingue la chiusura pagabile (causale E%, o ultimo tentativo
+ESEGUITO nel registro) dall'ordine **archiviato negativo** (causale non-E: NPRT, NMNT…). Un
+archiviato negativo con nostro esito negativo/assente è CONCORDE: niente
+`COMPLETATO_PORTALE_NON_POSITIVO_DB`, `REGISTRO_NON_IN_DB` né `SOLO_PORTALE` — quei 639
+concordi seppellivano le ~75 discrepanze vere. Se invece il nostro DB dà POSITIVO, le classi
+restano vive.
+
 ⚠️ **«Fuori SAL» resta UN numero solo e NON si scompone** (correzione utente 2026-08-05):
 tutto il prodotto non ancora consuntivato dal portale, CON o SENZA un ordine ACEA dietro
 (a luglio 2026: 117.224 €). La scomposizione con-ordine/senza-ordine è stata provata

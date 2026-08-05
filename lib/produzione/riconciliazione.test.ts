@@ -40,7 +40,7 @@ describe('riconcilia — classi isolate (snapshot popolati)', () => {
     const out = riconcilia(
       mk({
         db: new Map([['o1', { voce: 10, esitoOk: true }]]),
-        portale: new Map([['o1', { statoNorm: 'COMPLETATO' }]]),
+        portale: new Map([['o1', { statoNorm: 'COMPLETATO', esitoPositivoAcea: true }]]),
       }),
       POP,
     );
@@ -57,7 +57,7 @@ describe('riconcilia — classi isolate (snapshot popolati)', () => {
       mk({
         db: new Map([['o1', { voce: 10, esitoOk: true }]]),
         registro: new Map([['o1', { voce: 10 }]]),
-        portale: new Map([['o1', { statoNorm: 'ASSEGNATO' }]]),
+        portale: new Map([['o1', { statoNorm: 'ASSEGNATO', esitoPositivoAcea: false }]]),
       }),
       POP,
     );
@@ -69,7 +69,7 @@ describe('riconcilia — classi isolate (snapshot popolati)', () => {
       mk({
         db: new Map([['o1', { voce: 10, esitoOk: false }]]),
         registro: new Map([['o1', { voce: 10 }]]),
-        portale: new Map([['o1', { statoNorm: 'COMPLETATO' }]]),
+        portale: new Map([['o1', { statoNorm: 'COMPLETATO', esitoPositivoAcea: true }]]),
       }),
       POP,
     );
@@ -81,7 +81,7 @@ describe('riconcilia — classi isolate (snapshot popolati)', () => {
       mk({
         db: new Map([['o1', { voce: 10, esitoOk: true }]]),
         registro: new Map([['o1', { voce: 11 }]]),
-        portale: new Map([['o1', { statoNorm: 'COMPLETATO' }]]),
+        portale: new Map([['o1', { statoNorm: 'COMPLETATO', esitoPositivoAcea: true }]]),
       }),
       POP,
     );
@@ -93,7 +93,7 @@ describe('riconcilia — classi isolate (snapshot popolati)', () => {
       mk({
         db: new Map([['o1', { voce: null, esitoOk: true }]]),
         registro: new Map([['o1', { voce: null }]]),
-        portale: new Map([['o1', { statoNorm: 'COMPLETATO' }]]),
+        portale: new Map([['o1', { statoNorm: 'COMPLETATO', esitoPositivoAcea: true }]]),
       }),
       POP,
     );
@@ -101,8 +101,66 @@ describe('riconcilia — classi isolate (snapshot popolati)', () => {
   });
 
   it('ODL solo nel portale → SOLO_PORTALE (e non COMPLETATO_NON_POSITIVO)', () => {
-    const out = riconcilia(mk({ portale: new Map([['o1', { statoNorm: 'COMPLETATO' }]]) }), POP);
+    const out = riconcilia(mk({ portale: new Map([['o1', { statoNorm: 'COMPLETATO', esitoPositivoAcea: true }]]) }), POP);
     expect(classi('o1', out)).toEqual(['SOLO_PORTALE']);
+  });
+});
+
+describe('riconcilia — chiusure ACEA archiviate negative (i 639 del 2026-08-05)', () => {
+  // Portale COMPLETATO con causale non-E = ACEA archivia il NON-fatto. Se anche da noi non c'è
+  // un positivo, i due libri concordano: niente da segnalare — erano 639 falsi che seppellivano
+  // le ~75 discrepanze vere («pagato senza rapportino»).
+  const chiusoNegativo = { statoNorm: 'COMPLETATO', esitoPositivoAcea: false };
+
+  it('nostro negativo + chiusura negativa ACEA → nessuna discrepanza (concordi)', () => {
+    const out = riconcilia(
+      mk({
+        db: new Map([['o1', { voce: 10, esitoOk: false }]]),
+        registro: new Map([['o1', { voce: 10 }]]),
+        portale: new Map([['o1', chiusoNegativo]]),
+      }),
+      POP,
+    );
+    expect(classi('o1', out)).toEqual([]);
+  });
+
+  it('mai visto nel DB + chiusura negativa ACEA → niente REGISTRO_NON_IN_DB né SOLO_PORTALE', () => {
+    const out = riconcilia(
+      mk({
+        registro: new Map([['o1', { voce: 10 }]]),
+        portale: new Map([['o1', chiusoNegativo], ['o2', chiusoNegativo]]),
+      }),
+      POP,
+    );
+    expect(classi('o1', out)).toEqual([]); // nel registro, mai nel DB: ordine morto, non un buco
+    expect(classi('o2', out)).toEqual([]); // solo nel portale: idem
+  });
+
+  it('chiusura POSITIVA (E% o registro eseguito) senza positivo nostro → resta la discrepanza', () => {
+    const out = riconcilia(
+      mk({
+        db: new Map([['o1', { voce: 10, esitoOk: false }]]),
+        registro: new Map([['o1', { voce: 10 }]]),
+        portale: new Map([['o1', { statoNorm: 'COMPLETATO', esitoPositivoAcea: true }]]),
+      }),
+      POP,
+    );
+    expect(classi('o1', out)).toEqual(['COMPLETATO_PORTALE_NON_POSITIVO_DB']);
+  });
+
+  it('nostro POSITIVO su chiusura negativa → le classi normali continuano a parlare', () => {
+    // Qui i libri NON concordano (noi diciamo fatto, ACEA no): il silenzio vale solo quando
+    // il non-fatto è concorde. Oggi nessuna classe copre questo caso specifico, ma la voce
+    // non risolta e le presenze devono restare vive.
+    const out = riconcilia(
+      mk({
+        db: new Map([['o1', { voce: null, esitoOk: true }]]),
+        registro: new Map([['o1', { voce: null }]]),
+        portale: new Map([['o1', chiusoNegativo]]),
+      }),
+      POP,
+    );
+    expect(classi('o1', out)).toEqual(['VOCE_NON_RISOLTA']); // produttivo per il positivo NOSTRO
   });
 });
 
@@ -112,7 +170,7 @@ describe('riconcilia — combinazioni e ordinamento', () => {
       mk({
         db: new Map([['o1', { voce: 10, esitoOk: true }]]),
         registro: new Map([['o1', { voce: 11 }]]),
-        portale: new Map([['zzz', { statoNorm: 'ASSEGNATO' }]]), // portale popolato, o1 assente
+        portale: new Map([['zzz', { statoNorm: 'ASSEGNATO', esitoPositivoAcea: false }]]), // portale popolato, o1 assente
       }),
       POP,
     );
