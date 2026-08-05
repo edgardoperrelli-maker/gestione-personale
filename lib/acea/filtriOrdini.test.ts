@@ -615,10 +615,10 @@ describe('schede della vista (schedeVista / valoreScheda / applicaScheda)', () =
     expect(schedeVista('massive', []).map((s) => s.value)).toEqual(['chiusi', 'saracinesche']);
   });
 
-  it('acqualatina: due schede secche — riaperture e saracinesche sono concetti ACEA', () => {
-    expect(schedeVista('acqualatina', []).map((s) => s.value)).toEqual(['aperti', 'chiusi']);
+  it('acqualatina: tre schede — riaperture e saracinesche sono concetti ACEA', () => {
+    expect(schedeVista('acqualatina', []).map((s) => s.value)).toEqual(['aperti', 'chiusi', 'tutti']);
     // I comuni non dividono niente: la campagna è UN comune, la fila non li disegna.
-    expect(schedeVista('acqualatina', ['TERRACINA']).map((s) => s.value)).toEqual(['aperti', 'chiusi']);
+    expect(schedeVista('acqualatina', ['TERRACINA']).map((s) => s.value)).toEqual(['aperti', 'chiusi', 'tutti']);
   });
 
   it('la famiglia acqualatina viaggia in query e torna', () => {
