@@ -74,5 +74,9 @@
 	<array>
 		<string>gestione-personale.vercel.app</string>
 	</array>
+	<!-- Solo HTTPS standard (crittografia esente): risponde una volta per tutte
+	     alla domanda di conformità export che ASC ripropone a ogni build. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 </dict>
 </plist>
