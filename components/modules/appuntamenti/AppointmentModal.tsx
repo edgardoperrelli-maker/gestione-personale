@@ -14,6 +14,7 @@ import {
   territoriDelCommittente,
   type Committente,
 } from '@/lib/contratti/tipi';
+import OrdineAcqualatinaPicker, { type OrdineAcqualatina } from './OrdineAcqualatinaPicker';
 
 type RefNome = { id: string; nome: string } | null;
 
@@ -32,6 +33,7 @@ export type Appointment = {
   territorio_id: string | null;
   committente_id: string | null;
   appuntamento_territorio_id: string | null;
+  ordine_id: string | null;
   note: string | null;
   status: 'pending' | 'confirmed';
   territories: { id: string; name: string } | null;
@@ -133,6 +135,7 @@ function CreateMode({ defaultDate, committenti, onClose, onCreate }: {
   const [cap, setCap] = useState('');
   const [citta, setCitta] = useState('');
   const [note, setNote] = useState('');
+  const [ordine, setOrdine] = useState<OrdineAcqualatina | null>(null);
   const [loading, setLoading] = useState(false);
 
   const committentiSel = useMemo(() => committentiAttivi(committenti), [committenti]);
@@ -140,16 +143,37 @@ function CreateMode({ defaultDate, committenti, onClose, onCreate }: {
     () => territoriDelCommittente(committentiSel.find((c) => c.id === committenteId)),
     [committentiSel, committenteId],
   );
+  // AcquaLatina non ammette PDR a testo libero: l'appuntamento nasce sempre da una riga del
+  // registro, cercata e scelta con OrdineAcqualatinaPicker.
+  const richiedeOrdine = committentiSel.find((c) => c.id === committenteId)?.codice === 'acqualatina';
 
   const onCommittente = (id: string) => {
     setCommittenteId(id);
     setTerritorioId(''); // il territorio dipende dal committente: azzera alla scelta
+    // pdr/nome/indirizzo possono venire dall'ordine scelto per il committente precedente: con un
+    // altro committente non hanno più senso, si riparte da zero.
+    setOrdine(null);
+    setPdr('');
+    setNomeCognome('');
+    setIndirizzo('');
+    setCap('');
+    setCitta('');
+  };
+
+  const onOrdine = (o: OrdineAcqualatina | null) => {
+    setOrdine(o);
+    setPdr(o ? (o.impianto?.trim() || o.odl) : '');
+    setNomeCognome(o?.nominativo?.trim() || '');
+    setIndirizzo(o ? [o.via, o.civico].filter(Boolean).join(' ') : '');
+    setCap(o?.cap?.trim() || '');
+    setCitta(o?.comune?.trim() || '');
   };
 
   const handleSubmit = async () => {
     if (!committenteId) { toast.error('Committente obbligatorio'); return; }
     if (!territorioId) { toast.error('Territorio obbligatorio'); return; }
-    if (!pdr.trim()) { toast.error('PDR obbligatorio'); return; }
+    if (richiedeOrdine && !ordine) { toast.error('Cerca e seleziona un ordine AcquaLatina'); return; }
+    if (!richiedeOrdine && !pdr.trim()) { toast.error('PDR obbligatorio'); return; }
     if (!data.trim()) { toast.error('Data obbligatoria'); return; }
 
     setLoading(true);
@@ -164,6 +188,7 @@ function CreateMode({ defaultDate, committenti, onClose, onCreate }: {
         tipo_intervento: tipoIntervento.trim() || null,
         committente_id: committenteId,
         appuntamento_territorio_id: territorioId,
+        ordine_id: ordine?.id ?? null,
         indirizzo: indirizzo.trim() || null,
         cap: cap.trim() || null,
         citta: citta.trim() || null,
@@ -215,16 +240,23 @@ function CreateMode({ defaultDate, committenti, onClose, onCreate }: {
           </label>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2">
+        {richiedeOrdine ? (
           <label className="block">
-            <span className={labelCls}>PDR *</span>
-            <Input value={pdr} onChange={(e) => setPdr(e.target.value)} placeholder="Inserisci PDR" />
+            <span className={labelCls}>Ordine AcquaLatina *</span>
+            <OrdineAcqualatinaPicker value={ordine} onChange={onOrdine} />
           </label>
-          <label className="block">
-            <span className={labelCls}>Nome e cognome</span>
-            <Input value={nomeCognome} onChange={(e) => setNomeCognome(e.target.value)} placeholder="Nome e cognome" />
-          </label>
-        </div>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block">
+              <span className={labelCls}>PDR *</span>
+              <Input value={pdr} onChange={(e) => setPdr(e.target.value)} placeholder="Inserisci PDR" />
+            </label>
+            <label className="block">
+              <span className={labelCls}>Nome e cognome</span>
+              <Input value={nomeCognome} onChange={(e) => setNomeCognome(e.target.value)} placeholder="Nome e cognome" />
+            </label>
+          </div>
+        )}
 
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block">
@@ -242,20 +274,22 @@ function CreateMode({ defaultDate, committenti, onClose, onCreate }: {
           <Input value={tipoIntervento} onChange={(e) => setTipoIntervento(e.target.value)} placeholder="Tipo intervento" />
         </label>
 
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_110px_minmax(0,180px)]">
-          <label className="block">
-            <span className={labelCls}>Indirizzo</span>
-            <Input value={indirizzo} onChange={(e) => setIndirizzo(e.target.value)} placeholder="Indirizzo" />
-          </label>
-          <label className="block">
-            <span className={labelCls}>CAP</span>
-            <Input value={cap} onChange={(e) => setCap(e.target.value)} placeholder="CAP" />
-          </label>
-          <label className="block">
-            <span className={labelCls}>Città</span>
-            <Input value={citta} onChange={(e) => setCitta(e.target.value)} placeholder="Città" />
-          </label>
-        </div>
+        {!richiedeOrdine && (
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_110px_minmax(0,180px)]">
+            <label className="block">
+              <span className={labelCls}>Indirizzo</span>
+              <Input value={indirizzo} onChange={(e) => setIndirizzo(e.target.value)} placeholder="Indirizzo" />
+            </label>
+            <label className="block">
+              <span className={labelCls}>CAP</span>
+              <Input value={cap} onChange={(e) => setCap(e.target.value)} placeholder="CAP" />
+            </label>
+            <label className="block">
+              <span className={labelCls}>Città</span>
+              <Input value={citta} onChange={(e) => setCitta(e.target.value)} placeholder="Città" />
+            </label>
+          </div>
+        )}
 
         <label className="block">
           <span className={labelCls}>Note</span>
