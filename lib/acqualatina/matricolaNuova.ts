@@ -37,16 +37,21 @@ export async function propagaMatricolaNuovaARegistro(
 ): Promise<void> {
   const { data, error } = await db
     .from('interventi')
-    .select('ordine_id')
+    .select('ordine_id, committente')
     .eq('id', interventoId)
     .maybeSingle();
   if (error) { console.error('[acqualatina] lettura ordine_id per matricola_nuova fallita:', error.message); return; }
-  const ordineId = (data as { ordine_id: string | null } | null)?.ordine_id ?? null;
-  if (!ordineId) return;
+  const row = data as { ordine_id: string | null; committente: string | null } | null;
+  // `ordine_id` può puntare ad `acea_ordini` (stesso spazio di uuid, tabella diversa): senza
+  // questo controllo un intervento non-acqualatina scriverebbe alla cieca su un registro che
+  // non è il suo. In pratica `matricola_nuova` non esiste nelle risposte di altri committenti
+  // (il campo è solo nel flusso SOSTITUZIONE MISURATORI), ma non è una garanzia da cui far
+  // dipendere l'integrità di un altro registro.
+  if (!row || row.committente !== 'acqualatina' || !row.ordine_id) return;
   const { error: eReg } = await db
     .from('acqualatina_ordini')
     .update({ matricola_nuova: valore, aggiornato_il: new Date().toISOString() })
-    .eq('id', ordineId);
+    .eq('id', row.ordine_id);
   if (eReg) console.error('[acqualatina] matricola_nuova non propagata al registro:', eReg.message);
 }
 

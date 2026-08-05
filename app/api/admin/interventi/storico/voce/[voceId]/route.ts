@@ -12,10 +12,11 @@ import { patchInterventoLiveDaVoce } from '@/lib/interventi/esitoDaVoce';
 import { sweepDopoPositivi } from '@/lib/interventi/sweepOdlPositivo';
 import { esitoDichiarato, matricoleObbligatorieCompilate } from '@/utils/rapportini/voceColore';
 import { valoreMatricolaNuova, propagaMatricolaNuovaARegistro } from '@/lib/acqualatina/matricolaNuova';
+import { propagaAnagraficaARegistro } from '@/lib/acqualatina/propagaAnagrafica';
 import { scriviSenzaColonnaMancante } from '@/lib/rapportini/colonneOpzionali';
 import {
-  buildCampiEditor, anagraficaPatchValida, anagraficaPatchIntervento, ANAGRAFICA_COLONNE, estraiFotoPaths,
-  campiPerChiusuraStorico,
+  buildCampiEditor, anagraficaPatchValida, anagraficaPatchIntervento, anagraficaPatchRegistro,
+  ANAGRAFICA_COLONNE, estraiFotoPaths, campiPerChiusuraStorico,
 } from '@/lib/interventi/storico/modifica';
 import {
   esecutoreIdValido, scegliRapportinoDestinazione, prossimoOrdine, esecutoriConNuovoPrimario,
@@ -256,6 +257,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ voceId
       }
       if (Object.keys(intAnag).length > 0) {
         await supabaseAdmin.from('interventi').update(intAnag).eq('id', interventoId).neq('stato', 'annullato');
+      }
+      // La stessa correzione converge sul registro AcquaLatina (PDR/impianto, nominativo,
+      // indirizzo, comune, cap) — come già succede per la matricola nuova. `odl` e `matricola`
+      // restano fuori: sono la chiave e l'identità della riga di registro, non anagrafica
+      // correggibile (vedi il commento su `anagraficaPatchRegistro`).
+      const regAnag = anagraficaPatchRegistro(anag);
+      if (Object.keys(regAnag).length > 0) {
+        await propagaAnagraficaARegistro(supabaseAdmin, interventoId, regAnag);
       }
       if (risposteIn) {
         const patch = patchInterventoLiveDaVoce(merged, campi);

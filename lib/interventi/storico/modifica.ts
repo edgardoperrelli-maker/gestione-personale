@@ -3,6 +3,7 @@
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { comeArrayFoto } from '@/utils/rapportini/comeArrayFoto';
 import { campiConEsitoCorreggibile } from '@/utils/rapportini/opzioniEsito';
+import { spezzaIndirizzo } from '@/lib/acqualatina/ordiniDaMaster';
 
 /** Colonne anagrafiche editabili di `rapportino_voci` (whitelist). */
 export const ANAGRAFICA_COLONNE = [
@@ -123,4 +124,36 @@ export function anagraficaPatchIntervento(p: AnagraficaPatch): Record<string, st
     if (k in p) out[VOCE_TO_INTERVENTO[k]] = p[k] ?? null;
   }
   return out;
+}
+
+/** Le colonne dell'anagrafica che convergono anche sul registro `acqualatina_ordini`. */
+export type RegistroAnagraficaPatch = Partial<Record<
+  'impianto' | 'nominativo' | 'via' | 'civico' | 'comune' | 'cap', string | null
+>>;
+
+/**
+ * Traduce la correzione d'ufficio verso il registro AcquaLatina — PDR/impianto, nominativo,
+ * indirizzo (spezzato in via+civico, come il registro lo tiene) e comune/cap. Restano FUORI,
+ * apposta:
+ *  - `odl`: è la CHIAVE del registro (odl, numero_operazione), non un campo anagrafico —
+ *    propagarlo sposterebbe la correzione su una riga diversa, non la applicherebbe;
+ *  - `matricola`: è l'IDENTITÀ della riga a registro (indice unico odl+matricola_norm).
+ *    `ordiniDaMaster.ts` la esclude dalla sovrascrittura del sync per lo stesso motivo — «una
+ *    matricola diversa non è una correzione, è un'altra riga» — e vale identico qui: la
+ *    matricola del contatore rimosso, corretta su un intervento, non deve poter far «adottare»
+ *    o confondere una riga di registro diversa;
+ *  - `attivita`/`fascia_oraria`: classificazione dell'intervento, non anagrafica del punto.
+ */
+export function anagraficaPatchRegistro(p: AnagraficaPatch): RegistroAnagraficaPatch {
+  const patch: RegistroAnagraficaPatch = {};
+  if ('pdr' in p) patch.impianto = p.pdr;
+  if ('nominativo' in p) patch.nominativo = p.nominativo;
+  if ('comune' in p) patch.comune = p.comune;
+  if ('cap' in p) patch.cap = p.cap;
+  if ('via' in p) {
+    const { via, civico } = spezzaIndirizzo(p.via);
+    patch.via = via;
+    patch.civico = civico;
+  }
+  return patch;
 }
