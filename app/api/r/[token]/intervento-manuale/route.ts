@@ -11,9 +11,9 @@ import { anagraficaValida } from '@/lib/interventi/manuali/anagraficaValida';
 import { esitoPositivoDefault } from '@/lib/interventi/manuali/esitoPositivoDefault';
 import { attivitaDefaultManuale } from '@/lib/interventi/manuali/attivitaPerCommittente';
 import { caricaTassonomia } from '@/lib/attivita/caricaTassonomia';
-import { buildTassonomiaIndex, risolviGruppo, committenteEquivalente } from '@/lib/attivita/tassonomia';
+import { buildTassonomiaIndex, risolviGruppo } from '@/lib/attivita/tassonomia';
 import { caricaFlussi } from '@/lib/consuntivazione/flusso';
-import { risolviFlussoPerGruppo, templateCollegato } from '@/lib/rapportini/flussiGruppo';
+import { risolviFlussoVoceManuale } from '@/lib/interventi/manuali/risolviFlussoVoceManuale';
 import { messaggioErroreManuale } from '@/lib/interventi/manuali/messaggioErroreManuale';
 import { campiFoto, validaFotoObbligatorie } from '@/lib/interventi/manuali/validaFotoObbligatorie';
 import { maiuscolo, maiuscolaStringhe, maiuscolaRisposteTesto } from '@/lib/testo/maiuscolo';
@@ -319,15 +319,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   // stesso consente per costruzione) eredita azioni che non sono le sue — caso reale: un "+"
   // BONIFICHE EXTRA (Italgas) sotto un rapportino AcquaLatina ereditava la matricola nuova del
   // misuratore AcquaLatina come campo obbligatorio, un'azione che su Italgas non ha senso.
+  // Committente e gruppo, MAI il territorio del piano (che nella gerarchia ATLAS ospita più
+  // committenti insieme): vedi risolviFlussoVoceManuale.
   const flussi = await caricaFlussi(supabaseAdmin);
-  const flussoGruppo = risolviFlussoPerGruppo(
-    committenteEquivalente(committente),
-    gruppoAttivitaVoce,
-    flussi.filter((f) => templateCollegato(f)),
-  );
-  const campiFlussoGruppo = flussoGruppo && Array.isArray(flussoGruppo.campi) && flussoGruppo.campi.length > 0
-    ? (flussoGruppo.campi as TemplateCampo[])
-    : null;
+  const flussoVoce = risolviFlussoVoceManuale(committente, gruppoAttivitaVoce, flussi);
+  const campiFlussoGruppo = flussoVoce?.campi ?? null;
 
   // Risolve il template e carica anche i campi (serve per validare le foto obbligatorie).
   // caricaTemplateManuali esclude i modelli riservati (P.I.): non concorrono al "+".
@@ -420,7 +416,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   };
 
   const fotoPriority = campiFlussoGruppo
-    ? ((flussoGruppo?.foto_id_priority ?? []) as FotoIdCampo[])
+    ? (flussoVoce?.fotoIdPriority ?? [])
     : ereditaStandard
       ? standardPriority
       : (((templateRow as { foto_id_priority?: string[] | null } | undefined)?.foto_id_priority ?? []) as FotoIdCampo[]);
@@ -588,7 +584,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     richiestaId: req2!.id,
     ordine,
     dati,
-    templateId: flussoGruppo?.id ?? null,
+    templateId: flussoVoce?.templateId ?? null,
     campi: campiFlussoGruppo,
   });
   const { data: voceRow, error: eVoce } = await supabaseAdmin
