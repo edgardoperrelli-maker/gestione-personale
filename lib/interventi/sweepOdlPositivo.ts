@@ -15,8 +15,17 @@ import { committenteEquivalente } from '@/lib/attivita/tassonomia';
 /** Stati di un intervento ancora aperto (nessun esito registrato). */
 export const STATI_APERTI = ['da_assegnare', 'assegnato', 'in_viaggio', 'sul_posto', 'in_esecuzione'];
 
-export type PositivoChiuso = { id: string; odl: string | null; committente: string | null; esito: string | null };
-export type CandidatoSweep = { id: string; odl: string | null; committente: string | null; stato: string };
+export type PositivoChiuso = {
+  id: string; odl: string | null; committente: string | null; esito: string | null;
+  /** Pesa solo sulla chiave acqualatina (vedi `chiaveSweep`): un ODL lì copre fino a cinque
+   *  contatori, e ognuno ha diritto al suo positivo — senza matricola nella chiave, il positivo
+   *  di un contatore revocherebbe come "duplicato" gli altri, ancora da lavorare. */
+  matricola_contatore?: string | null;
+};
+export type CandidatoSweep = {
+  id: string; odl: string | null; committente: string | null; stato: string;
+  matricola_contatore?: string | null;
+};
 export type VoceSweep = {
   id: string;
   intervento_id: string | null;
@@ -29,9 +38,21 @@ export type VoceSweep = {
 
 export type PianoSweep = { vociDaEliminare: string[]; interventiDaEliminare: string[] };
 
-/** Chiave dell'invariante: classe committente (lim_massive ≡ acea) + ODL normalizzato. */
-function chiaveSweep(committente: string | null | undefined, odl: string | null | undefined): string {
-  return chiavePositivo(committenteEquivalente(committente) || 'acea', odl);
+/**
+ * Chiave dell'invariante: classe committente (lim_massive ≡ acea) + ODL normalizzato + matricola
+ * (solo acqualatina, via `chiavePositivo`).
+ *
+ * Fino a qui la matricola mancava: un ODL AcquaLatina con più contatori collassava tutti sulla
+ * stessa chiave, e il positivo del primo faceva sparire — voce E intervento, non solo la voce —
+ * gli altri contatori dello stesso ODL ancora da lavorare, scambiati per lo stesso duplicato che
+ * questo sweep esiste per ripulire su ACEA.
+ */
+function chiaveSweep(
+  committente: string | null | undefined,
+  odl: string | null | undefined,
+  matricola?: string | null,
+): string {
+  return chiavePositivo(committenteEquivalente(committente) || 'acea', odl, matricola);
 }
 
 function voceCompilata(risposte: Record<string, unknown> | null | undefined): boolean {
@@ -58,7 +79,7 @@ export function pianificaSweep(args: {
     if (p.esito !== 'eseguito_positivo') continue;
     const k = normOdl(p.odl);
     if (!k) continue;
-    chiaviPositivi.add(chiaveSweep(p.committente, p.odl));
+    chiaviPositivi.add(chiaveSweep(p.committente, p.odl, p.matricola_contatore));
     odlPositivi.add(k);
     idPositivi.add(p.id);
   }
@@ -68,7 +89,7 @@ export function pianificaSweep(args: {
     candidati
       .filter((c) => !idPositivi.has(c.id))
       .filter((c) => STATI_APERTI.includes(c.stato))
-      .filter((c) => chiaviPositivi.has(chiaveSweep(c.committente, c.odl)))
+      .filter((c) => chiaviPositivi.has(chiaveSweep(c.committente, c.odl, c.matricola_contatore)))
       .map((c) => c.id),
   );
 
@@ -104,7 +125,7 @@ export async function sweepDopoPositivi(db: SupabaseClient, interventoIds: strin
 
   const { data: posRows } = await db
     .from('interventi')
-    .select('id, odl, committente, esito')
+    .select('id, odl, committente, esito, matricola_contatore')
     .in('id', ids)
     .eq('esito', 'eseguito_positivo');
   const positivi = ((posRows ?? []) as PositivoChiuso[]).filter((p) => (p.odl ?? '').trim());
@@ -113,7 +134,7 @@ export async function sweepDopoPositivi(db: SupabaseClient, interventoIds: strin
 
   const { data: candRows } = await db
     .from('interventi')
-    .select('id, odl, committente, stato')
+    .select('id, odl, committente, stato, matricola_contatore')
     .in('odl', odls)
     .in('stato', STATI_APERTI)
     .not('id', 'in', `(${ids.join(',')})`);

@@ -1,5 +1,6 @@
 import JSZip from 'jszip';
 import type { ProduzioneEconomica } from './load';
+import { ETICHETTA_VISTA } from './committente';
 
 // Iniezione dati in un template .xlsx PRESERVANDO i grafici nativi: si riscrivono solo i valori delle
 // celle (foglio "Dati"/"Dettaglio"/"Audit"), non si ri-serializza il workbook (ExcelJS perderebbe i
@@ -124,7 +125,14 @@ export function mappaCelleProduzione(dati: ProduzioneEconomica): CellePerFoglio 
     Audit[`B${r}`] = AUDIT_LABEL[d.classe] ?? d.classe;
   });
 
-  const Dashboard: Record<string, Valore> = { B4: 'Esitato ACEA' };
+  const Dashboard: Record<string, Valore> = {
+    // Il titolo del template resta il letterale «… — ACEA» finché non lo si riscrive: su questa
+    // via (iniezione, non ExcelJS) mancava, a differenza del gemello buildWorkbookProduzione
+    // (exportExcel.ts), che interpola già ETICHETTA_VISTA — un export di AcquaLatina usciva
+    // titolato ACEA nonostante i numeri sotto fossero giusti.
+    A1: `Produzione economica — ${ETICHETTA_VISTA[dati.vista]}`,
+    B4: 'Esitato ACEA',
+  };
 
   return { Dati, Dettaglio, Audit, Dashboard };
 }

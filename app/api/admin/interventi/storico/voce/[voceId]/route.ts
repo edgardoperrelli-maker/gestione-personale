@@ -16,7 +16,7 @@ import { propagaAnagraficaARegistro } from '@/lib/acqualatina/propagaAnagrafica'
 import { scriviSenzaColonnaMancante } from '@/lib/rapportini/colonneOpzionali';
 import {
   buildCampiEditor, anagraficaPatchValida, anagraficaPatchIntervento, anagraficaPatchRegistro,
-  ANAGRAFICA_COLONNE, estraiFotoPaths, campiPerChiusuraStorico,
+  ANAGRAFICA_COLONNE, estraiFotoPaths, campiPerChiusuraStorico, tabellaMisuratori,
 } from '@/lib/interventi/storico/modifica';
 import {
   esecutoreIdValido, scegliRapportinoDestinazione, prossimoOrdine, esecutoriConNuovoPrimario,
@@ -159,9 +159,10 @@ async function cambiaEsecutore(
   // Intervento collegato: staff_id è l'esecutore primario, `esecutori` ne è lo specchio.
   if (v.intervento_id) {
     const { data: intervento } = await supabaseAdmin
-      .from('interventi').select('esecutori').eq('id', v.intervento_id).maybeSingle();
+      .from('interventi').select('esecutori, committente').eq('id', v.intervento_id).maybeSingle();
+    const int = intervento as { esecutori?: unknown; committente?: string | null } | null;
     const squadra = esecutoriConNuovoPrimario(
-      (intervento as { esecutori?: unknown } | null)?.esecutori,
+      int?.esecutori,
       { staff_id: esecutoreId, staff_name: staffName },
     );
     const { error: eInt } = await supabaseAdmin
@@ -170,11 +171,20 @@ async function cambiaEsecutore(
       .eq('id', v.intervento_id).neq('stato', 'annullato');
     if (eInt) return { ok: false, status: 500, error: eInt.message };
 
-    // Registro misuratori rimossi: porta l'esecutore (nome) e il rapportino sul nuovo operatore.
+    /*
+      Registro misuratori rimossi: porta l'esecutore (nome) e il rapportino sul nuovo operatore.
+
+      Ogni commessa ha il SUO registro (AGENTS.md §13): scrivere sempre su quello ACEA lasciava la
+      riga gemella di AcquaLatina — se l'intervento era già chiuso positivo — con esecutore e
+      rapportino_id obsoleti, senza errore (uno `.update().eq()` che non trova righe non fallisce)
+      e senza correzione successiva: il "Ricalcola" del registro riscrive solo `data_esecuzione`
+      sulle righe già agganciate, mai questi due campi.
+    */
+    const tabella = tabellaMisuratori(int?.committente);
     const { error: eMis } = await supabaseAdmin
-      .from('misuratori_rimossi').update({ esecutore: staffName, rapportino_id: destId })
+      .from(tabella).update({ esecutore: staffName, rapportino_id: destId })
       .eq('intervento_id', v.intervento_id);
-    if (eMis) console.error('[storico/voce] allineamento misuratori_rimossi fallito:', eMis.message);
+    if (eMis) console.error(`[storico/voce] allineamento ${tabella} fallito:`, eMis.message);
   }
 
   return { ok: true, spostata: true };

@@ -94,6 +94,38 @@ describe('pianificaSweep', () => {
     expect(piano.interventiDaEliminare).toEqual(['c1']);
   });
 
+  it('AcquaLatina: un ODL con PIÙ contatori — il positivo di uno non revoca gli altri', () => {
+    // Un ODL AcquaLatina può coprire fino a cinque contatori (matricole) diversi: il positivo del
+    // contatore A non deve toccare il lavoro ancora aperto dei contatori B e C sullo stesso ODL.
+    // Prima del fix, chiaveSweep ignorava la matricola e li trattava come lo stesso duplicato.
+    const piano = pianificaSweep({
+      positivi: [{ id: 'pos1', odl: 'ODL1', committente: 'acqualatina', esito: 'eseguito_positivo', matricola_contatore: 'MAT-A' }],
+      candidati: [
+        { id: 'cB', odl: 'ODL1', committente: 'acqualatina', stato: 'assegnato', matricola_contatore: 'MAT-B' },
+        { id: 'cC', odl: 'ODL1', committente: 'acqualatina', stato: 'assegnato', matricola_contatore: 'MAT-C' },
+      ],
+      voci: [
+        voce({ id: 'vB', intervento_id: 'cB' }),
+        voce({ id: 'vC', intervento_id: 'cC' }),
+      ],
+    });
+    expect(piano.interventiDaEliminare).toEqual([]);
+    expect(piano.vociDaEliminare).toEqual([]);
+  });
+
+  it('AcquaLatina: stesso ODL E stessa matricola → il duplicato viene revocato normalmente', () => {
+    const piano = pianificaSweep({
+      positivi: [{ id: 'pos1', odl: 'ODL1', committente: 'acqualatina', esito: 'eseguito_positivo', matricola_contatore: 'MAT-A' }],
+      candidati: [
+        { id: 'cA', odl: 'ODL1', committente: 'acqualatina', stato: 'assegnato', matricola_contatore: 'MAT-A' },
+        { id: 'cB', odl: 'ODL1', committente: 'acqualatina', stato: 'assegnato', matricola_contatore: 'MAT-B' },
+      ],
+      voci: [voce({ id: 'vA', intervento_id: 'cA' }), voce({ id: 'vB', intervento_id: 'cB' })],
+    });
+    expect(piano.interventiDaEliminare).toEqual(['cA']);
+    expect(piano.vociDaEliminare).toEqual(['vA']);
+  });
+
   it('esito non positivo o ODL vuoto → nessuna revoca', () => {
     for (const p of [
       { ...positivo, esito: null },

@@ -121,7 +121,7 @@ export async function POST(req: Request) {
     ).get(chiavePositivo(int.committente, int.odl, int.matricola_contatore)) ?? null;
   }
 
-  const { patch, misuratore } = calcolaEsitazione({
+  const { patch, misuratore, misuratoreTabella } = calcolaEsitazione({
     interventoId,
     committente: int.committente,
     interventoTipo: int.intervento_tipo,
@@ -203,8 +203,10 @@ export async function POST(req: Request) {
     .from('interventi').update(updatePatch).eq('id', interventoId).in('stato', OPEN_STATES);
   if (eInt) return NextResponse.json({ error: eInt.message }, { status: 500 });
 
-  if (misuratore) {
-    await supabaseAdmin.from('misuratori_rimossi').upsert([{ ...misuratore, rapportino_id: rapIdEff }], { onConflict: 'intervento_id', ignoreDuplicates: true });
+  if (misuratore && misuratoreTabella) {
+    await supabaseAdmin
+      .from(misuratoreTabella)
+      .upsert([{ ...misuratore, rapportino_id: rapIdEff }], { onConflict: 'intervento_id', ignoreDuplicates: true });
   }
 
   // Positivo registrato dal backoffice → sweep: revoca voci/interventi aperti con lo stesso

@@ -46,6 +46,8 @@ describe('calcolaEsitazione', () => {
     expect(r.misuratore?.matricola).toBe('MAT123');
     expect(r.misuratore?.esecutore).toBe('MARIO'); // nome del primario
     expect(r.misuratore?.data_esecuzione).toBe('2026-07-20');
+    expect(r.misuratore?.pdr).toBe('PDR9');
+    expect(r.misuratoreTabella).toBe('misuratori_rimossi');
   });
 
   it('negativo → completato senza esito e senza registro, nota nel motivo', () => {
@@ -109,5 +111,31 @@ describe('calcolaEsitazione', () => {
   it('positivo ACEA rimozione ma matricola voce vuota → nessun registro', () => {
     const r = calcolaEsitazione({ ...base, voce: { ...base.voce, matricola: '  ' }, risposte: { eseguito: 'SI' } });
     expect(r.misuratore).toBeNull();
+    expect(r.misuratoreTabella).toBeNull();
+  });
+
+  it('positivo AcquaLatina con matricola → registro AcquaLatina, NESSUN gate sul tipo (parità col flusso operatore)', () => {
+    // La commessa ha una sola attività ed è già una sostituzione: isRimozioneTipo (tarato sul
+    // testo libero ACEA) non deve nemmeno entrare in gioco. Prima di questo fix `misuratore`
+    // tornava null qui: un ordine chiuso da ufficio spariva dal magazzino AcquaLatina.
+    const r = calcolaEsitazione({
+      ...base, committente: 'acqualatina', interventoTipo: 'SOSTITUZIONE MISURATORI',
+      risposte: { eseguito: 'SI' },
+    });
+    expect(r.misuratore).not.toBeNull();
+    expect(r.misuratore?.matricola).toBe('MAT123');
+    // Niente `pdr`: la tabella gemella di AcquaLatina non ha quella colonna — includerla
+    // manderebbe l'upsert in errore ("column does not exist"), come già successo altrove.
+    expect(r.misuratore).not.toHaveProperty('pdr');
+    expect(r.misuratoreTabella).toBe('acqualatina_misuratori_rimossi');
+  });
+
+  it('positivo AcquaLatina senza matricola → nessun registro', () => {
+    const r = calcolaEsitazione({
+      ...base, committente: 'acqualatina', voce: { ...base.voce, matricola: '' },
+      risposte: { eseguito: 'SI' },
+    });
+    expect(r.misuratore).toBeNull();
+    expect(r.misuratoreTabella).toBeNull();
   });
 });

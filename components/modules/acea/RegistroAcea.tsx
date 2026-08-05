@@ -9,7 +9,7 @@ import {
   COLONNE_ACQUALATINA, COLONNE_DUNNING, COLONNE_MASSIVE, colonnePerStato, dataIt,
   type DefColonna, type RigaTabella,
 } from '@/lib/acea/colonneTabella';
-import { MAX_RIGHE_EXPORT, nomeFileExport } from '@/lib/acea/exportVista';
+import { MAX_RIGHE_EXPORT, nomeFileExport, nomeFoglioExport } from '@/lib/acea/exportVista';
 import { gruppiPerRapportino } from '@/lib/acea/caricaSuRapportino';
 import { ATTIVITA_TABELLONE, type Famiglia } from '@/lib/acea/famiglia';
 import { contaFiltriColonna } from '@/lib/acea/filtriOrdini';
@@ -355,6 +355,7 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
           oggi,
           filtrato: contaFiltriColonna(filtri) > 0 || filtri.cerca.trim() !== '',
         }),
+        nomeFoglioExport(famiglia),
       );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Export non riuscito.');
