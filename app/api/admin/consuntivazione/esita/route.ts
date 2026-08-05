@@ -6,6 +6,7 @@ import { caricaFlussi, risolviCampiFlusso } from '@/lib/consuntivazione/flusso';
 import { buildVoceConsuntivo } from '@/lib/consuntivazione/nuovoOrdine';
 import { calcolaEsitazione } from '@/lib/consuntivazione/esita';
 import { risolviEsecutori } from '@/lib/consuntivazione/esecutori';
+import { trovaRapportinoOperatoreGiorno, prossimoOrdineVoce } from '@/lib/consuntivazione/rapportinoGiorno';
 import { indicizzaPositivi, chiavePositivo, normOdl } from '@/lib/interventi/odlPositivi';
 import { sweepDopoPositivi } from '@/lib/interventi/sweepOdlPositivo';
 import { haEsitoNegativo } from '@/utils/rapportini/voceColore';
@@ -160,18 +161,26 @@ export async function POST(req: Request) {
     }
     await supabaseAdmin.from('rapportino_voci').update(patchVoce).eq('id', voce.id);
   } else {
+    // Nessuna voce collegata: prima di aprire un rapportino "contenitore" si guarda se
+    // l'operatore ne ha già uno per questo giorno (la sua pianificazione mappa/ACEA) — la voce
+    // dell'esitazione backoffice va LÌ, non in un secondo rapportino "Senza territorio" (bug
+    // 05/08: LIBERATORI/TREGU/DE SANTIS, stessa causa di consuntivazione/nuovo).
+    const esistente = await trovaRapportinoOperatoreGiorno(supabaseAdmin, primario.staff_id, dataEsecuzione);
     const rapId = body.rapId && /^[0-9a-fA-F-]{20,}$/.test(body.rapId) ? body.rapId : randomUUID();
-    rapIdEff = rapId;
-    const { error: eRap } = await supabaseAdmin.from('rapportini').insert({
-      id: rapId, piano_id: null, staff_id: primario.staff_id, staff_name: primario.staff_name,
-      data: dataEsecuzione, template_id: templateId, campi_snapshot: campi, info_snapshot: infoCampi ?? [],
-      tipo: tipo ?? 'standard', token: randomBytes(24).toString('base64url'), stato: 'inviato',
-      submitted_at: nowIso, expires_at: scadenzaIso(dataEsecuzione),
-    });
-    if (eRap) return NextResponse.json({ error: eRap.message }, { status: 500 });
+    rapIdEff = esistente?.id ?? rapId;
+    if (!esistente) {
+      const { error: eRap } = await supabaseAdmin.from('rapportini').insert({
+        id: rapId, piano_id: null, staff_id: primario.staff_id, staff_name: primario.staff_name,
+        data: dataEsecuzione, template_id: templateId, campi_snapshot: campi, info_snapshot: infoCampi ?? [],
+        tipo: tipo ?? 'standard', token: randomBytes(24).toString('base64url'), stato: 'inviato',
+        submitted_at: nowIso, expires_at: scadenzaIso(dataEsecuzione),
+      });
+      if (eRap) return NextResponse.json({ error: eRap.message }, { status: 500 });
+    }
+    const ordine = await prossimoOrdineVoce(supabaseAdmin, rapIdEff);
     const nuovaVoce = {
       ...buildVoceConsuntivo({
-        rapportinoId: rapId,
+        rapportinoId: rapIdEff,
         committente: int.committente as CommittenteManuale,
         anagrafica: {
           nominativo: int.nominativo ?? undefined, matricola: int.matricola_contatore ?? undefined,
@@ -182,11 +191,12 @@ export async function POST(req: Request) {
         risposte: risposteFinali,
         campi,
       }),
+      ordine,
       intervento_id: interventoId,
     };
     const { error: eVoce } = await supabaseAdmin.from('rapportino_voci').insert(nuovaVoce);
     if (eVoce) {
-      await supabaseAdmin.from('rapportini').delete().eq('id', rapId);
+      if (!esistente) await supabaseAdmin.from('rapportini').delete().eq('id', rapIdEff);
       return NextResponse.json({ error: eVoce.message }, { status: 500 });
     }
   }
