@@ -67,8 +67,10 @@ export async function buildWorkbookProduzione(dati: ProduzioneEconomica): Promis
   // KPI cards (4 riquadri valore + etichetta)
   const kpi: Array<[string, number, boolean]> = [
     ['Produzione', dati.produzione.totale.valore, true],
-    ['Esitato ACEA (consuntivato portale)', dati.sal.totale.valore, true],
-    ['Scarto Produzione − SAL', dati.scarto.valore, true],
+    // «nostri positivi»: dal 2026-08-05 l'Esitato conta solo i COMPLETATO del portale sostenuti
+    // da un rapportino positivo — chi riconcilia col portale grezzo deve sapere del filtro.
+    ['Esitato ACEA (nostri positivi consuntivati)', dati.sal.totale.valore, true],
+    ['Scarto Produzione − Esitato', dati.scarto.valore, true],
     ['Ordini prodotti', dati.produzione.totale.conteggio, false],
   ];
   const labelRow = dash.addRow(kpi.map((k) => k[0]));

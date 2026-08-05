@@ -2,6 +2,10 @@
 // Il SAL del loader NON è filtrato per range (consuntivato dell'intera commessa): le righe con
 // data < from diventano OFFSET iniziale della cumulata, così l'ultimo punto del grafico coincide
 // con la card "SAL". Lo scarto è clampato a ≥ 0 (aree impilate: salCum + scartoCum = prodCum).
+//
+// ⚠️ Lo scarto NON si scompone per la presenza di un ordine ACEA: la scomposizione è stata
+// provata e rifiutata dall'utente (2026-08-05) — l'area sopra l'esitato è tutto il prodotto
+// che manca all'appello del portale, in un blocco solo, come la card «Fuori SAL».
 
 import type { Aggregato } from './aggregaProduzione';
 import { lunediSettimana } from './settimana';

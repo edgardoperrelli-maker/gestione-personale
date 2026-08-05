@@ -6,6 +6,7 @@ import type { ProduzionePersonale } from '@/lib/produzione/aggregaPersonale';
 import type { EsitoOperatore } from '@/lib/produzione/aggregaEsiti';
 import type { ClasseDiscrepanza, Discrepanza, Totale } from '@/lib/produzione/riconciliazione';
 import type { SalStorico } from '@/lib/produzione/salUfficiale';
+import type { ConfrontoSal } from '@/lib/produzione/confrontoSal';
 import type { VistaCommittente } from '@/lib/produzione/committente';
 
 export interface DatiProduzione {
@@ -24,7 +25,10 @@ export interface DatiProduzione {
   sal: { totale: Totale; perVoce: Aggregato[]; perGiorno: Aggregato[] };
   scarto: Totale;
   salStorico: SalStorico[];
+  /** Presente solo quando la barra periodo ha un SAL selezionato nella tendina. */
+  confrontoSal: ConfrontoSal | null;
   preSal: { n: number; totale: Totale };
+  /** UN numero solo, MAI scomposto con/senza ordine (correzione utente 2026-08-05). */
   fuoriSal: Totale;
   personale: ProduzionePersonale;
   esiti: EsitoOperatore[];

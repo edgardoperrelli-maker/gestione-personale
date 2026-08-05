@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { chiaveSalEffettiva, odlPagatiDaSal, preparaRigheSal, riepilogoUnSal, type SalRigaArricchita } from './salUfficiale';
+import {
+  chiaveSalEffettiva, odlImputabileAlSal, odlPagatiDaSal, preparaRigheSal, riepilogoUnSal,
+  type SalRigaArricchita,
+} from './salUfficiale';
 
 describe('preparaRigheSal', () => {
   it('mappa i campi e converte le date', () => {
@@ -57,6 +60,23 @@ describe('riepilogoUnSal', () => {
     expect(riepilogoUnSal([riga({ data_completamento: null })], new Set(['1'])).mese).toBe('');
   });
 
+  it('dal/al = finestra dei lavori (min/max completamento), per la tendina SAL', () => {
+    const out = riepilogoUnSal(
+      [riga({ data_completamento: '2026-06-30' }), riga({ odl: '2', data_completamento: '2026-06-03' })],
+      new Set(['1', '2']),
+    );
+    expect(out).toMatchObject({ dal: '2026-06-03', al: '2026-06-30' });
+  });
+
+  it('dal/al vuoti quando nessuna riga ha data: la tendina non sposta il periodo', () => {
+    expect(riepilogoUnSal([riga({ data_completamento: null })], new Set(['1']))).toMatchObject({ dal: '', al: '' });
+  });
+
+  it('righe conta le righe SAP, ordini resta il conteggio storico', () => {
+    const out = riepilogoUnSal([riga({ posizione: '10' }), riga({ posizione: '20' })], new Set(['1']));
+    expect(out).toMatchObject({ righe: 2, ordini: 2 });
+  });
+
   it('conta gli ODL sconosciuti (assenti dal set)', () => {
     const out = riepilogoUnSal([riga({ odl: 'x' })], new Set(['altro']));
     expect(out.odlSconosciuti).toBe(1);
@@ -71,6 +91,33 @@ describe('odlPagatiDaSal', () => {
   it('set degli ODL, trim, scarta vuoti', () => {
     const s = odlPagatiDaSal([{ odl: ' 1 ' }, { odl: '2' }, { odl: '' }]);
     expect(s).toEqual(new Set(['1', '2']));
+  });
+});
+
+describe('odlImputabileAlSal', () => {
+  const positivi = new Set(['957000001']);
+  const figli = new Set(['957000009']);
+  const registro = new Set(['957000021']);
+  const nessuno = new Set<string>();
+
+  it('positivo nostro sull’ODL → entra', () => {
+    expect(odlImputabileAlSal('957000001', positivi, figli, nessuno)).toBe(true);
+  });
+
+  it('ordine figlio di saracinesca con madre positiva → entra', () => {
+    expect(odlImputabileAlSal('957000009', positivi, figli, nessuno)).toBe(true);
+  });
+
+  it('ultimo tentativo ESEGUITO nel registro, rapportino mai compilato → entra', () => {
+    // I 10 ODL del 2026-08-05 (es. 957276082): passaggi a rapportino tutti falliti, giro
+    // conclusivo fatto dai nostri e registrato solo dal Cruscotto. Il lavoro c'è: si conta.
+    expect(odlImputabileAlSal('957000021', positivi, figli, registro)).toBe(true);
+  });
+
+  it('completato sul portale ma senza nessun riscontro nostro → NON entra', () => {
+    // È il caso dei «pagati e assenti dal database»: il portale li dà per completati ma né i
+    // rapportini né il registro li sostengono. Restano materia d'audit, non di SAL.
+    expect(odlImputabileAlSal('957999999', positivi, figli, registro)).toBe(false);
   });
 });
 

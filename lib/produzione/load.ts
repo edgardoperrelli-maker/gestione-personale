@@ -10,7 +10,6 @@ import { caricaAliasAttivita } from './aliasAttivita';
 import { caricaComuniMassive } from './comuniMassive';
 import { caricaOrdiniSostituzione } from '@/lib/acea/caricaSaracinesche';
 import { chiaviAggancio } from '@/lib/acea/saracinesche';
-import { normMatricola } from '@/lib/limitazione/matricoleSimili';
 import { aggregaProduzione, deduplicaMassivePerMatricola, type Aggregato, type ProduzioneAggregata, type RigaProduzione } from './aggregaProduzione';
 import { aggregaPersonale, giornoSettimana, type ProduzionePersonale, type RigaLavoro } from './aggregaPersonale';
 import { aggregaEsiti, type EsitoOperatore, type RigaEsito } from './aggregaEsiti';
@@ -24,7 +23,14 @@ import {
   type PortaleRiga,
   type Totale,
 } from './riconciliazione';
-import { odlPagatiDaSal, riepilogoUnSal, type SalRigaArricchita, type SalStorico } from './salUfficiale';
+import {
+  odlImputabileAlSal,
+  odlPagatiDaSal,
+  riepilogoUnSal,
+  type SalRigaArricchita,
+  type SalStorico,
+} from './salUfficiale';
+import { confrontaSalProduzione, type ConfrontoSal, type SalRigaConfronto } from './confrontoSal';
 import { PREFISSO_COMMESSA } from './composizioneVoce';
 import {
   COMMESSE,
@@ -91,7 +97,19 @@ export interface ProduzioneEconomica {
   sal: ProduzioneSal;
   scarto: Totale;
   salStorico: SalStorico[];
+  /**
+   * Confronto fra un SAL scelto e la produzione del periodo. `null` quando nessun SAL è
+   * selezionato — è una verifica che si chiede, non un blocco sempre acceso: calcolarla
+   * d'ufficio vorrebbe dire scegliere noi quale SAL confrontare, e la scelta è il punto.
+   */
+  confrontoSal: ConfrontoSal | null;
   preSal: { n: number; totale: Totale };
+  /**
+   * TUTTO il prodotto non ancora consuntivato dal portale, con o senza un ordine ACEA dietro.
+   * ⚠️ NON scomporlo in «con ordine» / «senza ordine» (correzione utente 2026-08-05): la card
+   * deve dire quanto lavoro fatto manca all'appello del portale, in un numero solo. La regola
+   * d'imputazione qui non c'entra: governa SAL e pre-SAL, non questa card.
+   */
   fuoriSal: Totale;
   personale: ProduzionePersonale;
   esiti: EsitoOperatore[];
@@ -129,6 +147,18 @@ interface RegistroRow {
   odl: string;
   attivita: string | null;
   comune: string | null;
+  /** Misuratore dell'ordine: servono all'aggancio madre→figlio delle saracinesche. */
+  impianto: string | null;
+  matricola: string | null;
+  /*
+    Una riga di registro è un'OPERAZIONE SAP, cioè un tentativo di esecuzione: un ordine può
+    averne più d'una e a fare fede è sempre l'ULTIMA (la 0120 di un ordine passato dodici volte),
+    mai la prima. `esito_positivo` e `data_completamento` sono l'esito e la data di QUEL
+    tentativo: servono alla seconda gamba del riscontro (`odlImputabileAlSal`).
+  */
+  numero_operazione: string | null;
+  esito_positivo: boolean | null;
+  data_completamento: string | null;
 }
 interface PortaleRow {
   odl: string;
@@ -171,13 +201,18 @@ async function caricaInterventi(vista: VistaCommittente): Promise<InterventoRow[
   return rows;
 }
 
-async function caricaSnapshot<T>(tabella: string, colonne: string): Promise<T[]> {
+/**
+ * `ordine`: colonne di ordinamento per una paginazione STABILE. Senza `.order()` PostgREST non
+ * garantisce l'ordine tra una pagina e l'altra: un upsert concorrente (l'agente riversa lo
+ * snapshot del portale a ogni giro) può far rileggere o saltare righe al confine di pagina — e
+ * un ODL riletto contava due volte nell'Esitato. Gli altri loader ordinano già per id.
+ */
+async function caricaSnapshot<T>(tabella: string, colonne: string, ordine: string[]): Promise<T[]> {
   const rows: T[] = [];
   for (let off = 0; ; off += PAGE) {
-    const { data, error } = await supabaseAdmin
-      .from(tabella)
-      .select(colonne)
-      .range(off, off + PAGE - 1);
+    let q = supabaseAdmin.from(tabella).select(colonne);
+    for (const col of ordine) q = q.order(col, { ascending: true });
+    const { data, error } = await q.range(off, off + PAGE - 1);
     if (error) throw error;
     const batch = (data ?? []) as T[];
     rows.push(...batch);
@@ -235,6 +270,8 @@ export async function caricaProduzioneEconomica(
   from: string,
   to: string,
   vista: VistaCommittente = 'tutti',
+  /** Numero del SAL da mettere a confronto con la produzione del periodo; null = nessun confronto. */
+  salSelezionato: number | null = null,
 ): Promise<ProduzioneEconomica> {
   /*
     La fetta ACEA c'è in «ACEA» e in «Tutti», non in «AcquaLatina». Comanda tutto ciò che nasce
@@ -255,12 +292,20 @@ export async function caricaProduzioneEconomica(
       .select('id, attivita, prezzo, valido_dal, valido_al, attivo, committente')
       .in('committente', [...COMMESSE]),
     caricaInterventi(vista),
-    caricaSnapshot<RegistroRow>('acea_ordini', 'odl, attivita, comune'),
-    caricaSnapshot<PortaleRow>('acea_portale_snapshot', 'odl, stato_norm, causa_scostamento'),
+    caricaSnapshot<RegistroRow>(
+      'acea_ordini',
+      'odl, attivita, comune, impianto, matricola, numero_operazione, esito_positivo, data_completamento',
+      ['odl', 'numero_operazione'],
+    ),
+    caricaSnapshot<PortaleRow>('acea_portale_snapshot', 'odl, stato_norm, causa_scostamento', ['odl']),
     nomi(),
     caricaAliasAttivita(),
     caricaLavoroGiornaliero(from, to),
-    caricaSnapshot<SalRow>('acea_sal', 'sal_n, odl, doc_acquisti, posizione, valore, causa, attivita, data_completamento, data_registrazione'),
+    caricaSnapshot<SalRow>(
+      'acea_sal',
+      'sal_n, odl, doc_acquisti, posizione, valore, causa, attivita, data_completamento, data_registrazione',
+      ['sal_n', 'doc_acquisti', 'posizione'],
+    ),
     caricaComuniMassive(),
     /*
       Le saracinesche dichiarate, per INTERVENTO. Prima venivano dalla colonna `saracinesca` del
@@ -283,11 +328,50 @@ export async function caricaProduzioneEconomica(
   ]);
   const saracinescaDichiarata = new Set(idSaracinesca);
 
-  // chiave d'aggancio (impianto o matricola) → ODL dell'ordine figlio di sostituzione.
-  const figlioPerChiave = new Map<string, string>();
+  /*
+    chiave d'aggancio (impianto o matricola) → TUTTI gli ODL degli ordini figli di sostituzione.
+
+    Tutti, non il primo visto: sullo stesso misuratore possono convivere un figlio vecchio già
+    chiuso e pagato e uno nuovo aperto, e `caricaOrdiniSostituzione` non garantisce un ordine di
+    lettura — con una mappa first-wins quale dei due «esistesse» lo decideva il caso, e il figlio
+    nuovo COMPLETATO poteva restare fuori dal SAL atteso. Chi consulta sceglie con un criterio
+    dichiarato (completato > aperto > primo), come fa `statiSaracinesche` nel modulo ACEA.
+  */
+  const figliPerChiave = new Map<string, string[]>();
+  const apertoPerOdl = new Map<string, boolean>();
   for (const o of ordiniSostituzione) {
-    for (const k of chiaviAggancio(o)) if (!figlioPerChiave.has(k)) figlioPerChiave.set(k, o.odl);
+    apertoPerOdl.set(o.odl, o.aperto);
+    for (const k of chiaviAggancio(o)) {
+      const arr = figliPerChiave.get(k);
+      if (!arr) figliPerChiave.set(k, [o.odl]);
+      else if (!arr.includes(o.odl)) arr.push(o.odl);
+    }
   }
+  /*
+    Misuratore dell'ordine MADRE, per ODL. L'intervento porta solo la matricola; il registro
+    dell'ordine ha anche l'impianto, che è la chiave con cui il modulo ACEA aggancia di solito i
+    figli («il registro ha quasi sempre l'impianto, il rapportino spesso solo la matricola» —
+    saracinesche.ts). Cercare solo per matricola dell'intervento perdeva gli aggancî per impianto.
+  */
+  const madrePerOdl = new Map<string, { impianto: string | null; matricola: string | null }>();
+  for (const r of conAcea ? registroRows : []) {
+    const o = (r.odl ?? '').trim();
+    if (o && !madrePerOdl.has(o)) madrePerOdl.set(o, { impianto: r.impianto, matricola: r.matricola });
+  }
+  /** Tutti i figli di sostituzione agganciabili a un intervento: per matricola dell'intervento
+   *  E per misuratore (impianto/matricola) dell'ordine madre, con le stesse chiavi del registro. */
+  const figliDiIntervento = (matricola: string, odlMadre: string): string[] => {
+    const out: string[] = [];
+    const raccogli = (m: { impianto: string | null; matricola: string | null }) => {
+      for (const k of chiaviAggancio(m)) {
+        for (const f of figliPerChiave.get(k) ?? []) if (!out.includes(f)) out.push(f);
+      }
+    };
+    raccogli({ impianto: null, matricola });
+    const madre = odlMadre ? madrePerOdl.get(odlMadre) : undefined;
+    if (madre) raccogli(madre);
+    return out;
+  };
 
   const listino: ListinoRiga[] = [];
   const listinoPerCommessa = new Map<Commessa, ListinoRiga[]>();
@@ -332,6 +416,24 @@ export async function caricaProduzioneEconomica(
   const dbAttivita = new Map<string, string>(); // odl → attività (per valorizzare il SAL)
   const dbInfo = new Map<string, { staffId: string; operatore: string; territorioId: string; territorio: string; data: string }>();
   const effByOdl = new Map<string, string>(); // odl → committente EFFETTIVO (per escludere il gas dal SAL)
+  /*
+    Le due popolazioni di ODL che servono al confronto col SAL, e che NON coincidono con `dbAudit`:
+    - `odlNotiDb`: ogni ODL che compare nei nostri interventi, anche riclassificato a italgas e
+      anche fuori vista. Distingue «ACEA ci ha pagato un ordine che non abbiamo mai visto» da
+      «ce l'abbiamo, ma non a positivo»: due problemi diversi, con due rimedi diversi.
+    - `odlPositiviAcea`: positivi ACEA in QUALSIASI data. Un ODL del SAL che è nostro e positivo
+      ma lavorato prima del periodo a schermo non è un buco: è solo fuori finestra.
+  */
+  const odlNotiDb = new Set<string>();
+  const odlPositiviAcea = new Set<string>();
+  /*
+    Il lato NOSTRO della regola d'imputazione al SAL, per le saracinesche: la sostituzione è
+    dichiarata sull'intervento della limitazione MADRE, ma sul portale vive come ordine FIGLIO
+    con un ODL suo. Qui si raccolgono gli ODL figli il cui lavoro è sostenuto da un rapportino
+    positivo — in QUALSIASI data, come `odlPositiviAcea`: serve a riconoscere il lavoro nostro,
+    non a ritagliare il periodo.
+  */
+  const figliSaracinescaPositivi = new Set<string>();
   const righeEsito: RigaEsito[] = [];
   const produzioneRighe: RigaProduzione[] = [];
   for (const it of interventi) {
@@ -340,6 +442,7 @@ export async function caricaProduzioneEconomica(
     // attività pulita e voce. La riclassificazione (gas→italgas, massive→acea) vive qui, non nel DB.
     const canon = attivitaCanonica(it.committente, it.intervento_tipo, it.comune, alias, comuniMassive);
     if (odl && canon) effByOdl.set(odl, canon.committenteEff);
+    if (odl) odlNotiDb.add(odl);
     // Nella vista: committente effettivo tra le commesse chieste, e attività non scartata.
     if (!canon || !canon.attivo || !inVista(vista, canon.committenteEff)) continue;
     const commessa = commessaDi(canon.committenteEff) as Commessa; // garantito da inVista
@@ -358,12 +461,21 @@ export async function caricaProduzioneEconomica(
       della vista «Tutti», e le poche vere sepolte in mezzo.
     */
     if (odl && commessa === 'acea') {
+      if (esitoOk === true) odlPositiviAcea.add(odl);
       const prev = dbAudit.get(odl);
       if (!prev || (esitoOk === true && prev.esitoOk !== true)) {
         dbAudit.set(odl, { voce, esitoOk });
         if (data) dbDataByOdl.set(odl, data);
         if (attivitaKey) dbAttivita.set(odl, attivitaKey);
         dbInfo.set(odl, { staffId, operatore, territorioId, territorio, data });
+      }
+    }
+    // Fuori dall'`if (odl …)`: la dichiarazione vale anche sulle massive SENZA ordine — il
+    // figlio si aggancia per matricola/impianto, e la matricola c'è anche quando l'ODL madre no.
+    // TUTTI i figli agganciati, non uno: quale sia quello consuntivato lo dirà il portale.
+    if (commessa === 'acea' && esitoOk === true && saracinescaDichiarata.has(it.id)) {
+      for (const f of figliDiIntervento((it.matricola_contatore ?? '').trim(), odl)) {
+        figliSaracinescaPositivi.add(f);
       }
     }
     // Esiti sull'assegnato (design 2026-07-02): ogni riga in vista con operatore nel range,
@@ -389,7 +501,14 @@ export async function caricaProduzioneEconomica(
         territorio: agganciandola all'ODL, come faceva il master, le 834 massive senza ordine
         ACEA non avrebbero nessuna riga a cui attaccarsi.
       */
-      if (saracinescaDichiarata.has(it.id)) {
+      /*
+        `commessa === 'acea'` anche qui, come nel set dei figli qui sopra: la dichiarazione può
+        arrivare da un rapportino di qualunque committente (il campo vive nei template condivisi),
+        ma la saracinesca è una prestazione del listino ACEA — su un intervento AcquaLatina la
+        riga entrerebbe nei conti ACEA a tariffa ACEA, e in vista AcquaLatina renderebbe non-zero
+        card che `conContabilizzazione=false` dichiara a zero.
+      */
+      if (commessa === 'acea' && saracinescaDichiarata.has(it.id)) {
         produzioneRighe.push({
           odl, commessa: 'acea', voce: null, kpi: null, attivitaKey: SARA_KEY, attivitaLabel: SARA_LABEL,
           matricola: it.matricola_contatore ?? '',
@@ -414,6 +533,14 @@ export async function caricaProduzioneEconomica(
   */
   const registroAudit = new Map<string, RegistroRiga>();
   const registroAttivita = new Map<string, string>();
+  /*
+    ULTIMO tentativo di ogni ordine (correzione utente 2026-08-05, «i 10 ODL»): il registro tiene
+    una riga per operazione SAP, cioè per tentativo. Il confronto sceglie ESPLICITAMENTE il
+    max(numero operazione): oggi il Cruscotto esporta quasi solo l'operazione corrente, ma basta
+    un import che ne conservi la storia perché «l'ultima riga letta» torni a essere il PRIMO
+    tentativo — l'errore esatto da cui nasce questa mappa.
+  */
+  const registroUltimo = new Map<string, { op: number; positivo: boolean; data: string }>();
   // Senza la fetta ACEA il registro resta chiuso: `registroPopolato` deve dire «non pertinente»,
   // non «popolato», o la vista AcquaLatina si porterebbe dietro un audit di ordini altrui.
   for (const r of conAcea ? registroRows : []) {
@@ -424,7 +551,26 @@ export async function caricaProduzioneEconomica(
     // (es. "LIMITAZIONE FLUSSO IDRICO" ≠ tariffa "LIMITAZIONE EROGAZIONE") → altrimenti SAL a 0.
     const canonR = attivitaCanonica('acea', r.attivita, r.comune, alias, comuniMassive);
     if (canonR?.attivitaKey) registroAttivita.set(odl, canonR.attivitaKey);
+    const op = parseInt((r.numero_operazione ?? '').trim(), 10) || 0;
+    const prevU = registroUltimo.get(odl);
+    if (!prevU || op >= prevU.op) {
+      registroUltimo.set(odl, {
+        op,
+        positivo: r.esito_positivo === true,
+        data: (r.data_completamento ?? '').slice(0, 10),
+      });
+    }
   }
+  /*
+    La seconda gamba del riscontro nostro: ordini il cui ultimo tentativo nel registro è
+    ESEGUITO. È lavoro fatto dai nostri operatori (Pastorelli, Giosi, Dionisi… — il registro È il
+    nostro libro ordini) il cui giro conclusivo non ha mai avuto un rapportino: i rapportini
+    conoscevano solo i passaggi falliti precedenti, e il motore chiamava «negativo» lavoro che
+    ACEA aveva già pagato. Al 2026-08-05: 75 dei 714 «senza riscontro» erano così (31 già nel
+    SAL 1); gli altri 639 restano fuori anche per il registro (esito negativo, causale non-E).
+  */
+  const odlEseguitiRegistro = new Set<string>();
+  for (const [odlU, u] of registroUltimo) if (u.positivo) odlEseguitiRegistro.add(odlU);
   // Produzione: le limitazioni massive contano per MATRICOLA (non per riga-intervento), come ACEA.
   const righeDedup = deduplicaMassivePerMatricola(produzioneRighe);
   const produzione = aggregaProduzione(righeDedup);
@@ -451,7 +597,15 @@ export async function caricaProduzioneEconomica(
   const rigaEsitataDa = (odl: string): RigaProduzione => {
     const voce = dbAudit.get(odl)?.voce ?? registroAudit.get(odl)?.voce ?? null;
     const attivitaKey = dbAttivita.get(odl) ?? registroAttivita.get(odl) ?? '';
-    const data = dbDataByOdl.get(odl) ?? to;
+    /*
+      La data segue il riscontro: rapportino positivo → la sua data; riscontro dal solo registro
+      → il completamento dell'ULTIMO tentativo (la data che il DB ha per quell'ODL è il passaggio
+      fallito precedente — 957276082 risulterebbe lavorato il 15/06 quando è stato eseguito il 19).
+    */
+    const dataRegistro = registroUltimo.get(odl)?.data || '';
+    const data = odlPositiviAcea.has(odl)
+      ? dbDataByOdl.get(odl) || dataRegistro || to
+      : dataRegistro || dbDataByOdl.get(odl) || to;
     return {
       odl, commessa: 'acea', voce, kpi: gruppoVoce('acea', voce),
       attivitaKey, attivitaLabel: attivitaKey, data,
@@ -470,10 +624,22 @@ export async function caricaProduzioneEconomica(
     if (!odl) continue;
     // il gas riclassificato (committente effettivo italgas) è fuori dalla vista ACEA (audit + SAL)
     if (effByOdl.get(odl) === 'italgas') continue;
+    // Un ODL riletto (paginazione sotto upsert concorrente) non deve spingere due volte in
+    // salRighe: l'audit lo deduplicava già via Map, l'Esitato no.
+    if (portaleAudit.has(odl)) continue;
     const statoNorm = (p.stato_norm ?? '').trim();
     portaleAudit.set(odl, { statoNorm });
     if (statoNorm !== 'COMPLETATO') continue;
     odlCompletatoAny.add(odl);
+    /*
+      REGOLA D'IMPUTAZIONE (decisione utente 2026-08-05): oltre al COMPLETATO del portale serve
+      un riscontro NOSTRO — il positivo dei rapportini (sull'ODL, o sulla limitazione madre per
+      i figli di saracinesca) oppure l'ultimo tentativo ESEGUITO nel registro Cruscotto, per i
+      giri conclusivi rimasti senza rapportino. Un completato del portale che nulla di nostro
+      sostiene non entra né nell'«Esitato ACEA» né nel pre-SAL: resta nell'audit a tre vie
+      (SOLO_PORTALE / COMPLETATO_PORTALE_NON_POSITIVO_DB), che è il posto delle cose da chiarire.
+    */
+    if (!odlImputabileAlSal(odl, odlPositiviAcea, figliSaracinescaPositivi, odlEseguitiRegistro)) continue;
     // SAL = ciò che ACEA REMUNERA: solo causa scostamento pagata (inizia per E).
     if (scostamentoPagato(p.causa_scostamento)) {
       salRighe.push(rigaEsitataDa(odl));
@@ -490,16 +656,29 @@ export async function caricaProduzioneEconomica(
 
   /*
     «Fuori SAL» = prodotto ma non ancora consuntivato dal portale. Per una saracinesca la chiave
-    non è l'ODL della limitazione ma quello del suo ordine figlio, che ora si trova per impianto
-    o matricola invece che leggendolo da una colonna annotata a mano.
+    non è l'ODL della limitazione ma quello del suo ordine figlio. Tra più figli agganciati vince
+    quello COMPLETATO (la riga è esitata), poi uno aperto (fuori SAL: c'è un ordine che aspetta
+    l'esito), poi il primo: è lo stesso criterio «un ordine aperto batte uno chiuso» di
+    `statiSaracinesche` nel modulo ACEA.
   */
-  const figlioDiRiga = (r: RigaProduzione): string =>
-    figlioPerChiave.get(`M:${normMatricola(r.matricola)}`) ?? '';
+  const figlioDiRiga = (r: RigaProduzione): string => {
+    const figli = figliDiIntervento(r.matricola ?? '', r.odl);
+    return (
+      figli.find((f) => odlCompletatoAny.has(f)) ??
+      figli.find((f) => apertoPerOdl.get(f) === true) ??
+      figli[0] ??
+      ''
+    );
+  };
   /*
     Solo ACEA, e non è un dettaglio: «fuori SAL» vuol dire «prodotto e non ancora consuntivato SUL
     PORTALE». Le righe AcquaLatina non sono su nessun portale, quindi passerebbero TUTTE il filtro
     e si sommerebbero al conto ACEA — nella vista «Tutti» la card diceva 110.437,51 € stando sotto
     l'intestazione «sola quota ACEA», cioè un numero giusto per nessuno.
+
+    UN numero solo, con dentro anche il lavoro senza ordine (correzione utente 2026-08-05: la
+    scomposizione con-ordine/senza-ordine è stata provata e rifiutata). La regola d'imputazione
+    vive nel giro portale qui sopra: filtra SAL e pre-SAL, non questa card.
   */
   const fuoriSalRighe = righeAcea.filter((r) => {
     const k = r.attivitaKey === SARA_KEY ? figlioDiRiga(r) : r.odl;
@@ -515,17 +694,59 @@ export async function caricaProduzioneEconomica(
     if (!salPerN.has(r.sal_n)) salPerN.set(r.sal_n, []);
     salPerN.get(r.sal_n)!.push(r);
   }
-  const salStorico: SalStorico[] = [...salPerN.entries()]
-    .sort((a, b) => a[0] - b[0])
-    .map(([, righeSalN]) => {
-      const arricchite: SalRigaArricchita[] = righeSalN.map((r) => {
+  /*
+    Le righe di ogni SAL arricchite UNA volta sola — valore a listino e attività canonica — e poi
+    riusate sia dallo storico sia dal confronto. L'attività canonica è quella che aggancia il
+    listino e, nel confronto, è la CHIAVE con cui una voce del SAL trova la voce omologa della
+    produzione: senza, «Limitazione flusso idrico» (testo SAP) e «Limitazione Erogazione» (nome
+    di listino) resterebbero due righe distinte che non si sommano mai.
+  */
+  const salArricchitoPerN = new Map<number, SalRigaConfronto[]>();
+  for (const [n, righeSalN] of salPerN) {
+    salArricchitoPerN.set(
+      n,
+      righeSalN.map((r) => {
         const canonSal = r.attivita ? attivitaCanonica('acea', r.attivita, null, alias, comuniMassive) : null;
         const attivitaKey = canonSal?.attivitaKey ?? '';
         const dataVal = r.data_completamento ?? r.data_registrazione ?? to;
-        return { ...r, valoreListino: attivitaKey ? valore('acea', attivitaKey, dataVal) : 0 };
-      });
-      return riepilogoUnSal(arricchite, odlConosciuti);
-    });
+        return {
+          ...r,
+          valoreListino: attivitaKey ? valore('acea', attivitaKey, dataVal) : 0,
+          attivitaKey,
+          attivitaLabel: canonSal?.attivitaPulita ?? (r.attivita ?? ''),
+        };
+      }),
+    );
+  }
+  const salStorico: SalStorico[] = [...salArricchitoPerN.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([, arricchite]) => riepilogoUnSal(arricchite as SalRigaArricchita[], odlConosciuti));
+
+  /*
+    Il confronto SAL ↔ produzione del periodo. Si calcola solo su richiesta (un SAL scelto dalla
+    tendina) e solo dove un SAL esiste: in vista AcquaLatina `salPerN` è vuota per costruzione.
+  */
+  const righeConfronto = salSelezionato != null ? salArricchitoPerN.get(salSelezionato) : undefined;
+  /*
+    Nei «positivi» entrano anche gli ODL FIGLI di saracinesca: nel SAL pagato la saracinesca
+    compare col suo ordine di sostituzione, non con l'ODL della limitazione che le righe di
+    produzione portano. Senza i figli, un ordine pagato e coperto da un rapportino positivo
+    finiva nel badge rosso «pagati e assenti dal database» — lo stesso lavoro che la stessa
+    pagina conta nell'Esitato ACEA.
+  */
+  const positiviPeriodoConfronto = new Set(righeAcea.map((r) => r.odl.trim()).filter(Boolean));
+  for (const r of righeAcea) {
+    if (r.attivitaKey === SARA_KEY) for (const f of figliDiIntervento(r.matricola ?? '', r.odl)) positiviPeriodoConfronto.add(f);
+  }
+  const confrontoSal: ConfrontoSal | null = righeConfronto
+    ? confrontaSalProduzione(salSelezionato as number, righeConfronto, righeAcea, {
+        positiviPeriodo: positiviPeriodoConfronto,
+        positiviTutti: new Set([...odlPositiviAcea, ...figliSaracinescaPositivi]),
+        eseguitiRegistro: odlEseguitiRegistro,
+        noti: odlNotiDb,
+        inQualcheSal: odlGiaPagati,
+      })
+    : null;
 
   // Pre-SAL COMPLETO: tutti gli ODL COMPLETATO sul portale non ancora entrati in un SAL pagato,
   // qualunque sia la causale (E% e non-E insieme — l'utente vuole un solo totale).
@@ -610,6 +831,7 @@ export async function caricaProduzioneEconomica(
     sal,
     scarto,
     salStorico,
+    confrontoSal,
     preSal,
     fuoriSal,
     personale,

@@ -81,9 +81,10 @@ function CardsConsuntivo({
       <Card
         titolo={`Pre-SAL ${num(dati.preSal.n)}`}
         valore={eur(dati.preSal.totale.valore)}
-        nota={`${num(dati.preSal.totale.conteggio)} ODL esitati sul portale, non in un SAL · vivo oggi`}
+        nota={`${num(dati.preSal.totale.conteggio)} ODL nostri positivi, esitati sul portale, non in un SAL · vivo oggi`}
         accent={dati.preSal.totale.valore > 0 ? 'warn' : undefined}
       />
+      {/* UN numero solo, mai scomposto con/senza ordine (correzione utente 2026-08-05). */}
       <Card
         titolo="Fuori SAL"
         valore={eur(dati.fuoriSal.valore)}

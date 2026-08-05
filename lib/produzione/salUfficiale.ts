@@ -57,6 +57,13 @@ export function preparaRigheSal(salN: number, grezze: SalRigaGrezza[]): SalRigaD
 export interface SalStorico {
   n: number;
   mese: string; // 'YYYY-MM', '' se nessuna data
+  /** Finestra di completamento lavori coperta dal SAL ('YYYY-MM-DD'); '' se nessuna riga ha data.
+   *  Serve alla tendina «SAL» della barra periodo: scegliere un SAL vuol dire portare il periodo
+   *  di pagina sulle date in cui quel lavoro è stato fatto. */
+  dal: string;
+  al: string;
+  /** Righe del SAL (chiave SAP documento+posizione): può superare gli ODL, che sono `ordini`. */
+  righe: number;
   ordini: number;
   valoreAps: number;
   valoreListino: number;
@@ -82,6 +89,15 @@ export function riepilogoUnSal(righe: SalRigaArricchita[], odlConosciuti: Set<st
   return {
     n,
     mese: mesi.length > 0 ? mesi[0].slice(0, 7) : '',
+    dal: mesi[0] ?? '',
+    al: mesi[mesi.length - 1] ?? '',
+    righe: righe.length,
+    /*
+      `ordini` conta le RIGHE, non gli ODL distinti, ed è storicamente così: la colonna a schermo
+      si chiama «ODL» e su questi file le due cose coincidono quasi sempre (nel SAL 1 reale: 1545
+      righe, 1543 ODL). Cambiarlo qui muoverebbe un numero che la pagina mostra da mesi; chi ha
+      bisogno del conto esatto delle righe ora ha `righe` accanto.
+    */
     ordini: righe.length,
     valoreAps,
     valoreListino,
@@ -94,6 +110,44 @@ export function riepilogoUnSal(righe: SalRigaArricchita[], odlConosciuti: Set<st
 export function odlPagatiDaSal(righeSal: Array<{ odl: string }>): Set<string> {
   return new Set(righeSal.map((r) => r.odl.trim()).filter(Boolean));
 }
+
+/**
+ * REGOLA D'IMPUTAZIONE AL SAL (decisione utente 2026-08-05): nel SAL atteso («Esitato ACEA») e
+ * nel pre-SAL entra solo l'ODL che, oltre a essere COMPLETATO sul portale, ha un riscontro
+ * NOSTRO. Il portale da solo non basta: a luglio 2026 conteneva 118 ODL completati che nel
+ * nostro database non esistevano e 7 non positivi — denaro che il pre-SAL prometteva senza che
+ * nulla lo sostenesse. Quel lavoro resta visibile nell'audit a tre vie (SOLO_PORTALE /
+ * COMPLETATO_PORTALE_NON_POSITIVO_DB), che è il posto dei sospetti; il SAL è il posto delle
+ * certezze.
+ *
+ * Il riscontro nostro ha DUE forme (seconda decisione utente, sera del 2026-08-05):
+ *  1. un rapportino POSITIVO sull'ODL (o sulla limitazione madre, per i figli di saracinesca);
+ *  2. l'ULTIMO tentativo dell'ordine nel registro Cruscotto con esito ESEGUITO
+ *     (`eseguitiRegistro`). È il caso dei 10 ODL scoperti dall'utente: i rapportini avevano
+ *     registrato solo i primi passaggi falliti (12/06 e 15/06 «Nessun passaggio»…), ma il giro
+ *     conclusivo — fatto dai nostri operatori giorni dopo — non aveva mai avuto un rapportino, e
+ *     il registro era l'unico a saperlo (es. 957276082, eseguito il 19/06). Senza questa gamba
+ *     il motore guardava di fatto solo i tentativi falliti e chiamava «negativo» lavoro pagato.
+ *
+ * `figliSaracinescaPositivi`: gli ODL degli ordini di sostituzione il cui lavoro è dichiarato su
+ * un ALTRO intervento (la limitazione madre) — l'unico caso in cui il positivo nostro non porta
+ * l'ODL consuntivato.
+ */
+export function odlImputabileAlSal(
+  odl: string,
+  positiviDb: ReadonlySet<string>,
+  figliSaracinescaPositivi: ReadonlySet<string>,
+  eseguitiRegistro: ReadonlySet<string>,
+): boolean {
+  return positiviDb.has(odl) || figliSaracinescaPositivi.has(odl) || eseguitiRegistro.has(odl);
+}
+
+/*
+  ⚠️ NIENTE scomposizione del «fuori SAL» in con-ordine / senza-ordine. È stata provata
+  (2026-08-05, `separaProduzioneDaEsitare`) e RIFIUTATA dall'utente lo stesso giorno: la card
+  «Fuori SAL» deve restare UN numero — tutto il prodotto non ancora consuntivato dal portale,
+  ordine o non ordine. La regola d'imputazione qui sopra riguarda solo SAL e pre-SAL.
+*/
 
 /** Chiave "portale" effettiva di una riga di produzione, per il check pre-SAL/fuori-SAL: le
  *  saracinesche (attivitaKey === saracinescaKey) valgono per l'Odl FIGLIO (quello consuntivato sul

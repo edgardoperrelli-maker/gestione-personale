@@ -431,6 +431,91 @@ La Produzione economica non arma più giri: i bottoni «Allinea master: Dunning 
 massive» sono spariti con l'agente Playwright. I dati arrivano dall'**import del modulo ACEA**,
 che porta il file nuovo e completo a ogni giro. **Non reintrodurre** bottoni di allineamento.
 
+### SAL ufficiali ACEA: un solo `acea_sal`, la colonna `origine` dice da dove
+- `'agente'` — righe storiche del bottone «Leggi SAL» del vecchio agente Playwright, ritirato
+  il 04/08/2026 col resto dei suoi giri;
+- `'import'` — la porta attiva: file caricato a mano da **Produzione economica → «Importa SAL»**
+  (`POST /api/admin/acea/sal`, `requireAdmin`), per il giro di controllo di fine mese.
+
+⚠️ **L'export che ACEA pubblica è CUMULATIVO**: contiene tutti i SAL emessi dall'inizio della
+commessa, non il SAL del mese. Sommarne le righe dà il cumulato — è l'errore che
+`lib/produzione/importSal.ts` esiste per rendere impossibile. Quello che divide un SAL dall'altro
+dentro il file è la **Data registrazione** (il giro contabile SAP; la data di completamento varia
+riga per riga). Un lotto = una data di registrazione.
+
+Un SAL però può avere **più lotti**: ACEA chiude il grosso a fine mese e registra la coda nei
+giorni dopo. Perciò `proponiLotti()`:
+1. riconosce i lotti già in banca dati per **chiave naturale SAP** (`doc_acquisti|posizione`) e
+   riusa il loro numero — il SAL 1 dentro il file di agosto non deve diventare un SAL nuovo;
+2. numera i restanti per **mese di competenza** (mese prevalente delle date di completamento), così
+   la coda sta col suo SAL. Verificato sull'export reale del 04/08/2026: lotti 08/07 → SAL 1
+   (1545 righe, 46.191,14 €), 31/07 + 03/08 → SAL 2 (1454 righe, 45.305,18 €).
+
+Il numero resta **correggibile a mano** nell'anteprima: a decidere quanti SAL ci sono in un mese è
+il committente, non una regola nostra. La scrittura è **delete+insert per `sal_n`** (come il giro
+dell'agente: ACEA riemette il file corretto, e un upsert lascerebbe in vita le righe che la
+correzione voleva togliere) e tocca **solo i lotti selezionati**.
+
+### Regola d'imputazione al SAL (decisione utente 2026-08-05, ritoccata la sera stessa)
+Nel **SAL atteso** («Esitato ACEA») e nel **pre-SAL** entra solo l'ODL che soddisfa ENTRAMBE:
+1. **riscontro NOSTRO**, in una di due forme:
+   a. **positivo dai rapportini** (`stato='completato'` + `esito='eseguito_positivo'`; per le
+      saracinesche vale l'ordine FIGLIO di sostituzione, agganciato per matricola alla
+      limitazione madre con dichiarazione positiva — `figliSaracinescaPositivi`);
+   b. **ultimo tentativo ESEGUITO nel registro Cruscotto** (`acea_ordini.esito_positivo` sulla
+      riga col **max `numero_operazione`** dell'ODL — MAI la prima: ogni riga di registro è
+      un'operazione SAP, cioè un tentativo). Nato dai **10 ODL del 2026-08-05** (es. 957276082:
+      rapportini 12/06 e 15/06 «Nessun passaggio», eseguito da Giosi il 19/06 senza rapportino):
+      il giro conclusivo dei nostri operatori a volte esiste solo nel registro. Sui 714 «senza
+      riscontro» di luglio: 75 erano così (31 già pagati nel SAL 1), 639 negativi anche per il
+      registro (causale non-E) e restano fuori.
+2. **COMPLETATO sul portale ACEA**.
+Un COMPLETATO del portale senza nessun riscontro nostro NON entra — resta materia dell'audit a
+tre vie. Nel confronto SAL i riscontri da solo-registro hanno la classe/badge dedicata
+«eseguiti da noi (registro), senza rapportino»: contati nel SAL, con la carta da sanare. La data
+di una riga esitata da solo-registro è il `data_completamento` dell'ultimo tentativo, non la
+data del passaggio fallito a rapportino. Helper puro: `odlImputabileAlSal`
+(`lib/produzione/salUfficiale.ts`); mappa `registroUltimo` in `lib/produzione/load.ts`.
+
+⚠️ **«Fuori SAL» resta UN numero solo e NON si scompone** (correzione utente 2026-08-05):
+tutto il prodotto non ancora consuntivato dal portale, CON o SENZA un ordine ACEA dietro
+(a luglio 2026: 117.224 €). La scomposizione con-ordine/senza-ordine è stata provata
+(`separaProduzioneDaEsitare` + card «Senza ordine ACEA» + area dedicata nel trend) e
+**rifiutata lo stesso giorno**: non reintrodurla. Il lavoro positivo senza ordine (saracinesche
+dichiarate senza ordine di sostituzione, massive senza ODL) conta in produzione e in fuori-SAL;
+la regola d'imputazione qui sopra governa solo SAL e pre-SAL. Il lavoro senza ordine emerge
+comunque dal confronto SAL per voce (Δ saracinesca/massive).
+
+L'aggancio madre→figlio delle saracinesche usa TUTTI i figli per chiave (impianto+matricola,
+via `chiaviAggancio`, anche dal misuratore dell'ordine madre nel registro), con preferenza
+completato > aperto > primo — mai una mappa first-wins, che sceglierebbe a caso tra un figlio
+chiuso già pagato e uno nuovo.
+
+### Guardia DB: niente annullamenti muti su lavoro dichiarato SI
+Trigger `interventi_blocca_annullamento_voce_si` (migration `20260805100000`): un intervento la
+cui voce di rapportino dichiara `eseguito = SI` NON può passare ad `annullato` senza
+`esito_motivo` o `riconciliazione_rif_id` **nello stesso UPDATE**. I flussi legittimi (doppio
+positivo, annullamento motivato) li scrivono già; quello che si blocca è solo l'update muto —
+il caso dell'ODL 957276247: 4 positivi pagati da ACEA nel SAL 1 annullati senza firma né audit,
+spariti da produzione/Esitato/pre-SAL (ripristinati dalla migration `20260805090000`, con
+guardia: voce SI + nessun altro positivo sull'ODL + annullamento non motivato). La transizione
+è sorvegliata solo verso `annullato` (old ≠ annullato): i backfill sugli annullati storici non
+inciampano nel trigger.
+
+### Confronto SAL ↔ produzione (tendina «SAL» della barra periodo)
+La tendina accanto a Mese/Trim./Anno porta il periodo sulla **finestra dei lavori** del SAL
+(`SalStorico.dal/al`, cioè min/max `data_completamento`) e passa `&sal=N` all'endpoint produzione:
+il payload si arricchisce di `confrontoSal` (`lib/produzione/confrontoSal.ts`, puro).
+
+⚠️ Il **totale** non torna quasi mai e non è un errore: ACEA consuntiva con settimane di ritardo,
+quindi la produzione del mese supera il SAL di quel mese. Quello che si guarda è la tabella **per
+voce** — agganciata sull'**attività canonica**, non sul testo SAP, altrimenti «Limitazione flusso
+idrico» e «Limitazione Erogazione» non si sommerebbero mai — e i quattro conteggi di ODL, che
+separano un problema di **tempi** (pagato, lavorato in un altro mese) da uno di **dati** (pagato e
+assente dal database). Segno: **Δ = produzione − SAL**; positivo = da farsi pagare, negativo =
+ACEA ha contabilizzato più di quanto risulta a noi.
+
+
 ### Invariante
 Non disattivare la voce tassonomia `LIMITAZIONI MASSIVE`: l'export
 `api/export/limitazioni-massive` è ancorato al literal `gruppo_attivita='LIMITAZIONI MASSIVE'`

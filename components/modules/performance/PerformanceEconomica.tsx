@@ -13,6 +13,8 @@ import EditorListinoAcea from './EditorListinoAcea';
 import KpiDirezione from './economica/KpiDirezione';
 import TrendProduzioneSal from './economica/TrendProduzioneSal';
 import SalStorico from './economica/SalStorico';
+import ImportSal from './economica/ImportSal';
+import ConfrontoSalProduzione from './economica/ConfrontoSalProduzione';
 import ComposizioneProduzione from './economica/ComposizioneProduzione';
 import PersonaleImpegno from './economica/PersonaleImpegno';
 import EsitiOperatore from './economica/EsitiOperatore';
@@ -70,16 +72,28 @@ export default function PerformanceEconomica() {
     sa che esiste un filtro non ha modo di accorgersene.
   */
   const [vista, setVista] = useState<VistaCommittente>('tutti');
+  /*
+    Il SAL scelto nella tendina della barra periodo. È un filtro di CONFRONTO, non di dato: la
+    produzione a schermo resta quella del periodo: il SAL le si mette accanto. Tenerlo separato
+    dal periodo è ciò che permette la domanda vera — «il SAL 2 corrisponde a quello che abbiamo
+    prodotto a luglio?» — anche quando le due finestre non coincidono, che è la norma (ACEA
+    contabilizza a un mese di distanza e trascina dentro code del mese prima).
+  */
+  const [salSel, setSalSel] = useState<string>('');
   const [dati, setDati] = useState<DatiProduzione | null>(null);
   const [loading, setLoading] = useState(false);
   const [errore, setErrore] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   const carica = useCallback(async () => {
     setLoading(true);
     setErrore(null);
     try {
-      const res = await fetch(`/api/admin/acea/produzione?from=${from}&to=${to}&committente=${vista}`, { cache: 'no-store' });
+      const res = await fetch(
+        `/api/admin/acea/produzione?from=${from}&to=${to}&committente=${vista}${salSel ? `&sal=${salSel}` : ''}`,
+        { cache: 'no-store' },
+      );
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? `HTTP ${res.status}`);
       setDati((await res.json()) as DatiProduzione);
     } catch (e) {
@@ -88,7 +102,7 @@ export default function PerformanceEconomica() {
     } finally {
       setLoading(false);
     }
-  }, [from, to, vista]);
+  }, [from, to, vista, salSel]);
 
   useEffect(() => {
     void carica();
@@ -101,6 +115,20 @@ export default function PerformanceEconomica() {
   const presetMese = () => setRange(`${now.getFullYear()}-${pad(now.getMonth() + 1)}-01`, today);
   const presetTrimestre = () => setRange(`${now.getFullYear()}-${pad(now.getMonth() - (now.getMonth() % 3) + 1)}-01`, today);
   const presetAnno = () => setRange(`${now.getFullYear()}-01-01`, today);
+
+  /*
+    Scegliere un SAL è anche un preset di periodo, come «Mese» e «Trim.»: porta le date sulla
+    finestra in cui quel lavoro è stato FATTO (le date di completamento del SAL), non su quella in
+    cui ACEA l'ha registrato. È il periodo che rende il confronto leggibile — e resta modificabile
+    a mano subito dopo, perché confrontare il SAL 2 con un luglio secco (01→31) è proprio la
+    domanda che si fa a fine mese, anche se il SAL contiene qualche coda di giugno.
+  */
+  const scegliSal = (valore: string) => {
+    setSalSel(valore);
+    const s = dati?.salStorico.find((x) => String(x.n) === valore);
+    if (s?.dal && s.al) setRange(s.dal, s.al);
+  };
+  const salDisponibili = dati?.salStorico ?? [];
 
   const exportUrl = `/api/admin/acea/produzione/export?from=${from}&to=${to}&committente=${vista}`;
   const invalid = Boolean(from && to && from > to);
@@ -118,9 +146,18 @@ export default function PerformanceEconomica() {
           {/* Il listino è roba ACEA: nella vista AcquaLatina sparirebbe un comando che lì non ha
               un effetto. */}
           {vista !== 'acqualatina' && (
-            <Button type="button" variant="ghost" size="sm" onClick={() => setEditorOpen((v) => !v)}>
-              {editorOpen ? 'Chiudi listino' : 'Listino tariffe ACEA'}
-            </Button>
+            <>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setEditorOpen((v) => !v)}>
+                {editorOpen ? 'Chiudi listino' : 'Listino tariffe ACEA'}
+              </Button>
+              {/* Il SAL si carica QUI e non in un'area di sistema: chi apre questa pagina a fine
+                  mese è la stessa persona che ha appena ricevuto il file da ACEA, e il numero che
+                  vuole vedere — SAL contro produzione — è due righe più sotto. */}
+              <Button type="button" variant="ghost" size="sm" onClick={() => setImportOpen((v) => !v)}>
+                {importOpen ? 'Chiudi import SAL' : 'Importa SAL'}
+              </Button>
+            </>
+
           )}
           <a
             href={invalid ? undefined : exportUrl}
@@ -157,6 +194,12 @@ export default function PerformanceEconomica() {
         </div>
       )}
 
+      {importOpen && vista !== 'acqualatina' && (
+        <div className="mb-4">
+          <ImportSal onImportato={carica} />
+        </div>
+      )}
+
       {/*
         Filtro di dato e non vista di modulo: stessa pagina, stesso dataset, tre tagli — quindi
         `Tabs` in pagina e non fogliette con route dedicate (DESIGN.md §7bis). Trasformarlo in
@@ -180,6 +223,31 @@ export default function PerformanceEconomica() {
         <Button type="button" variant="ghost" size="sm" onClick={presetMese}>Mese</Button>
         <Button type="button" variant="ghost" size="sm" onClick={presetTrimestre}>Trim.</Button>
         <Button type="button" variant="ghost" size="sm" onClick={presetAnno}>Anno</Button>
+        {/*
+          La tendina SAL sta in fila con i preset perché fa la stessa cosa che fanno loro — sposta
+          il periodo — e una in più: accende il confronto col consuntivo ufficiale. Compare solo
+          dove i SAL esistono (mai su AcquaLatina) e solo quando ce n'è almeno uno caricato: una
+          tendina vuota accanto a «Anno» sembrerebbe un filtro rotto.
+        */}
+        {conSal && salDisponibili.length > 0 && (
+          <>
+            <span className="mx-1 h-4 w-px bg-[var(--brand-border)]" aria-hidden />
+            <select
+              value={salSel}
+              onChange={(e) => scegliSal(e.target.value)}
+              className={field}
+              aria-label="Confronta con un SAL"
+              title="Porta il periodo sulle date del SAL e lo mette a confronto con la produzione"
+            >
+              <option value="">SAL: nessun confronto</option>
+              {[...salDisponibili].reverse().map((s) => (
+                <option key={s.n} value={s.n}>
+                  SAL {s.n} · {s.mese || '—'} · {eur(s.valoreAps)}
+                </option>
+              ))}
+            </select>
+          </>
+        )}
         {invalid && <span className="text-xs text-[var(--danger)]">Da &gt; A</span>}
         {loading && <span className="text-xs text-[var(--brand-text-subtle)]">Carico…</span>}
       </div>
@@ -189,6 +257,14 @@ export default function PerformanceEconomica() {
       {dati && (
         <>
           <KpiDirezione dati={dati} operative />
+
+          {/* Il confronto col SAL scelto sta SUBITO sotto i KPI: quando lo si chiede è la domanda
+              della sessione, non un approfondimento da cercare in fondo alla pagina. */}
+          {dati.confrontoSal && (
+            <div className="mb-4">
+              <ConfrontoSalProduzione dati={dati} />
+            </div>
+          )}
 
           {/* Trend cumulato Produzione vs SAL */}
           <div className="mb-4">
