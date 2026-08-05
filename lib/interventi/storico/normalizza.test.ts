@@ -42,7 +42,10 @@ describe('voceToRigaStorico', () => {
     const row: VoceStoricoRow = {
       id: 'v1', odl: '200999', via: 'Via Roma 1', comune: 'Roma', matricola: 'M1', nominativo: 'Tizio', pdr: 'P1',
       attivita: 'LIMITAZIONI MASSIVE',
-      risposte: { eseguito: 'SI', sostituzione_valvola: 'true', mini_bag: 'true', rg_stop: null, note: 'ok ', sigillo: 'AA728566' },
+      risposte: {
+        eseguito: 'SI', sostituzione_valvola: 'true', mini_bag: 'true', rg_stop: null, note: 'ok ',
+        sigillo: 'AA728566', matricola_nuova: ' NUOVA999 ',
+      },
       manuale: false,
       rapportini: { staff_id: 's1', staff_name: 'DE SANTIS', data: '2026-06-10' },
     };
@@ -50,6 +53,7 @@ describe('voceToRigaStorico', () => {
     expect(r.odl).toBe('200999');
     expect(r.pdr).toBe('P1');
     expect(r.matricola).toBe('M1');
+    expect(r.matricolaNuova).toBe('NUOVA999');
     expect(r.sigillo).toBe('AA728566');
     expect(r.data).toBe('2026-06-10');
     expect(r.esecutore).toBe('DE SANTIS');
@@ -83,6 +87,7 @@ describe('voceToRigaStorico', () => {
     expect(r.eseguito).toBe('—');
     expect(r.sostValvola).toBe('—');
     expect(r.sigillo).toBeNull();
+    expect(r.matricolaNuova).toBeNull();
     expect(r.esecutore).toBe('OP');
     expect(r.committente).toBeNull(); // nessun intervento collegato
   });
@@ -149,7 +154,7 @@ describe('interventoPiToRigaStorico', () => {
 
 describe('ordinaRighe', () => {
   const base = (p: Partial<RigaStorico>): RigaStorico => ({
-    id: '', odl: null, pdr: null, matricola: null, sigillo: null, data: null, esecutore: null, via: null, gruppoAttivita: null,
+    id: '', odl: null, pdr: null, matricola: null, matricolaNuova: null, sigillo: null, data: null, esecutore: null, via: null, gruppoAttivita: null,
     committente: null, gruppo: null, territorio: null,
     eseguito: '—', sostValvola: '—', miniBag: '—', rgStop: '—', note: null, ...p,
   });
@@ -165,7 +170,7 @@ describe('ordinaRighe', () => {
 
 describe('filtraSiNo', () => {
   const r = (p: Partial<RigaStorico>): RigaStorico => ({
-    id: '', odl: null, pdr: null, matricola: null, sigillo: null, data: null, esecutore: null, via: null, gruppoAttivita: null,
+    id: '', odl: null, pdr: null, matricola: null, matricolaNuova: null, sigillo: null, data: null, esecutore: null, via: null, gruppoAttivita: null,
     committente: null, gruppo: null, territorio: null,
     eseguito: '—', sostValvola: '—', miniBag: '—', rgStop: '—', note: null, ...p,
   });
@@ -194,7 +199,7 @@ describe('filtraSiNo', () => {
 
 describe('filtraMulti', () => {
   const r = (p: Partial<RigaStorico>): RigaStorico => ({
-    id: '', odl: null, pdr: null, matricola: null, sigillo: null, data: null, esecutore: null, via: null, gruppoAttivita: null,
+    id: '', odl: null, pdr: null, matricola: null, matricolaNuova: null, sigillo: null, data: null, esecutore: null, via: null, gruppoAttivita: null,
     committente: null, gruppo: null, territorio: null,
     eseguito: '—', sostValvola: '—', miniBag: '—', rgStop: '—', note: null, ...p,
   });
@@ -225,7 +230,7 @@ describe('filtraMulti', () => {
 
 describe('calcolaContatori', () => {
   const r = (p: Partial<RigaStorico>): RigaStorico => ({
-    id: '', odl: null, pdr: null, matricola: null, sigillo: null, data: null, esecutore: null, via: null, gruppoAttivita: null,
+    id: '', odl: null, pdr: null, matricola: null, matricolaNuova: null, sigillo: null, data: null, esecutore: null, via: null, gruppoAttivita: null,
     committente: null, gruppo: null, territorio: null,
     eseguito: '—', sostValvola: '—', miniBag: '—', rgStop: '—', note: null, ...p,
   });

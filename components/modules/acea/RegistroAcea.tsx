@@ -265,6 +265,7 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
     const loc = editing.locali.get(`${r.odl}|${r.numero_operazione}`);
     if (!loc) return null;
     if (chiave === 'note') return loc.note ?? null;
+    if (chiave === 'matricola_nuova') return loc.matricola_nuova ?? null;
     if (chiave === 'pianificato_a') return loc.pianificato_a ?? null;
     if (chiave === 'pianificato_il') return loc.pianificato_il ? dataIt(loc.pianificato_il) : null;
     return null;

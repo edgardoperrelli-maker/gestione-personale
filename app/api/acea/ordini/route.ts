@@ -59,6 +59,11 @@ const COLONNE = [
   // che nel suo export non la manda. Le colonne esistono su entrambe le tabelle proprio perché
   // questa select vale per tutt'e due — vedi la nota in 20260731170000_acqualatina_ordini.sql.
   'nominativo', 'recapito',
+  // La matricola del misuratore NUOVO: piena su acqualatina, sempre NULL su ACEA (stesso patto
+  // di nominativo/recapito — 20260805110000_acqualatina_matricola_nuova_colonna.sql). È la
+  // colonna EDITABILE in griglia; la lettura preferisce questa e ricade sulla scansione dei
+  // rapportini solo per le righe non ancora propagate (vedi `matricolaNuovaPerChiave` sotto).
+  'matricola_nuova',
   'valore_netto', 'escludi_consuntivazione', 'codice_sla', 'priorita_testo',
   'testo_ordine', 'centro_lavoro', 'note',
   // Il TOP di ACEA. Sta nella select principale e non fra le opzionali perché la colonna esiste
@@ -851,7 +856,10 @@ export async function GET(req: Request) {
         pianificazione_parziale: parziale,
         stato_intervento: mostrato?.stato ?? null,
         eseguito: eseguitoPerChiave.get(chiaveRiga) ?? null,
-        matricola_nuova: matricolaNuovaPerChiave.get(chiaveRiga) ?? null,
+        // La colonna persistita vince: è quella che l'ufficio corregge in griglia, e da lei
+        // scende su interventi/voci. La scansione dei rapportini resta un fallback per le righe
+        // non ancora propagate (storico pre-colonna, o un aggancio non ancora avvenuto).
+        matricola_nuova: (r.matricola_nuova as string | null) ?? matricolaNuovaPerChiave.get(chiaveRiga) ?? null,
       };
     });
 

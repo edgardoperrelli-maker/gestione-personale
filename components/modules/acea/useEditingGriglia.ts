@@ -28,12 +28,16 @@ export type Operatore = {
  */
 const MAX_NOTA = 500;
 
+/** Quanto puo` essere lunga una matricola: una serigrafia di misuratore, non un testo libero. */
+const MAX_MATRICOLA_NUOVA = 100;
+
 /** Colonne modificabili, nell'ordine in cui compaiono in tabella. */
-export const COLONNE_EDITABILI: ColonnaEditabile[] = ['pianificato_a', 'pianificato_il', 'note'];
+export const COLONNE_EDITABILI: ColonnaEditabile[] = ['pianificato_a', 'pianificato_il', 'note', 'matricola_nuova'];
 
 /** Valore mostrato in una cella modificabile, tenendo conto delle modifiche non ancora salvate. */
 export type ValoreLocale = {
   pianificato_a?: string | null; pianificato_il?: string | null; note?: string | null;
+  matricola_nuova?: string | null;
 };
 
 type Props = {
@@ -172,7 +176,7 @@ export function useEditingGriglia({
   const applica = useCallback(async (scritture: Array<{ riga: number; colonna: number; valore: string }>) => {
     if (scritture.length === 0) return;
 
-    const perChiave = new Map<string, { staffId?: string; data?: string; nota?: string }>();
+    const perChiave = new Map<string, { staffId?: string; data?: string; nota?: string; matricolaNuova?: string }>();
     const nuoviLocali = new Map(locali);
     const errori: string[] = [];
 
@@ -194,6 +198,13 @@ export function useEditingGriglia({
         const testo = s.valore.slice(0, MAX_NOTA);
         perChiave.set(chiave, { ...perChiave.get(chiave), nota: testo });
         nuoviLocali.set(chiave, { ...nuoviLocali.get(chiave), note: testo });
+      } else if (colonna === 'matricola_nuova') {
+        // Anche qui testo libero — e` una matricola scritta o incollata dall'ufficio, non
+        // scansionata: la stessa validazione «di forma» vivrebbe nel campo dell'operatore, non
+        // in una correzione a posteriori.
+        const testo = s.valore.slice(0, MAX_MATRICOLA_NUOVA);
+        perChiave.set(chiave, { ...perChiave.get(chiave), matricolaNuova: testo });
+        nuoviLocali.set(chiave, { ...nuoviLocali.get(chiave), matricola_nuova: testo });
       } else if (colonna === 'pianificato_a') {
         const e = validaOperatore(s.valore, operatori);
         if (daSaltare(e)) continue;
