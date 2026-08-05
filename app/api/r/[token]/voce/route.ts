@@ -7,6 +7,7 @@ import { sweepDopoPositivi } from '@/lib/interventi/sweepOdlPositivo';
 import { buildVoceInterventoLinker, type InterventoLinkRow } from '@/lib/interventi/voceInterventoLink';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { maiuscolaRisposteTesto } from '@/lib/testo/maiuscolo';
+import { valoreMatricolaNuova, propagaMatricolaNuovaARegistro } from '@/lib/acqualatina/matricolaNuova';
 export const runtime = 'nodejs';
 
 export async function POST(req: Request, { params }: { params: Promise<{ token: string }> }) {
@@ -95,13 +96,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
 
     if (interventoId) {
       const patch = patchInterventoLiveDaVoce(merged as Record<string, unknown>, campi);
+      // La matricola del misuratore INSTALLATO, se l'operatore l'ha appena scritta o
+      // scansionata: viaggia nello stesso update, come pdr/nominativo alla pianificazione.
+      const matricolaNuova = valoreMatricolaNuova((merged as Record<string, unknown>)['matricola_nuova']);
       // 'completa' chiude l'intervento (qualsiasi stato tranne annullato).
       // 'riapri' annulla SOLO una nostra precedente chiusura: tocca l'intervento
       // solo se è 'completato', così non declassa stati intermedi gestiti da altri flussi.
-      const interventoPatch =
-        patch.azione === 'completa'
+      const interventoPatch = {
+        ...(patch.azione === 'completa'
           ? { stato: 'completato', esito: patch.esito, esito_motivo: patch.esito_motivo, chiuso_at: new Date().toISOString() }
-          : { stato: 'assegnato', esito: null, esito_motivo: null, chiuso_at: null };
+          : { stato: 'assegnato', esito: null, esito_motivo: null, chiuso_at: null }),
+        ...(matricolaNuova ? { matricola_nuova: matricolaNuova } : {}),
+      };
       const query = supabaseAdmin.from('interventi').update(interventoPatch).eq('id', interventoId);
       const { error: errInt } = await (patch.azione === 'completa'
         ? query.neq('stato', 'annullato')
@@ -111,6 +117,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
       // negli altri rapportini (anche di piani futuri già generati). Best-effort.
       if (!errInt && patch.azione === 'completa' && patch.esito === 'eseguito_positivo') {
         await sweepDopoPositivi(supabaseAdmin, [interventoId]);
+      }
+      // Il registro AcquaLatina la vuole anche lui (colonna «Matricola nuova» in griglia).
+      if (!errInt && matricolaNuova) {
+        await propagaMatricolaNuovaARegistro(supabaseAdmin, interventoId, matricolaNuova);
       }
     }
   } catch (e) {

@@ -11,6 +11,7 @@ import { mergeRisposte } from '@/utils/rapportini/mergeRisposte';
 import { patchInterventoLiveDaVoce } from '@/lib/interventi/esitoDaVoce';
 import { sweepDopoPositivi } from '@/lib/interventi/sweepOdlPositivo';
 import { esitoDichiarato, matricoleObbligatorieCompilate } from '@/utils/rapportini/voceColore';
+import { valoreMatricolaNuova, propagaMatricolaNuovaARegistro } from '@/lib/acqualatina/matricolaNuova';
 import {
   buildCampiEditor, anagraficaPatchValida, anagraficaPatchIntervento, ANAGRAFICA_COLONNE, estraiFotoPaths,
   campiPerChiusuraStorico,
@@ -256,9 +257,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ voceId
       }
       if (risposteIn) {
         const patch = patchInterventoLiveDaVoce(merged, campi);
-        const interventoPatch = patch.azione === 'completa'
-          ? { stato: 'completato', esito: patch.esito, esito_motivo: patch.esito_motivo, chiuso_at: new Date().toISOString() }
-          : { stato: 'assegnato', esito: null, esito_motivo: null, chiuso_at: null };
+        // La matricola del misuratore installato, se la correzione l'ha appena toccata.
+        const matricolaNuova = valoreMatricolaNuova(merged['matricola_nuova']);
+        const interventoPatch = {
+          ...(patch.azione === 'completa'
+            ? { stato: 'completato', esito: patch.esito, esito_motivo: patch.esito_motivo, chiuso_at: new Date().toISOString() }
+            : { stato: 'assegnato', esito: null, esito_motivo: null, chiuso_at: null }),
+          ...(matricolaNuova ? { matricola_nuova: matricolaNuova } : {}),
+        };
         const query = supabaseAdmin.from('interventi').update(interventoPatch).eq('id', v.intervento_id);
         const { error: errInt } = await (patch.azione === 'completa'
           ? query.neq('stato', 'annullato')
@@ -267,6 +273,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ voceId
         // Positivo appena registrato → sweep delle voci/interventi aperti con lo stesso ODL altrove.
         if (!errInt && patch.azione === 'completa' && patch.esito === 'eseguito_positivo') {
           await sweepDopoPositivi(supabaseAdmin, [v.intervento_id]);
+        }
+        // Il registro AcquaLatina la vuole anche lui (colonna «Matricola nuova» in griglia).
+        if (!errInt && matricolaNuova) {
+          await propagaMatricolaNuovaARegistro(supabaseAdmin, v.intervento_id, matricolaNuova);
         }
         // Esito dichiarato positivo ma NON chiuso: il gate delle matricole obbligatorie ha
         // tenuto la voce "neutra" (vedi commento sopra `avviso`). Si dice subito cosa manca.

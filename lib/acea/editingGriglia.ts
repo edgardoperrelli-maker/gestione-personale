@@ -16,8 +16,9 @@ export type Cella = { riga: number; colonna: number };
 
 export type Intervallo = { da: Cella; a: Cella };
 
-/** Colonne modificabili, nell'ordine in cui compaiono nella vista. */
-export type ColonnaEditabile = 'pianificato_a' | 'pianificato_il' | 'note';
+/** Colonne modificabili, nell'ordine in cui compaiono nella vista. `matricola_nuova` esiste
+ *  solo sulla vista AcquaLatina (la colonna non c'è nelle altre famiglie). */
+export type ColonnaEditabile = 'pianificato_a' | 'pianificato_il' | 'note' | 'matricola_nuova';
 
 export type Direzione = 'su' | 'giu' | 'sinistra' | 'destra';
 

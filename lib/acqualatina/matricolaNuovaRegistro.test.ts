@@ -85,8 +85,12 @@ describe('la chiave della risposta è la stessa da capo a fondo', () => {
     expect(ROUTE).toContain(`risposte['${CHIAVE}']`);
   });
 
-  it('la route porta il valore sulla riga', () => {
-    expect(ROUTE).toMatch(new RegExp(`${CHIAVE}: matricolaNuovaPerChiave\\.get\\(chiaveRiga\\)`));
+  it('la route porta il valore sulla riga: la colonna persistita vince, la scansione fa da riserva', () => {
+    // Da quando `matricola_nuova` è una colonna vera di `acqualatina_ordini` (migration
+    // 20260805110000), la lettura preferisce quella — è quella che l'ufficio corregge in
+    // griglia — e la scansione delle risposte resta solo per le righe non ancora propagate.
+    expect(ROUTE).toMatch(/matricola_nuova:\s*\(r\.matricola_nuova as string \| null\)/);
+    expect(ROUTE).toMatch(new RegExp(`${CHIAVE}:.*matricolaNuovaPerChiave\\.get\\(chiaveRiga\\)`));
   });
 
   it('la lettura delle risposte NON parte sulle viste che non disegnano la colonna', () => {

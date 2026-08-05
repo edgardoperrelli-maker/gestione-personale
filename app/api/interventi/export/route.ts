@@ -12,7 +12,7 @@ export const runtime = 'nodejs';
 
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const COLONNE =
-  'data, staff_id, stato, esito, esito_motivo, odl, nominativo, pdr, matricola_contatore, indirizzo, comune, cap, intervento_tipo, fascia_oraria, chiuso_at, territorio_id';
+  'data, staff_id, stato, esito, esito_motivo, odl, nominativo, pdr, matricola_contatore, matricola_nuova, indirizzo, comune, cap, intervento_tipo, fascia_oraria, chiuso_at, territorio_id';
 
 const HEADERS = [
   { key: 'data', header: 'DATA', width: 12 },
@@ -24,6 +24,7 @@ const HEADERS = [
   { key: 'nominativo', header: 'NOMINATIVO', width: 22 },
   { key: 'pdr', header: 'PDR', width: 14 },
   { key: 'matricola', header: 'MATRICOLA', width: 14 },
+  { key: 'matricolaNuova', header: 'MATRICOLA NUOVA', width: 14 },
   { key: 'indirizzo', header: 'INDIRIZZO', width: 24 },
   { key: 'comune', header: 'COMUNE', width: 16 },
   { key: 'cap', header: 'CAP', width: 7 },

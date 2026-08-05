@@ -27,6 +27,7 @@
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import {
   PATCH_RIAPERTA, agganciPerOdl, gruppiChiusura, idsDaRiaprire, idsSenzaConcluso,
+  patchAggancioAnagrafica,
   type InterventoConcluso, type InterventoSciolto, type RigaPerAggancio,
 } from './chiusuraRegistro';
 
@@ -40,12 +41,13 @@ export async function riconciliaChiusureAcqualatina(): Promise<void> {
   riconciliazioneAcquaAt = ora;
 
   // 1) Il registro, UNA volta: identità per l'aggancio e la validazione dei puntatori,
-  //    chiuse positive per la riapertura, «non eseguite» per la pulizia.
+  //    chiuse positive per la riapertura, «non eseguite» per la pulizia — e l'anagrafica
+  //    (impianto…matricola) per il primo scatto del passo 3.
   const righeRegistro: Array<RigaPerAggancio & { aperto: boolean; esito_positivo: boolean | null }> = [];
   for (let offset = 0; ; offset += PAGINA_SCAN) {
     const { data, error } = await supabaseAdmin
       .from('acqualatina_ordini')
-      .select('id, odl, matricola_norm, aperto, esito_positivo')
+      .select('id, odl, matricola_norm, aperto, esito_positivo, impianto, nominativo, recapito, via, civico, comune, cap, matricola')
       .range(offset, offset + PAGINA_SCAN - 1);
     if (error) throw error;
     const blocco = (data ?? []) as typeof righeRegistro;
@@ -106,7 +108,7 @@ export async function riconciliaChiusureAcqualatina(): Promise<void> {
   for (let offset = 0; ; offset += PAGINA_SCAN) {
     const { data, error } = await supabaseAdmin
       .from('interventi')
-      .select('id, odl, matricola_contatore, data, esito, stato')
+      .select('id, odl, matricola_contatore, data, esito, stato, pdr, nominativo, recapito, indirizzo, comune, cap')
       .eq('committente', 'acqualatina')
       .neq('stato', 'annullato')
       .is('ordine_id', null)
@@ -137,6 +139,27 @@ export async function riconciliaChiusureAcqualatina(): Promise<void> {
           completati.push({ id: s.id, ordine_id: ordineId, data: s.data, esito: s.esito });
         }
       }
+    }
+
+    /*
+      Il PRIMO SCATTO anagrafico: senza `ordine_id` questi interventi non hanno mai potuto
+      ricevere PDR/impianto, nominativo, recapito, indirizzo, comune, cap o la matricola del
+      registro — è il buco che il sync (`ordini/sync/route.ts`) non copre, perché lì la
+      propagazione parte da una CORREZIONE rilevata in quel giro, non da «riempi ciò che
+      manca». Qui si riempie, riga per riga (i pattern possono differire: ognuno ha già i
+      suoi campi propri), e un errore su una riga (es. `matricola_contatore` che collide con
+      l'indice di dedup) non deve bloccare l'aggancio delle altre — l'`ordine_id` sopra è già
+      scritto ed è la parte che conta di più.
+    */
+    const registroPerId = new Map(righeRegistro.map((r) => [r.id, r]));
+    for (const a of agganci) {
+      const s = scioltoPerId.get(a.interventoId);
+      const r = registroPerId.get(a.ordineId);
+      if (!s || !r) continue;
+      const patch = patchAggancioAnagrafica(r, s);
+      if (Object.keys(patch).length === 0) continue;
+      const { error } = await supabaseAdmin.from('interventi').update(patch).eq('id', a.interventoId);
+      if (error) console.error('[riconcilia acqualatina] anagrafica non scritta per', a.interventoId, error);
     }
   }
 

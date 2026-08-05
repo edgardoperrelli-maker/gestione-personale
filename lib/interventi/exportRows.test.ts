@@ -4,6 +4,7 @@ import { buildRigaExport, type InterventoExport } from './exportRows';
 const base: InterventoExport = {
   data: '2026-06-09', staff_id: 's1', stato: 'completato', esito: 'eseguito_positivo',
   esito_motivo: null, odl: 'A1', nominativo: 'Mario Rossi', pdr: 'P1', matricola_contatore: 'M1',
+  matricola_nuova: 'N1',
   indirizzo: 'Via X 1', comune: 'Roma', cap: '00100', intervento_tipo: 'Rimozione',
   fascia_oraria: '8-12', chiuso_at: '2026-06-09T08:30:00Z',
 };
@@ -17,6 +18,7 @@ describe('buildRigaExport', () => {
     expect(r.stato).toBe('Completato');
     expect(r.esito).toBe('Eseguito positivo');
     expect(r.odl).toBe('A1');
+    expect(r.matricolaNuova).toBe('N1');
     expect(r.chiuso).toBe('10:30'); // 08:30Z → 10:30 Europe/Rome (estate)
   });
 
