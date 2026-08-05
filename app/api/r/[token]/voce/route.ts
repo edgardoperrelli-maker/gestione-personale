@@ -8,6 +8,7 @@ import { buildVoceInterventoLinker, type InterventoLinkRow } from '@/lib/interve
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { maiuscolaRisposteTesto } from '@/lib/testo/maiuscolo';
 import { valoreMatricolaNuova, propagaMatricolaNuovaARegistro } from '@/lib/acqualatina/matricolaNuova';
+import { scriviSenzaColonnaMancante } from '@/lib/rapportini/colonneOpzionali';
 export const runtime = 'nodejs';
 
 export async function POST(req: Request, { params }: { params: Promise<{ token: string }> }) {
@@ -108,10 +109,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
           : { stato: 'assegnato', esito: null, esito_motivo: null, chiuso_at: null }),
         ...(matricolaNuova ? { matricola_nuova: matricolaNuova } : {}),
       };
-      const query = supabaseAdmin.from('interventi').update(interventoPatch).eq('id', interventoId);
-      const { error: errInt } = await (patch.azione === 'completa'
-        ? query.neq('stato', 'annullato')
-        : query.eq('stato', 'completato'));
+      // `matricola_nuova` può non esistere ancora (migration non applicata prima del deploy):
+      // senza questa guardia un intervento AcquaLatina non si chiuderebbe MAI finché la colonna
+      // non arriva, perché l'update è uno solo con stato/esito/chiuso_at.
+      const { error: errInt } = await scriviSenzaColonnaMancante(interventoPatch, 'matricola_nuova', (valori) => {
+        const q = supabaseAdmin.from('interventi').update(valori).eq('id', interventoId);
+        return patch.azione === 'completa' ? q.neq('stato', 'annullato') : q.eq('stato', 'completato');
+      });
       if (errInt) console.error('[r/voce] propagazione intervento fallita:', errInt.message);
       // Positivo appena registrato → sweep: revoca voci/interventi aperti con lo stesso ODL
       // negli altri rapportini (anche di piani futuri già generati). Best-effort.

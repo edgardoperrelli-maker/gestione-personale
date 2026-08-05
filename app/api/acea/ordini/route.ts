@@ -59,11 +59,6 @@ const COLONNE = [
   // che nel suo export non la manda. Le colonne esistono su entrambe le tabelle proprio perché
   // questa select vale per tutt'e due — vedi la nota in 20260731170000_acqualatina_ordini.sql.
   'nominativo', 'recapito',
-  // La matricola del misuratore NUOVO: piena su acqualatina, sempre NULL su ACEA (stesso patto
-  // di nominativo/recapito — 20260805110000_acqualatina_matricola_nuova_colonna.sql). È la
-  // colonna EDITABILE in griglia; la lettura preferisce questa e ricade sulla scansione dei
-  // rapportini solo per le righe non ancora propagate (vedi `matricolaNuovaPerChiave` sotto).
-  'matricola_nuova',
   'valore_netto', 'escludi_consuntivazione', 'codice_sla', 'priorita_testo',
   'testo_ordine', 'centro_lavoro', 'note',
   // Il TOP di ACEA. Sta nella select principale e non fra le opzionali perché la colonna esiste
@@ -79,7 +74,11 @@ const COLONNE = [
     stessa degradazione delle saracinesche. Sono colonne di una migration che potrebbe non essere
     ancora passata sul database che sta servendo questo codice, e una colonna sconosciuta in questo
     elenco non fa fallire una decorazione — fa fallire la query del registro, cioè il motivo per
-    cui si apre la schermata. È già successo una volta.
+    cui si apre la schermata. È già successo una volta — e di nuovo il 05/08 con `matricola_nuova`
+    (20260805110000_acqualatina_matricola_nuova_colonna.sql), messa qui per errore: il deploy del
+    codice è arrivato prima che la migration fosse applicata in produzione, «Errore lettura
+    registro ACEA» su TUTTE le famiglie per il tempo in cui è rimasta. Non torna qui: si legge
+    a parte, sotto, con la stessa degradazione.
   */
 ].join(', ');
 
@@ -805,6 +804,29 @@ export async function GET(req: Request) {
       }
     }
 
+    /*
+      La MATRICOLA NUOVA persistita (`acqualatina_ordini.matricola_nuova`), stessa medicina degli
+      appunti qui sopra: letta A PARTE, mai nella `COLONNE` principale, così una migration non
+      ancora applicata lascia il registro leggibile — senza questa colonna, non spento del tutto.
+      La scansione delle risposte (`matricolaNuovaPerChiave`, sotto) resta il fallback per le
+      righe non ancora propagate su questa colonna.
+    */
+    const matricolaNuovaColonna = new Map<string, string>();
+    if (righe.length > 0) {
+      const { data: righeMN, error: eMN } = await supabaseAdmin
+        .from(PROFILO_COMMESSA[f.famiglia ?? 'dunning'].tabellaOrdini)
+        .select('odl, numero_operazione, matricola_nuova')
+        .in('odl', odlPagina);
+      if (eMN) {
+        console.error('[acea/ordini] colonna matricola_nuova non letta:', eMN);
+      } else {
+        for (const r of (righeMN ?? []) as Array<Record<string, unknown>>) {
+          const v = (r.matricola_nuova as string | null) ?? null;
+          if (v) matricolaNuovaColonna.set(`${String(r.odl)}|${String(r.numero_operazione)}`, v);
+        }
+      }
+    }
+
     // Nomi operatore: staff_id → display_name, per non mostrare uuid in tabella. Anche quelli
     // degli APPUNTI: una riga a metà mostra il nome scelto, non l'uuid con cui è memorizzato.
     const staffIds = [...new Set([
@@ -859,7 +881,7 @@ export async function GET(req: Request) {
         // La colonna persistita vince: è quella che l'ufficio corregge in griglia, e da lei
         // scende su interventi/voci. La scansione dei rapportini resta un fallback per le righe
         // non ancora propagate (storico pre-colonna, o un aggancio non ancora avvenuto).
-        matricola_nuova: (r.matricola_nuova as string | null) ?? matricolaNuovaPerChiave.get(chiaveRiga) ?? null,
+        matricola_nuova: matricolaNuovaColonna.get(chiaveRiga) ?? matricolaNuovaPerChiave.get(chiaveRiga) ?? null,
       };
     });
 
