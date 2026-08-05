@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  MAX_RIGHE_EXPORT, PER_PAGINA_EXPORT, nomeFileExport, pagineExport,
+  MAX_RIGHE_EXPORT, PER_PAGINA_EXPORT, nomeFileExport, nomeFoglioExport, pagineExport,
 } from './exportVista';
 
 describe('pagineExport', () => {
@@ -79,5 +79,18 @@ describe('nomeFileExport', () => {
     // «acea-acqualatina-…» direbbe il committente sbagliato a chi ritrova il file fra mesi.
     expect(nomeFileExport({ ...base, famiglia: 'acqualatina' }))
       .toBe('acqualatina-aperti-20260727.xlsx');
+  });
+});
+
+describe('nomeFoglioExport', () => {
+  it('dunning e massive: il foglio si chiama ACEA, il committente vero', () => {
+    expect(nomeFoglioExport('dunning')).toBe('ACEA');
+    expect(nomeFoglioExport('massive')).toBe('ACEA');
+  });
+
+  it('acqualatina: il foglio dice AcquaLatina, non ACEA', () => {
+    // La tab interna era rimasta 'ACEA' anche qui — chi apriva l'export della commessa
+    // AcquaLatina si ritrovava righe di `acqualatina_ordini` sotto un foglio intitolato ACEA.
+    expect(nomeFoglioExport('acqualatina')).toBe('AcquaLatina');
   });
 });

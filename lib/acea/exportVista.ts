@@ -76,3 +76,15 @@ export function nomeFileExport({ famiglia, stato, comune, oggi, filtrato }: Nome
   if (filtrato) parti.push('filtrato');
   return `${parti.join('-')}.xlsx`;
 }
+
+/**
+ * Nome del FOGLIO dentro il file (la tab di Excel), non del file.
+ *
+ * `RegistroAcea` è condiviso dalle tre famiglie, ma il foglio interno restava scritto 'ACEA' anche
+ * per l'export di AcquaLatina: chi apriva il file vedeva la tab «ACEA» sopra righe di
+ * `acqualatina_ordini` — lo stesso errore di categorizzazione che `nomeFileExport` evita già nel
+ * nome del file, qui riapparso dentro.
+ */
+export function nomeFoglioExport(famiglia: Famiglia): string {
+  return famiglia === 'acqualatina' ? 'AcquaLatina' : 'ACEA';
+}
