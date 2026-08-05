@@ -649,6 +649,11 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
           onApriEditorEsecutore: editing.apriEditorEsecutore,
           onChiudiEditorEsecutore: editing.chiudiEditorEsecutore,
           onConfermaEsecutore: editing.confermaEsecutore,
+          editorTesto: editing.editorTesto,
+          onApriEditorTesto: editing.apriEditorTesto,
+          onChiudiEditorTesto: editing.chiudiEditorTesto,
+          onConfermaTesto: editing.confermaTesto,
+          valoreTestoIniziale: editing.valoreTestoIniziale,
           // Le voci del menu in cella: chi è in cronoprogramma, giorno per giorno della finestra.
           operatoriFinestra: giorni.map((g) => ({
             ...g, operatori: operatoriPerGiorno[g.data] ?? [],
