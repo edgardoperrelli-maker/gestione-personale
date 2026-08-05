@@ -1,11 +1,12 @@
 // components/modules/interventi/StoricoFiltri.tsx
 'use client';
 
-import { useState } from 'react';
+import { useState, type ClipboardEvent } from 'react';
 import Button from '@/components/Button';
 import DatePicker from '@/components/ui/DatePicker';
 import MultiSelect from '@/components/ui/MultiSelect';
 import { FilterPill, AddFilterButton } from '@/components/ui/FilterBar';
+import { terminiRicerca } from '@/lib/interventi/storico/filtri';
 
 export type StatoFiltriUI = {
   q: string;
@@ -79,6 +80,18 @@ export default function StoricoFiltri({
   const set = (patch: Partial<StatoFiltriUI>) => setFiltri({ ...filtri, ...patch });
   const [aperto, setAperto] = useState(false);
 
+  // Incolla una colonna di ODL copiata da Excel (righe separate da a-capo/tab): l'input
+  // è a riga singola e normalmente collasserebbe l'a-capo, perdendo i valori separati.
+  // Intercettiamo solo l'incolla "a lista" (multi-riga/tab); un incolla normale (un solo
+  // valore) segue il comportamento nativo dell'input.
+  const onPasteRicerca = (e: ClipboardEvent<HTMLInputElement>) => {
+    const testo = e.clipboardData.getData('text');
+    if (!/[\r\n\t]/.test(testo)) return;
+    e.preventDefault();
+    set({ q: terminiRicerca(testo).join(', ') });
+  };
+  const terminiQ = terminiRicerca(filtri.q);
+
   // Pill dei filtri strutturati attivi (la ricerca testuale resta nel campo).
   const pills: { label: string; patch: Partial<StatoFiltriUI> }[] = [];
   if (filtri.dal || filtri.al) {
@@ -110,9 +123,10 @@ export default function StoricoFiltri({
           id="storico-ricerca"
           type="search"
           className={`${sel} min-w-[220px] flex-1`}
-          placeholder="ODL / via / matricola / sigillo / PDR / nominativo…"
+          placeholder="ODL / via / matricola / sigillo / PDR / nominativo… — incolla più ODL da Excel"
           value={filtri.q}
           onChange={(e) => set({ q: e.target.value })}
+          onPaste={onPasteRicerca}
           aria-label="Ricerca interventi"
         />
         <div className="flex gap-1.5" role="group" aria-label="Range rapidi">
@@ -149,6 +163,12 @@ export default function StoricoFiltri({
           Esporta Excel
         </Button>
       </div>
+
+      {terminiQ.length > 1 && (
+        <p className="-mt-1 text-xs font-medium text-[var(--brand-text-muted)]">
+          Ricerca multipla: {terminiQ.length} ODL (corrispondenza esatta).
+        </p>
+      )}
 
       {aperto && (
         <>
