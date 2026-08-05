@@ -21,7 +21,7 @@ type Props = {
   /**
    * La vista decide QUALI schede esistono (vedi `schedeVista`): il dunning ha gli stati di
    * sempre — le riaperture sono sue, e in massive quella scheda non si disegna proprio — le
-   * massive hanno un tasto per comune più i riepiloghi, acqualatina due schede secche.
+   * massive hanno un tasto per comune più i riepiloghi, acqualatina tre schede secche.
    */
   famiglia: Famiglia;
   /** Comuni con ordini aperti: le schede della vista massive. In dunning resta vuoto. */

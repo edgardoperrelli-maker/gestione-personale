@@ -11,6 +11,7 @@ export type InterventoExport = {
   nominativo: string | null;
   pdr: string | null;
   matricola_contatore: string | null;
+  matricola_nuova: string | null;
   indirizzo: string | null;
   comune: string | null;
   cap: string | null;
@@ -21,7 +22,7 @@ export type InterventoExport = {
 
 export type RigaExport = {
   data: string; operatore: string; stato: string; esito: string; motivo: string;
-  odl: string; nominativo: string; pdr: string; matricola: string;
+  odl: string; nominativo: string; pdr: string; matricola: string; matricolaNuova: string;
   indirizzo: string; comune: string; cap: string; attivita: string; fascia: string; chiuso: string;
 };
 
@@ -56,6 +57,7 @@ export function buildRigaExport(it: InterventoExport, staffById: Map<string, str
     nominativo: it.nominativo ?? '',
     pdr: it.pdr ?? '',
     matricola: it.matricola_contatore ?? '',
+    matricolaNuova: it.matricola_nuova ?? '',
     indirizzo: it.indirizzo ?? '',
     comune: it.comune ?? '',
     cap: it.cap ?? '',

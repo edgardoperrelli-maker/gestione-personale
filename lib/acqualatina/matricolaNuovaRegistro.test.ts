@@ -85,8 +85,31 @@ describe('la chiave della risposta è la stessa da capo a fondo', () => {
     expect(ROUTE).toContain(`risposte['${CHIAVE}']`);
   });
 
-  it('la route porta il valore sulla riga', () => {
-    expect(ROUTE).toMatch(new RegExp(`${CHIAVE}: matricolaNuovaPerChiave\\.get\\(chiaveRiga\\)`));
+  it('la route porta il valore sulla riga: la colonna persistita vince, la scansione fa da riserva', () => {
+    // Da quando `matricola_nuova` è una colonna vera di `acqualatina_ordini` (migration
+    // 20260805110000), la lettura preferisce quella — è quella che l'ufficio corregge in
+    // griglia — e la scansione delle risposte resta solo per le righe non ancora propagate.
+    expect(ROUTE).toMatch(/matricola_nuova:\s*matricolaNuovaColonna\.get\(chiaveRiga\)/);
+    expect(ROUTE).toMatch(new RegExp(`${CHIAVE}:.*matricolaNuovaPerChiave\\.get\\(chiaveRiga\\)`));
+  });
+
+  /*
+    LA REGRESSIONE DEL 05/08: `matricola_nuova` è finita nella `COLONNE` principale (la select
+    condivisa fra ACEA e AcquaLatina), il deploy del codice è arrivato prima che la migration
+    20260805110000 fosse applicata in produzione, e OGNI vista del registro — non solo
+    AcquaLatina — ha risposto «Errore lettura registro ACEA» finché la colonna non è comparsa.
+    Stessa medicina già scritta per `pianificato_*_bozza` (il commento appena sotto `COLONNE` lo
+    dice esplicitamente): una colonna nata da poco si legge A PARTE, mai nella select principale.
+  */
+  it('NON sta nella COLONNE principale: una migration non ancora applicata non deve spegnere il registro', () => {
+    const blocco = /const COLONNE = \[([\s\S]*?)\]\.join\(', '\);/.exec(ROUTE)?.[1] ?? '';
+    expect(blocco, 'blocco COLONNE non trovato: la regex è da aggiornare, non silenziare').not.toBe('');
+    expect(blocco).not.toMatch(/['"]matricola_nuova['"]/);
+  });
+
+  it('si legge a parte, con la stessa degradazione best-effort delle altre colonne recenti', () => {
+    expect(ROUTE).toContain("select('odl, numero_operazione, matricola_nuova')");
+    expect(ROUTE).toContain('[acea/ordini] colonna matricola_nuova non letta:');
   });
 
   it('la lettura delle risposte NON parte sulle viste che non disegnano la colonna', () => {

@@ -19,6 +19,13 @@ const config: CapacitorConfig = {
     url: 'https://gestione-personale.vercel.app',
     cleartext: false,
   },
+  ios: {
+    // Con WKAppBoundDomains in Info.plist, questo flag accende i service worker
+    // nella WebView (cache pagine Serwist → avvio offline anche a freddo).
+    // Nota dev: puntando server.url fuori dai domini app-bound la navigazione
+    // viene bloccata da iOS — per prove su LAN togliere ENTRAMBI, senza committare.
+    limitsNavigationsToAppBoundDomains: true,
+  },
 };
 
 export default config;
