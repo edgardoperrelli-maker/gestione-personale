@@ -125,8 +125,11 @@ export async function POST(req: NextRequest) {
   }
   const userId = authData.user.id;
 
+  // `profiles.email` e' NOT NULL: senza, l'upsert fallisce e l'utenza viene
+  // subito eliminata dalla compensazione qui sotto.
   const { error: profileErr } = await supabaseAdmin.from('profiles').upsert({
     id: userId,
+    email: toEmail(username),
     username,
     role: toStoredProfileRole('operatore'),
   });

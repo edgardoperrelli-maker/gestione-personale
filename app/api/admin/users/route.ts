@@ -125,13 +125,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: authErr?.message ?? 'Errore creazione utente.' }, { status: 400 });
   }
 
+  // `profiles.email` e' NOT NULL: senza, l'upsert fallisce.
   const { error: profileErr } = await supabaseAdmin.from('profiles').upsert({
     id: authData.user.id,
+    email,
     username,
     role: toStoredProfileRole(role),
   });
 
   if (profileErr) {
+    // Compensazione: senza profilo l'utenza resterebbe creata ma il retry con lo
+    // stesso username fallirebbe su "email gia' registrata".
+    await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
     return NextResponse.json({ error: profileErr.message }, { status: 500 });
   }
 
@@ -213,12 +218,16 @@ export async function PATCH(req: NextRequest) {
     if (authErr) return NextResponse.json({ error: authErr.message }, { status: 400 });
   }
 
-  const profilePatch: Record<string, unknown> = { id: userId };
-  if (body.username) profilePatch.username = normalizeUsername(body.username);
-  if (requestedRole) profilePatch.role = toStoredProfileRole(requestedRole);
-
-  if (Object.keys(profilePatch).length > 1) {
-    const { error: profileErr } = await supabaseAdmin.from('profiles').upsert(profilePatch);
+  // `profiles` ha email e username NOT NULL e la riga puo' NON esistere (tabella
+  // storicamente vuota): l'upsert deve portare la riga COMPLETA, non una patch,
+  // altrimenti il ramo INSERT viola i vincoli.
+  if (body.username || requestedRole) {
+    const { error: profileErr } = await supabaseAdmin.from('profiles').upsert({
+      id: userId,
+      email: typeof updates.email === 'string' ? updates.email : current?.user?.email ?? '',
+      username: body.username ? normalizeUsername(body.username) : usernameFromEmail(current?.user?.email),
+      role: toStoredProfileRole(requestedRole ?? currentAssignable),
+    });
     if (profileErr) return NextResponse.json({ error: profileErr.message }, { status: 500 });
   }
 
