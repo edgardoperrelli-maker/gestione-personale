@@ -1,6 +1,8 @@
 // lib/interventi/storico/modifica.test.ts
 import { describe, it, expect } from 'vitest';
-import { buildCampiEditor, estraiFotoPaths, anagraficaPatchValida, anagraficaPatchIntervento } from './modifica';
+import {
+  buildCampiEditor, estraiFotoPaths, anagraficaPatchValida, anagraficaPatchIntervento, campiPerChiusuraStorico,
+} from './modifica';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 
 const c = (p: Partial<TemplateCampo> & { chiave: string; tipo: TemplateCampo['tipo'] }): TemplateCampo => ({
@@ -49,6 +51,33 @@ describe('buildCampiEditor', () => {
   it('select secondario (non esito) → opzioni intatte', () => {
     const campi = buildCampiEditor([c({ chiave: 'sostituzione_valvola', etichetta: 'Sostituzione valvola', tipo: 'select', opzioni: ['SI'], ordine: 1 })]);
     expect(campi.find((x) => x.chiave === 'sostituzione_valvola')?.opzioni).toEqual(['SI']);
+  });
+});
+
+describe('campiPerChiusuraStorico', () => {
+  const matr = c({ chiave: 'matricola_nuova', etichetta: 'MATRICOLA NUOVO MISURATORE', tipo: 'matricola', obbligatoria: true, ordine: 2 });
+
+  it('rapportino prima del gate (03/08) → matricola obbligatoria spenta', () => {
+    const campi = campiPerChiusuraStorico([matr], '2026-08-03');
+    expect(campi[0].obbligatoria).toBe(false);
+  });
+  it('rapportino dal gate in poi (04/08) → resta obbligatoria', () => {
+    const campi = campiPerChiusuraStorico([matr], '2026-08-04');
+    expect(campi[0].obbligatoria).toBe(true);
+  });
+  it('rapportino successivo → resta obbligatoria', () => {
+    const campi = campiPerChiusuraStorico([matr], '2026-09-01');
+    expect(campi[0].obbligatoria).toBe(true);
+  });
+  it('data ignota (null) → spenta, prudente come "prima del gate"', () => {
+    const campi = campiPerChiusuraStorico([matr], null);
+    expect(campi[0].obbligatoria).toBe(false);
+  });
+  it('non tocca le matricole già facoltative, né i campi non-matricola', () => {
+    const facoltativa = c({ chiave: 'm2', tipo: 'matricola', obbligatoria: false, ordine: 1 });
+    const testo = c({ chiave: 'sigillo', tipo: 'testo', obbligatoria: true, ordine: 3 });
+    const campi = campiPerChiusuraStorico([facoltativa, testo], '2026-08-03');
+    expect(campi).toEqual([facoltativa, testo]);
   });
 });
 

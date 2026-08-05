@@ -7,6 +7,7 @@ import Button from '@/components/Button';
 import Input from '@/components/Input';
 import Select from '@/components/ui/Select';
 import Textarea from '@/components/ui/Textarea';
+import { toast } from '@/components/ui/Toast';
 import { ANAGRAFICA_COLONNE, ANAGRAFICA_LABEL } from '@/lib/interventi/storico/modifica';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 
@@ -122,6 +123,8 @@ export default function ModaleModificaVoce({
         const b = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(b.error ?? 'Errore salvataggio.');
       }
+      const b = (await res.json().catch(() => ({}))) as { avviso?: string };
+      if (b.avviso) toast.error(b.avviso);
       onSaved();
       onClose();
     } catch (e) {

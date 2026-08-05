@@ -75,6 +75,33 @@ export function estraiFotoPaths(
   return out;
 }
 
+/**
+ * MATRICOLA NUOVO MISURATORE obbligatoria (Sostituzione misuratori AcquaLatina) dai rapportini
+ * generati da questo giorno in poi — migration `20260803160000_acqualatina_matricola_nuova`,
+ * che l'ha aggiunta "ai rapportini generati DOPO" il 03/08 ore 16 (cioè da domani, il 04/08).
+ *
+ * Le voci di rapportini precedenti sono nate SENZA il campo, o senza l'obbligo: in correzione
+ * (questa modale) pretenderlo bloccherebbe per sempre interventi che il gate non ha mai visto
+ * nascere — l'esito resterebbe "neutro" a vita, mai chiuso, mai in riconciliazione AcquaLatina.
+ * Invecchia da sola — fra qualche mese non filtra più niente e resta come traccia della data in
+ * cui la regola è cambiata (stesso pattern di `NO_CHIUDE_DAL` in `chiusuraRegistro.ts`).
+ */
+export const MATRICOLA_NUOVA_OBBLIGATORIA_DAL = '2026-08-04';
+
+/**
+ * I campi da usare per calcolare la CHIUSURA di una voce in correzione: le matricole
+ * obbligatorie si spengono per le voci di rapportini nati prima del gate (v. sopra). `null`
+ * (data ignota, es. voce senza rapportino) conta come "prima": più prudente non bloccare un
+ * caso che il gate non può nemmeno collocare nel tempo.
+ */
+export function campiPerChiusuraStorico(
+  campi: TemplateCampo[],
+  dataRapportino: string | null,
+): TemplateCampo[] {
+  if (dataRapportino !== null && dataRapportino >= MATRICOLA_NUOVA_OBBLIGATORIA_DAL) return campi;
+  return campi.map((c) => (c.tipo === 'matricola' && c.obbligatoria ? { ...c, obbligatoria: false } : c));
+}
+
 /** Whitelist colonne anagrafiche: scarta chiavi ignote, trim, '' → null. */
 export function anagraficaPatchValida(body: unknown): AnagraficaPatch {
   const out: AnagraficaPatch = {};
