@@ -46,6 +46,28 @@ describe('buildVoceManuale', () => {
     expect(v.nominativo ?? null).toBeNull();
     expect(v.risposte).toEqual({});
   });
+
+  // Prima del fix, la voce nasceva SEMPRE senza template_id/campi_snapshot: a render la voce
+  // ripiegava sempre sul modulo del rapportino padre, giusto solo per coincidenza quando quel
+  // rapportino era dello stesso flusso della voce (caso BONIFICHE EXTRA sotto un rapportino
+  // AcquaLatina: il "+" ereditava la matricola nuova del misuratore AcquaLatina).
+  it('senza flusso risolto (templateId/campi assenti), congela null: la voce eredita il rapportino come prima', () => {
+    const v = buildVoceManuale({ rapportinoId: 'rap1', richiestaId: 'req1', ordine: 1, dati });
+    expect(v.template_id).toBeNull();
+    expect(v.campi_snapshot).toBeNull();
+  });
+
+  it('con flusso risolto, congela template_id e campi sulla voce', () => {
+    const campi = [{ chiave: 'eseguito', etichetta: 'ESEGUITO', tipo: 'select', obbligatoria: true, ordine: 1 }] as never;
+    const v = buildVoceManuale({ rapportinoId: 'rap1', richiestaId: 'req1', ordine: 1, dati, templateId: 'tpl-bonifiche-extra', campi });
+    expect(v.template_id).toBe('tpl-bonifiche-extra');
+    expect(v.campi_snapshot).toEqual(campi);
+  });
+
+  it('campi vuoto ([]) equivale a nessun flusso: congela null, non un array vuoto', () => {
+    const v = buildVoceManuale({ rapportinoId: 'rap1', richiestaId: 'req1', ordine: 1, dati, templateId: 'tpl-x', campi: [] });
+    expect(v.campi_snapshot).toBeNull();
+  });
 });
 
 describe('colonneAnagraficaVoce (riallineamento voce in approvazione)', () => {

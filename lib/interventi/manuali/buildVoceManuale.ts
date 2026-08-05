@@ -2,6 +2,7 @@
 // La colonna ODL della tabella voci si chiama `odl` (migrazione 20260604000000_unifica_ods_odl).
 // La coordinata committente va nel raw_json (coerente con coordinateFromRaw). _nuovo=true → badge "Nuovo".
 import type { DatiInterventoManuale } from './types';
+import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 
 export type VoceManualeInsert = {
   rapportino_id: string;
@@ -31,6 +32,17 @@ export type VoceManualeInsert = {
   fascia_oraria: string | null;
   raw_json: Record<string, unknown>;
   risposte: Record<string, unknown>;
+  /**
+   * Flusso del GRUPPO ATTIVITÀ della voce (Azioni operatori), se il chiamante l'ha risolto.
+   * NULL = nessun flusso dedicato trovato: la voce eredita — via `campiDiVoce` — lo snapshot del
+   * rapportino, come sempre. Senza questo, ogni voce dal "+" ripiegava SEMPRE sul modulo del
+   * rapportino padre: innocuo quando lo stesso committente lo governa, sbagliato quando la voce
+   * appartiene a un gruppo con un flusso proprio dentro un rapportino di un ALTRO committente
+   * (es. un "+" BONIFICHE EXTRA sotto un rapportino AcquaLatina ereditava la matricola nuova del
+   * misuratore AcquaLatina come obbligatoria).
+   */
+  template_id: string | null;
+  campi_snapshot: TemplateCampo[] | null;
 };
 
 const v = (s: string | null | undefined): string | null => {
@@ -74,6 +86,10 @@ export function buildVoceManuale(args: {
   richiestaId: string;
   ordine: number;
   dati: DatiInterventoManuale;
+  /** Id del template del flusso risolto per il (committente, gruppo attività) della voce. */
+  templateId?: string | null;
+  /** Campi dello stesso flusso, da congelare sulla voce. NULL/assente = nessun flusso risolto. */
+  campi?: TemplateCampo[] | null;
 }): VoceManualeInsert {
   const a = args.dati.anagrafica;
   const raw_json: Record<string, unknown> = { _nuovo: true };
@@ -87,5 +103,7 @@ export function buildVoceManuale(args: {
     approvazione_stato: 'in_attesa',
     ...colonneAnagraficaVoce(args.dati),
     raw_json,
+    template_id: args.templateId ?? null,
+    campi_snapshot: args.campi && args.campi.length > 0 ? args.campi : null,
   };
 }

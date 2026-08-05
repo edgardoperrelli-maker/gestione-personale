@@ -13,6 +13,7 @@ export type FlussoRow = {
   solo_manuale: boolean | null;
   gruppo_committente: string | null;
   gruppi_attivita: string[] | null;
+  foto_id_priority?: string[] | null;
 };
 
 /**
@@ -22,7 +23,7 @@ export type FlussoRow = {
 export async function caricaFlussi(db: SupabaseClient): Promise<FlussoRow[]> {
   const q = await db
     .from('rapportino_template')
-    .select('id, nome, campi, info_campi, tipo, solo_manuale, gruppo_committente, gruppi_attivita')
+    .select('id, nome, campi, info_campi, tipo, solo_manuale, gruppo_committente, gruppi_attivita, foto_id_priority')
     .eq('active', true);
   if (!q.error) return (q.data ?? []) as FlussoRow[];
   const base = await db

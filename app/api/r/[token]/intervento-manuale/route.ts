@@ -11,7 +11,9 @@ import { anagraficaValida } from '@/lib/interventi/manuali/anagraficaValida';
 import { esitoPositivoDefault } from '@/lib/interventi/manuali/esitoPositivoDefault';
 import { attivitaDefaultManuale } from '@/lib/interventi/manuali/attivitaPerCommittente';
 import { caricaTassonomia } from '@/lib/attivita/caricaTassonomia';
-import { buildTassonomiaIndex, risolviGruppo } from '@/lib/attivita/tassonomia';
+import { buildTassonomiaIndex, risolviGruppo, committenteEquivalente } from '@/lib/attivita/tassonomia';
+import { caricaFlussi } from '@/lib/consuntivazione/flusso';
+import { risolviFlussoPerGruppo, templateCollegato } from '@/lib/rapportini/flussiGruppo';
 import { messaggioErroreManuale } from '@/lib/interventi/manuali/messaggioErroreManuale';
 import { campiFoto, validaFotoObbligatorie } from '@/lib/interventi/manuali/validaFotoObbligatorie';
 import { maiuscolo, maiuscolaStringhe, maiuscolaRisposteTesto } from '@/lib/testo/maiuscolo';
@@ -159,7 +161,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   }
   // Coerente col write: stesso alias di scrittura di richiestaToIntervento (una variante nota
   // passa il guard e verrà scritta canonica; le sconosciute vere restano rifiutate).
-  if (!risolviGruppo(committente, attivitaRaw, indiceTassonomia, { allinea: 'scrittura' })) {
+  const tassonomiaRiga = risolviGruppo(committente, attivitaRaw, indiceTassonomia, { allinea: 'scrittura' });
+  if (!tassonomiaRiga) {
     return NextResponse.json(
       { error: 'attivita_sconosciuta', attivita: attivitaRaw, messaggio: messaggioErroreManuale({ error: 'attivita_sconosciuta' }, 400) },
       { status: 400 },
@@ -306,6 +309,26 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   // è lo stesso oggetto `anagrafica`, quindi il valore si propaga a voce, intervento e dati salvati.
   if (parentTaskVia) anagrafica.attivita = ATTIVITA_TASK_VIA;
 
+  // Gruppo attività della voce: forzato a BONIFICHE EXTRA sotto un task-via (stessa regola di
+  // richiestaToIntervento), altrimenti quello appena risolto in tassonomia.
+  const gruppoAttivitaVoce = parentTaskVia ? ATTIVITA_TASK_VIA : tassonomiaRiga.gruppo;
+
+  // Il flusso DEDICATO del gruppo attività (collegamento di Azioni operatori), se esiste, batte
+  // sia il modello solo_manuale del committente sia lo standard del rapportino: senza questo, un
+  // "+" nato sotto un rapportino di un ALTRO flusso (rapportini misti per committente, che il "+"
+  // stesso consente per costruzione) eredita azioni che non sono le sue — caso reale: un "+"
+  // BONIFICHE EXTRA (Italgas) sotto un rapportino AcquaLatina ereditava la matricola nuova del
+  // misuratore AcquaLatina come campo obbligatorio, un'azione che su Italgas non ha senso.
+  const flussi = await caricaFlussi(supabaseAdmin);
+  const flussoGruppo = risolviFlussoPerGruppo(
+    committenteEquivalente(committente),
+    gruppoAttivitaVoce,
+    flussi.filter((f) => templateCollegato(f)),
+  );
+  const campiFlussoGruppo = flussoGruppo && Array.isArray(flussoGruppo.campi) && flussoGruppo.campi.length > 0
+    ? (flussoGruppo.campi as TemplateCampo[])
+    : null;
+
   // Risolve il template e carica anche i campi (serve per validare le foto obbligatorie).
   // caricaTemplateManuali esclude i modelli riservati (P.I.): non concorrono al "+".
   const templates = await caricaTemplateManuali(supabaseAdmin);
@@ -339,10 +362,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     }
   }
   const ereditaStandard = !(overrideCampi.length > 0);
-  const campiEffettivi = risolviCampiManuali(overrideCampi, standardCampi);
+  // Il flusso del gruppo, se risolto, vince su override/standard: è la fonte più specifica.
+  const campiEffettivi = campiFlussoGruppo ?? risolviCampiManuali(overrideCampi, standardCampi);
   // Niente modello "+" E niente campi ereditati dal rapportino: qui non c'e' proprio nulla su
   // cui validare, ed e' una configurazione rotta da segnalare all'ufficio.
-  if (!templateId && campiEffettivi.length === 0) {
+  if (!templateId && !campiFlussoGruppo && campiEffettivi.length === 0) {
     return NextResponse.json({ error: 'template_mancante' }, { status: 409 });
   }
   const slotFoto = campiFoto(campiEffettivi);
@@ -395,9 +419,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     indirizzo: anagrafica.via as string | undefined,
   };
 
-  const fotoPriority = ereditaStandard
-    ? standardPriority
-    : (((templateRow as { foto_id_priority?: string[] | null } | undefined)?.foto_id_priority ?? []) as FotoIdCampo[]);
+  const fotoPriority = campiFlussoGruppo
+    ? ((flussoGruppo?.foto_id_priority ?? []) as FotoIdCampo[])
+    : ereditaStandard
+      ? standardPriority
+      : (((templateRow as { foto_id_priority?: string[] | null } | undefined)?.foto_id_priority ?? []) as FotoIdCampo[]);
 
   // I2: check MIME server-side per ogni foto prima dell'upload.
   for (const { file } of received) {
@@ -557,7 +583,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     .maybeSingle();
   const ordine = ((maxRow?.ordine as number | undefined) ?? 0) + 1;
 
-  const voce = buildVoceManuale({ rapportinoId: rap.id, richiestaId: req2!.id, ordine, dati });
+  const voce = buildVoceManuale({
+    rapportinoId: rap.id,
+    richiestaId: req2!.id,
+    ordine,
+    dati,
+    templateId: flussoGruppo?.id ?? null,
+    campi: campiFlussoGruppo,
+  });
   const { data: voceRow, error: eVoce } = await supabaseAdmin
     .from('rapportino_voci')
     .insert(voce)

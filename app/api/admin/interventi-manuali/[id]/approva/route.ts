@@ -10,8 +10,11 @@ import { estraiSigillo, normSigillo } from '@/lib/interventi/manuali/estraiSigil
 import { usernameFromEmail } from '@/lib/auth/usernameFromEmail';
 import { fotoPresentiVerificate, pathMancanti } from '@/lib/interventi/manuali/verificaFotoStorage';
 import type { DatiInterventoManuale, CommittenteManuale } from '@/lib/interventi/manuali/types';
+import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { caricaTassonomia } from '@/lib/attivita/caricaTassonomia';
-import { buildTassonomiaIndex, risolviGruppo } from '@/lib/attivita/tassonomia';
+import { buildTassonomiaIndex, risolviGruppo, committenteEquivalente } from '@/lib/attivita/tassonomia';
+import { caricaFlussi } from '@/lib/consuntivazione/flusso';
+import { risolviFlussoPerGruppo, templateCollegato } from '@/lib/rapportini/flussiGruppo';
 import { messaggioErroreManuale } from '@/lib/interventi/manuali/messaggioErroreManuale';
 
 export const runtime = 'nodejs';
@@ -262,13 +265,43 @@ async function handlePOST(req: Request, { params }: { params: Promise<{ id: stri
   // Oltre a intervento_id + stato, riporta sulla voce l'anagrafica/risposte CORRETTE in
   // approvazione (es. PDR aggiunta, matricola corretta): vivono in `dati_correnti` e senza questo
   // il rapportino/PDF resterebbe col dato vecchio dell'operatore (matricola sbagliata, PDR mancante).
+  //
+  // Il flusso del GRUPPO ATTIVITÀ finale (classificazione autorevole appena scritta su `record`,
+  // es. Italgas+BONIFICHE EXTRA sotto un task-via) si congela qui sulla voce se non lo era già:
+  // il "+" nasce spesso 'in_attesa' SENZA `intervento_id` (buildVoceManuale non ha ancora un
+  // gruppo da cui risolvere), e fino a qui la voce ripiegava sul modulo del rapportino padre —
+  // sbagliato quando quel rapportino è di un ALTRO committente (rapportini misti). Non sovrascrive
+  // mai un `campi_snapshot` già presente (es. già congelato alla creazione dal fix del "+").
   if (richiesta.voce_id) {
+    let campiFlussoGruppo: TemplateCampo[] | null = null;
+    let flussoGruppoId: string | null = null;
+    if (record.gruppo_attivita) {
+      const flussi = await caricaFlussi(supabaseAdmin);
+      const flussoGruppo = risolviFlussoPerGruppo(
+        committenteEquivalente(record.committente),
+        record.gruppo_attivita,
+        flussi.filter((f) => templateCollegato(f)),
+      );
+      if (flussoGruppo && Array.isArray(flussoGruppo.campi) && flussoGruppo.campi.length > 0) {
+        campiFlussoGruppo = flussoGruppo.campi as TemplateCampo[];
+        flussoGruppoId = flussoGruppo.id;
+      }
+    }
+
+    const { data: voceEsistente } = await supabaseAdmin
+      .from('rapportino_voci')
+      .select('campi_snapshot')
+      .eq('id', richiesta.voce_id)
+      .maybeSingle();
+    const haGiaSnapshot = Array.isArray((voceEsistente as { campi_snapshot?: unknown } | null)?.campi_snapshot)
+      && ((voceEsistente as { campi_snapshot: unknown[] }).campi_snapshot.length > 0);
     await supabaseAdmin
       .from('rapportino_voci')
       .update({
         intervento_id: intRow!.id,
         approvazione_stato: 'approvato',
         ...colonneAnagraficaVoce(dati),
+        ...(!haGiaSnapshot && campiFlussoGruppo ? { template_id: flussoGruppoId, campi_snapshot: campiFlussoGruppo } : {}),
       })
       .eq('id', richiesta.voce_id);
   }
