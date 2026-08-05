@@ -121,10 +121,16 @@ function CenteredCard({
 
 export default async function RapportinoPublicPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ token: string }>;
+  searchParams: Promise<{ da?: string }>;
 }) {
   const { token } = await params;
+  // `?da=oggi` = arrivo dalla home «Il mio giorno» dell'app: si mostra la via
+  // del ritorno. Il mondo-link (token nudo) resta identico, senza navigazione.
+  const { da } = await searchParams;
+  const tornaA = da === 'oggi' ? '/hub/oggi' : null;
 
   const { data: rap } = await supabaseAdmin
     .from('rapportini')
@@ -455,6 +461,7 @@ export default async function RapportinoPublicPage({
       <ServiceWorkerRegister />
       <RapportinoForm
         token={token}
+        tornaA={tornaA}
         rapportino={{ staff_name: rap.staff_name, data: rap.data }}
         voci={voci}
         campiSnapshot={campiSnapshot}

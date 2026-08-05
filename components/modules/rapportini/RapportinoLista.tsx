@@ -188,6 +188,7 @@ export function FiltriLista({
 
 export function RapportinoLista({
   staffName,
+  tornaA = null,
   dataLabel,
   dataIso,
   voci,
@@ -210,6 +211,8 @@ export function RapportinoLista({
   mostraSaracinesche = false,
 }: {
   staffName: string;
+  /** Rotta di ritorno all'app (home «Il mio giorno»); null = arrivo da link, niente navigazione. */
+  tornaA?: string | null;
   dataLabel: string;
   dataIso: string;
   voci: VoceRiepilogo[];
@@ -248,7 +251,7 @@ export function RapportinoLista({
   return (
     <div className="flex h-dvh flex-col">
       <div className="shrink-0 px-3 pt-2">
-        <IntestazioneRiepilogo staffName={staffName} dataLabel={dataLabel} riepilogo={riepilogo} mostraSaracinesche={mostraSaracinesche} />
+        <IntestazioneRiepilogo staffName={staffName} tornaA={tornaA} dataLabel={dataLabel} riepilogo={riepilogo} mostraSaracinesche={mostraSaracinesche} />
         <FiltriLista filtro={filtro} conteggi={conteggi} onFiltro={onFiltro} />
         {ricerca.trim() && (
           <p className="mt-2 px-1 text-xs text-[var(--brand-text-subtle)]">

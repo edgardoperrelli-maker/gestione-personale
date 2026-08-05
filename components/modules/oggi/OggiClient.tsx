@@ -261,7 +261,8 @@ export default function OggiClient({
                   variant={giro.stato === 'inviato' ? undefined : 'primary'}
                   size="touch"
                   className="w-full sm:w-auto"
-                  onClick={() => router.push(`/r/${giro.token}`)}
+                  // `da=oggi`: il rapportino mostra la via del ritorno alla home dell'app.
+                  onClick={() => router.push(`/r/${giro.token}?da=oggi`)}
                 >
                   {giro.stato === 'inviato' ? 'Rivedi il rapportino' : 'Apri il rapportino'}
                 </Button>
