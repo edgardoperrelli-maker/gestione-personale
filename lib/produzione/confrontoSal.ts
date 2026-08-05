@@ -34,6 +34,11 @@ export interface OdlConfronto {
   inProduzione: number;
   /** ODL del SAL nostri e positivi, ma lavorati fuori dal periodo scelto. */
   fuoriPeriodo: number;
+  /**
+   * ODL pagati senza rapportino positivo ma con l'ULTIMO tentativo del registro Cruscotto
+   * ESEGUITO: lavoro nostro contato nel SAL, a cui manca solo il rapportino (da sanare).
+   */
+  eseguitiRegistro: number;
   /** ODL che ACEA ha pagato ma che da noi non sono positivi: esiti da rivedere. */
   nonPositivi: number;
   /** ODL pagati che nel nostro database non esistono affatto. */
@@ -68,6 +73,11 @@ export interface IndiceOdl {
   positiviPeriodo: ReadonlySet<string>;
   /** ODL con un intervento positivo in qualunque data. */
   positiviTutti: ReadonlySet<string>;
+  /**
+   * ODL il cui ULTIMO tentativo nel registro Cruscotto è ESEGUITO (la seconda gamba del
+   * riscontro, per i giri conclusivi senza rapportino): mai il primo tentativo.
+   */
+  eseguitiRegistro: ReadonlySet<string>;
   /** Tutti gli ODL che compaiono nei nostri interventi, qualunque esito. */
   noti: ReadonlySet<string>;
   /** ODL già presenti in un SAL qualsiasi (serve a contare il prodotto-non-pagato). */
@@ -130,13 +140,21 @@ export function confrontaSalProduzione(
   const odl: OdlConfronto = {
     inProduzione: 0,
     fuoriPeriodo: 0,
+    eseguitiRegistro: 0,
     nonPositivi: 0,
     sconosciuti: 0,
     produzioneNonPagata: 0,
   };
+  /*
+    Il registro batte «nonPositivi» e «sconosciuti»: un ODL coi soli passaggi falliti a
+    rapportino (o mai visto negli interventi) ma con l'ultimo tentativo del registro ESEGUITO è
+    lavoro nostro con la carta mancante, non un esito da rivedere né un ordine alieno — era il
+    caso dei 10 ODL (2026-08-05) marcati «negativi» a torto perché si guardava il primo tentativo.
+  */
   for (const o of odlSal) {
     if (indice.positiviPeriodo.has(o)) odl.inProduzione += 1;
     else if (indice.positiviTutti.has(o)) odl.fuoriPeriodo += 1;
+    else if (indice.eseguitiRegistro.has(o)) odl.eseguitiRegistro += 1;
     else if (indice.noti.has(o)) odl.nonPositivi += 1;
     else odl.sconosciuti += 1;
   }

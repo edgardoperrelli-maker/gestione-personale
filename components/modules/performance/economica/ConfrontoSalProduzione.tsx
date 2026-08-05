@@ -75,6 +75,9 @@ export default function ConfrontoSalProduzione({ dati }: { dati: DatiProduzione 
       <div className="mb-3 flex flex-wrap gap-2">
         <Badge variant="success">{num(c.odl.inProduzione)} ODL pagati e prodotti nel periodo</Badge>
         {c.odl.fuoriPeriodo > 0 && <Badge variant="muted">{num(c.odl.fuoriPeriodo)} pagati, lavorati fuori periodo</Badge>}
+        {c.odl.eseguitiRegistro > 0 && (
+          <Badge variant="warning">{num(c.odl.eseguitiRegistro)} eseguiti da noi (registro), senza rapportino</Badge>
+        )}
         {c.odl.nonPositivi > 0 && <Badge variant="warning">{num(c.odl.nonPositivi)} pagati ma non positivi da noi</Badge>}
         {c.odl.sconosciuti > 0 && <Badge variant="danger">{num(c.odl.sconosciuti)} pagati e assenti dal database</Badge>}
         {c.odl.produzioneNonPagata > 0 && (

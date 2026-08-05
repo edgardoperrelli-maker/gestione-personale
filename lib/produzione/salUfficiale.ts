@@ -113,12 +113,21 @@ export function odlPagatiDaSal(righeSal: Array<{ odl: string }>): Set<string> {
 
 /**
  * REGOLA D'IMPUTAZIONE AL SAL (decisione utente 2026-08-05): nel SAL atteso («Esitato ACEA») e
- * nel pre-SAL entra solo l'ODL che, oltre a essere COMPLETATO sul portale, è POSITIVO anche nei
- * nostri rapportini. Il portale da solo non basta: a luglio 2026 conteneva 118 ODL completati
- * che nel nostro database non esistevano e 7 non positivi — denaro che il pre-SAL prometteva
- * senza che un rapportino lo sostenesse. Quel lavoro resta visibile nell'audit a tre vie
- * (SOLO_PORTALE / COMPLETATO_PORTALE_NON_POSITIVO_DB), che è il posto dei sospetti; il SAL è il
- * posto delle certezze.
+ * nel pre-SAL entra solo l'ODL che, oltre a essere COMPLETATO sul portale, ha un riscontro
+ * NOSTRO. Il portale da solo non basta: a luglio 2026 conteneva 118 ODL completati che nel
+ * nostro database non esistevano e 7 non positivi — denaro che il pre-SAL prometteva senza che
+ * nulla lo sostenesse. Quel lavoro resta visibile nell'audit a tre vie (SOLO_PORTALE /
+ * COMPLETATO_PORTALE_NON_POSITIVO_DB), che è il posto dei sospetti; il SAL è il posto delle
+ * certezze.
+ *
+ * Il riscontro nostro ha DUE forme (seconda decisione utente, sera del 2026-08-05):
+ *  1. un rapportino POSITIVO sull'ODL (o sulla limitazione madre, per i figli di saracinesca);
+ *  2. l'ULTIMO tentativo dell'ordine nel registro Cruscotto con esito ESEGUITO
+ *     (`eseguitiRegistro`). È il caso dei 10 ODL scoperti dall'utente: i rapportini avevano
+ *     registrato solo i primi passaggi falliti (12/06 e 15/06 «Nessun passaggio»…), ma il giro
+ *     conclusivo — fatto dai nostri operatori giorni dopo — non aveva mai avuto un rapportino, e
+ *     il registro era l'unico a saperlo (es. 957276082, eseguito il 19/06). Senza questa gamba
+ *     il motore guardava di fatto solo i tentativi falliti e chiamava «negativo» lavoro pagato.
  *
  * `figliSaracinescaPositivi`: gli ODL degli ordini di sostituzione il cui lavoro è dichiarato su
  * un ALTRO intervento (la limitazione madre) — l'unico caso in cui il positivo nostro non porta
@@ -128,8 +137,9 @@ export function odlImputabileAlSal(
   odl: string,
   positiviDb: ReadonlySet<string>,
   figliSaracinescaPositivi: ReadonlySet<string>,
+  eseguitiRegistro: ReadonlySet<string>,
 ): boolean {
-  return positiviDb.has(odl) || figliSaracinescaPositivi.has(odl);
+  return positiviDb.has(odl) || figliSaracinescaPositivi.has(odl) || eseguitiRegistro.has(odl);
 }
 
 /*

@@ -150,6 +150,15 @@ interface RegistroRow {
   /** Misuratore dell'ordine: servono all'aggancio madre→figlio delle saracinesche. */
   impianto: string | null;
   matricola: string | null;
+  /*
+    Una riga di registro è un'OPERAZIONE SAP, cioè un tentativo di esecuzione: un ordine può
+    averne più d'una e a fare fede è sempre l'ULTIMA (la 0120 di un ordine passato dodici volte),
+    mai la prima. `esito_positivo` e `data_completamento` sono l'esito e la data di QUEL
+    tentativo: servono alla seconda gamba del riscontro (`odlImputabileAlSal`).
+  */
+  numero_operazione: string | null;
+  esito_positivo: boolean | null;
+  data_completamento: string | null;
 }
 interface PortaleRow {
   odl: string;
@@ -283,7 +292,11 @@ export async function caricaProduzioneEconomica(
       .select('id, attivita, prezzo, valido_dal, valido_al, attivo, committente')
       .in('committente', [...COMMESSE]),
     caricaInterventi(vista),
-    caricaSnapshot<RegistroRow>('acea_ordini', 'odl, attivita, comune, impianto, matricola', ['odl', 'numero_operazione']),
+    caricaSnapshot<RegistroRow>(
+      'acea_ordini',
+      'odl, attivita, comune, impianto, matricola, numero_operazione, esito_positivo, data_completamento',
+      ['odl', 'numero_operazione'],
+    ),
     caricaSnapshot<PortaleRow>('acea_portale_snapshot', 'odl, stato_norm, causa_scostamento', ['odl']),
     nomi(),
     caricaAliasAttivita(),
@@ -520,6 +533,14 @@ export async function caricaProduzioneEconomica(
   */
   const registroAudit = new Map<string, RegistroRiga>();
   const registroAttivita = new Map<string, string>();
+  /*
+    ULTIMO tentativo di ogni ordine (correzione utente 2026-08-05, «i 10 ODL»): il registro tiene
+    una riga per operazione SAP, cioè per tentativo. Il confronto sceglie ESPLICITAMENTE il
+    max(numero operazione): oggi il Cruscotto esporta quasi solo l'operazione corrente, ma basta
+    un import che ne conservi la storia perché «l'ultima riga letta» torni a essere il PRIMO
+    tentativo — l'errore esatto da cui nasce questa mappa.
+  */
+  const registroUltimo = new Map<string, { op: number; positivo: boolean; data: string }>();
   // Senza la fetta ACEA il registro resta chiuso: `registroPopolato` deve dire «non pertinente»,
   // non «popolato», o la vista AcquaLatina si porterebbe dietro un audit di ordini altrui.
   for (const r of conAcea ? registroRows : []) {
@@ -530,7 +551,26 @@ export async function caricaProduzioneEconomica(
     // (es. "LIMITAZIONE FLUSSO IDRICO" ≠ tariffa "LIMITAZIONE EROGAZIONE") → altrimenti SAL a 0.
     const canonR = attivitaCanonica('acea', r.attivita, r.comune, alias, comuniMassive);
     if (canonR?.attivitaKey) registroAttivita.set(odl, canonR.attivitaKey);
+    const op = parseInt((r.numero_operazione ?? '').trim(), 10) || 0;
+    const prevU = registroUltimo.get(odl);
+    if (!prevU || op >= prevU.op) {
+      registroUltimo.set(odl, {
+        op,
+        positivo: r.esito_positivo === true,
+        data: (r.data_completamento ?? '').slice(0, 10),
+      });
+    }
   }
+  /*
+    La seconda gamba del riscontro nostro: ordini il cui ultimo tentativo nel registro è
+    ESEGUITO. È lavoro fatto dai nostri operatori (Pastorelli, Giosi, Dionisi… — il registro È il
+    nostro libro ordini) il cui giro conclusivo non ha mai avuto un rapportino: i rapportini
+    conoscevano solo i passaggi falliti precedenti, e il motore chiamava «negativo» lavoro che
+    ACEA aveva già pagato. Al 2026-08-05: 75 dei 714 «senza riscontro» erano così (31 già nel
+    SAL 1); gli altri 639 restano fuori anche per il registro (esito negativo, causale non-E).
+  */
+  const odlEseguitiRegistro = new Set<string>();
+  for (const [odlU, u] of registroUltimo) if (u.positivo) odlEseguitiRegistro.add(odlU);
   // Produzione: le limitazioni massive contano per MATRICOLA (non per riga-intervento), come ACEA.
   const righeDedup = deduplicaMassivePerMatricola(produzioneRighe);
   const produzione = aggregaProduzione(righeDedup);
@@ -557,7 +597,15 @@ export async function caricaProduzioneEconomica(
   const rigaEsitataDa = (odl: string): RigaProduzione => {
     const voce = dbAudit.get(odl)?.voce ?? registroAudit.get(odl)?.voce ?? null;
     const attivitaKey = dbAttivita.get(odl) ?? registroAttivita.get(odl) ?? '';
-    const data = dbDataByOdl.get(odl) ?? to;
+    /*
+      La data segue il riscontro: rapportino positivo → la sua data; riscontro dal solo registro
+      → il completamento dell'ULTIMO tentativo (la data che il DB ha per quell'ODL è il passaggio
+      fallito precedente — 957276082 risulterebbe lavorato il 15/06 quando è stato eseguito il 19).
+    */
+    const dataRegistro = registroUltimo.get(odl)?.data || '';
+    const data = odlPositiviAcea.has(odl)
+      ? dbDataByOdl.get(odl) || dataRegistro || to
+      : dataRegistro || dbDataByOdl.get(odl) || to;
     return {
       odl, commessa: 'acea', voce, kpi: gruppoVoce('acea', voce),
       attivitaKey, attivitaLabel: attivitaKey, data,
@@ -585,12 +633,13 @@ export async function caricaProduzioneEconomica(
     odlCompletatoAny.add(odl);
     /*
       REGOLA D'IMPUTAZIONE (decisione utente 2026-08-05): oltre al COMPLETATO del portale serve
-      il positivo dei NOSTRI rapportini — direttamente sull'ODL, o sulla limitazione madre per
-      gli ordini figli di saracinesca. Un completato del portale che nessun rapportino sostiene
-      non entra né nell'«Esitato ACEA» né nel pre-SAL: resta nell'audit a tre vie
+      un riscontro NOSTRO — il positivo dei rapportini (sull'ODL, o sulla limitazione madre per
+      i figli di saracinesca) oppure l'ultimo tentativo ESEGUITO nel registro Cruscotto, per i
+      giri conclusivi rimasti senza rapportino. Un completato del portale che nulla di nostro
+      sostiene non entra né nell'«Esitato ACEA» né nel pre-SAL: resta nell'audit a tre vie
       (SOLO_PORTALE / COMPLETATO_PORTALE_NON_POSITIVO_DB), che è il posto delle cose da chiarire.
     */
-    if (!odlImputabileAlSal(odl, odlPositiviAcea, figliSaracinescaPositivi)) continue;
+    if (!odlImputabileAlSal(odl, odlPositiviAcea, figliSaracinescaPositivi, odlEseguitiRegistro)) continue;
     // SAL = ciò che ACEA REMUNERA: solo causa scostamento pagata (inizia per E).
     if (scostamentoPagato(p.causa_scostamento)) {
       salRighe.push(rigaEsitataDa(odl));
@@ -693,6 +742,7 @@ export async function caricaProduzioneEconomica(
     ? confrontaSalProduzione(salSelezionato as number, righeConfronto, righeAcea, {
         positiviPeriodo: positiviPeriodoConfronto,
         positiviTutti: new Set([...odlPositiviAcea, ...figliSaracinescaPositivi]),
+        eseguitiRegistro: odlEseguitiRegistro,
         noti: odlNotiDb,
         inQualcheSal: odlGiaPagati,
       })

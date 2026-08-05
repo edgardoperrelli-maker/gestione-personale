@@ -38,6 +38,7 @@ const sal = (over: Partial<SalRigaConfronto> = {}): SalRigaConfronto => ({
 const indice = (over: Partial<IndiceOdl> = {}): IndiceOdl => ({
   positiviPeriodo: new Set(['A1']),
   positiviTutti: new Set(['A1']),
+  eseguitiRegistro: new Set(),
   noti: new Set(['A1']),
   inQualcheSal: new Set(['A1']),
   ...over,
@@ -94,10 +95,36 @@ describe('confrontaSalProduzione', () => {
     const c = confrontaSalProduzione(2, righeSal, [prod({ odl: 'DENTRO' })], {
       positiviPeriodo: new Set(['DENTRO']),
       positiviTutti: new Set(['DENTRO', 'PRIMA']),
+      eseguitiRegistro: new Set(),
       noti: new Set(['DENTRO', 'PRIMA', 'NEGATIVO']),
       inQualcheSal: new Set(['DENTRO', 'PRIMA', 'NEGATIVO', 'MAI']),
     });
     expect(c.odl).toMatchObject({ inProduzione: 1, fuoriPeriodo: 1, nonPositivi: 1, sconosciuti: 1 });
+  });
+
+  it('l’ESEGUITO del registro batte «non positivi» e «sconosciuti», non i positivi veri', () => {
+    // I 10 ODL del 2026-08-05: rapportini solo negativi (o nessun intervento), ma l'ultimo
+    // tentativo del registro Cruscotto è ESEGUITO → lavoro nostro senza carta, non un sospetto.
+    const righeSal = [
+      sal({ odl: 'DENTRO', doc_acquisti: 'D1' }),
+      sal({ odl: 'SOLOREG', doc_acquisti: 'D2' }),
+      sal({ odl: 'MAIVISTO', doc_acquisti: 'D3' }),
+      sal({ odl: 'NEGATIVO', doc_acquisti: 'D4' }),
+    ];
+    const c = confrontaSalProduzione(2, righeSal, [prod({ odl: 'DENTRO' })], {
+      positiviPeriodo: new Set(['DENTRO']),
+      positiviTutti: new Set(['DENTRO']),
+      // DENTRO è anche nel registro: il positivo di rapportino deve restare la classe più forte.
+      eseguitiRegistro: new Set(['DENTRO', 'SOLOREG', 'MAIVISTO']),
+      noti: new Set(['DENTRO', 'SOLOREG', 'NEGATIVO']),
+      inQualcheSal: new Set(['DENTRO', 'SOLOREG', 'MAIVISTO', 'NEGATIVO']),
+    });
+    expect(c.odl).toMatchObject({
+      inProduzione: 1,
+      eseguitiRegistro: 2,
+      nonPositivi: 1,
+      sconosciuti: 0,
+    });
   });
 
   it('conta come non pagato solo il prodotto CON un ODL', () => {

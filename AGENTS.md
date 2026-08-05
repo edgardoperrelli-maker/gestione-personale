@@ -460,15 +460,26 @@ il committente, non una regola nostra. La scrittura è **delete+insert per `sal_
 dell'agente: ACEA riemette il file corretto, e un upsert lascerebbe in vita le righe che la
 correzione voleva togliere) e tocca **solo i lotti selezionati**.
 
-### Regola d'imputazione al SAL (decisione utente 2026-08-05)
-Nel **SAL atteso** («Esitato ACEA») e nel **pre-SAL** entra solo l'ODL che soddisfa TUTTE E TRE:
-1. **positivo dai nostri rapportini** (`stato='completato'` + `esito='eseguito_positivo'`);
-2. **ODL generato** (per le saracinesche vale l'ordine FIGLIO di sostituzione, agganciato per
-   matricola alla limitazione madre con dichiarazione positiva — `figliSaracinescaPositivi`);
-3. **COMPLETATO sul portale ACEA**.
-Un COMPLETATO del portale senza rapportino positivo dietro NON entra (a luglio 2026: 718 su
-3.604, di cui 622 nostri-ma-non-positivi e 96 mai visti) — resta materia dell'audit a tre vie.
-Helper puro: `odlImputabileAlSal` (`lib/produzione/salUfficiale.ts`).
+### Regola d'imputazione al SAL (decisione utente 2026-08-05, ritoccata la sera stessa)
+Nel **SAL atteso** («Esitato ACEA») e nel **pre-SAL** entra solo l'ODL che soddisfa ENTRAMBE:
+1. **riscontro NOSTRO**, in una di due forme:
+   a. **positivo dai rapportini** (`stato='completato'` + `esito='eseguito_positivo'`; per le
+      saracinesche vale l'ordine FIGLIO di sostituzione, agganciato per matricola alla
+      limitazione madre con dichiarazione positiva — `figliSaracinescaPositivi`);
+   b. **ultimo tentativo ESEGUITO nel registro Cruscotto** (`acea_ordini.esito_positivo` sulla
+      riga col **max `numero_operazione`** dell'ODL — MAI la prima: ogni riga di registro è
+      un'operazione SAP, cioè un tentativo). Nato dai **10 ODL del 2026-08-05** (es. 957276082:
+      rapportini 12/06 e 15/06 «Nessun passaggio», eseguito da Giosi il 19/06 senza rapportino):
+      il giro conclusivo dei nostri operatori a volte esiste solo nel registro. Sui 714 «senza
+      riscontro» di luglio: 75 erano così (31 già pagati nel SAL 1), 639 negativi anche per il
+      registro (causale non-E) e restano fuori.
+2. **COMPLETATO sul portale ACEA**.
+Un COMPLETATO del portale senza nessun riscontro nostro NON entra — resta materia dell'audit a
+tre vie. Nel confronto SAL i riscontri da solo-registro hanno la classe/badge dedicata
+«eseguiti da noi (registro), senza rapportino»: contati nel SAL, con la carta da sanare. La data
+di una riga esitata da solo-registro è il `data_completamento` dell'ultimo tentativo, non la
+data del passaggio fallito a rapportino. Helper puro: `odlImputabileAlSal`
+(`lib/produzione/salUfficiale.ts`); mappa `registroUltimo` in `lib/produzione/load.ts`.
 
 ⚠️ **«Fuori SAL» resta UN numero solo e NON si scompone** (correzione utente 2026-08-05):
 tutto il prodotto non ancora consuntivato dal portale, CON o SENZA un ordine ACEA dietro

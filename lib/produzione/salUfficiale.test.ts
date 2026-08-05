@@ -97,19 +97,27 @@ describe('odlPagatiDaSal', () => {
 describe('odlImputabileAlSal', () => {
   const positivi = new Set(['957000001']);
   const figli = new Set(['957000009']);
+  const registro = new Set(['957000021']);
+  const nessuno = new Set<string>();
 
   it('positivo nostro sull’ODL → entra', () => {
-    expect(odlImputabileAlSal('957000001', positivi, figli)).toBe(true);
+    expect(odlImputabileAlSal('957000001', positivi, figli, nessuno)).toBe(true);
   });
 
   it('ordine figlio di saracinesca con madre positiva → entra', () => {
-    expect(odlImputabileAlSal('957000009', positivi, figli)).toBe(true);
+    expect(odlImputabileAlSal('957000009', positivi, figli, nessuno)).toBe(true);
   });
 
-  it('completato sul portale ma senza un rapportino positivo → NON entra', () => {
-    // È il caso dei 118 ODL «pagati e assenti dal database» del SAL 2: il portale li dà per
-    // completati ma nessun rapportino li sostiene. Restano materia d'audit, non di SAL.
-    expect(odlImputabileAlSal('957999999', positivi, figli)).toBe(false);
+  it('ultimo tentativo ESEGUITO nel registro, rapportino mai compilato → entra', () => {
+    // I 10 ODL del 2026-08-05 (es. 957276082): passaggi a rapportino tutti falliti, giro
+    // conclusivo fatto dai nostri e registrato solo dal Cruscotto. Il lavoro c'è: si conta.
+    expect(odlImputabileAlSal('957000021', positivi, figli, registro)).toBe(true);
+  });
+
+  it('completato sul portale ma senza nessun riscontro nostro → NON entra', () => {
+    // È il caso dei «pagati e assenti dal database»: il portale li dà per completati ma né i
+    // rapportini né il registro li sostengono. Restano materia d'audit, non di SAL.
+    expect(odlImputabileAlSal('957999999', positivi, figli, registro)).toBe(false);
   });
 });
 
