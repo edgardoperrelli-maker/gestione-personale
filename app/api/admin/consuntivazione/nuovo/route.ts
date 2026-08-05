@@ -15,6 +15,7 @@ import { validaFotoObbligatorie, campiFoto } from '@/lib/interventi/manuali/vali
 import { scadenzaIso } from '@/utils/rapportini/scadenza';
 import { maiuscolaStringhe, maiuscolaRisposteTesto } from '@/lib/testo/maiuscolo';
 import { risolviEsecutori } from '@/lib/consuntivazione/esecutori';
+import { trovaRapportinoOperatoreGiorno, prossimoOrdineVoce } from '@/lib/consuntivazione/rapportinoGiorno';
 import type { CommittenteManuale } from '@/lib/interventi/manuali/types';
 import type { NuovoOrdinePayload } from '@/lib/consuntivazione/types';
 
@@ -111,6 +112,36 @@ export async function POST(req: Request) {
     ).get(chiavePositivo(base.committente, base.odl, base.matricola_contatore)) ?? null;
   }
 
+  const primario = esecutori[0];
+
+  // 1) rapportino: se l'operatore ne ha già uno per questo giorno (tipicamente quello vero della
+  // sua pianificazione mappa/ACEA) la voce backoffice va LÌ — un secondo rapportino "contenitore"
+  // lo si apre SOLO quando quel giorno non ne ha ancora nessuno. Stessa regola «un rapportino per
+  // operatore per giorno» del motore ACEA (lib/acea/vociRapportino.ts), applicata qui per non
+  // spargere il lavoro dell'operatore su un rapportino "Senza territorio" invisibile al suo vero
+  // riepilogo (bug 05/08: LIBERATORI/TREGU/DE SANTIS).
+  const esistente = await trovaRapportinoOperatoreGiorno(supabaseAdmin, primario.staff_id, dataEsecuzione);
+  const rapIdEff = esistente?.id ?? rapId;
+  if (!esistente) {
+    // Rapportino contenitore (piano_id null → invisibile alla pianificazione).
+    const { error: eRap } = await supabaseAdmin.from('rapportini').insert({
+      id: rapId,
+      piano_id: null,
+      staff_id: primario.staff_id,
+      staff_name: primario.staff_name,
+      data: dataEsecuzione,
+      template_id: templateId,
+      campi_snapshot: campi,
+      info_snapshot: infoCampi ?? [],
+      tipo: tipo ?? 'standard',
+      token: randomBytes(24).toString('base64url'),
+      stato: 'inviato',
+      submitted_at: nowIso,
+      expires_at: scadenzaIso(dataEsecuzione),
+    });
+    if (eRap) return NextResponse.json({ error: eRap.message }, { status: 500 });
+  }
+
   const { patch, misuratore, misuratoreTabella } = calcolaEsitazione({
     interventoId,
     committente: base.committente,
@@ -123,28 +154,8 @@ export async function POST(req: Request) {
     esecuzioneIso,
     positivoOriginale,
     voce: { matricola: base.matricola_contatore, pdr: base.pdr, via: base.indirizzo, comune: base.comune, odl: base.odl },
-    rapportinoId: rapId,
+    rapportinoId: rapIdEff,
   });
-
-  const primario = esecutori[0];
-
-  // 1) rapportino contenitore (piano_id null → invisibile alla pianificazione).
-  const { error: eRap } = await supabaseAdmin.from('rapportini').insert({
-    id: rapId,
-    piano_id: null,
-    staff_id: primario.staff_id,
-    staff_name: primario.staff_name,
-    data: dataEsecuzione,
-    template_id: templateId,
-    campi_snapshot: campi,
-    info_snapshot: infoCampi ?? [],
-    tipo: tipo ?? 'standard',
-    token: randomBytes(24).toString('base64url'),
-    stato: 'inviato',
-    submitted_at: nowIso,
-    expires_at: scadenzaIso(dataEsecuzione),
-  });
-  if (eRap) return NextResponse.json({ error: eRap.message }, { status: 500 });
 
   // 2) intervento (base anagrafica + patch esitazione).
   const record = {
@@ -165,7 +176,9 @@ export async function POST(req: Request) {
   };
   const { error: eInt } = await supabaseAdmin.from('interventi').insert(record);
   if (eInt) {
-    await supabaseAdmin.from('rapportini').delete().eq('id', rapId);
+    // Il rollback tocca il rapportino SOLO se l'abbiamo creato noi qui sopra: se è quello vero
+    // dell'operatore (già esisteva) non va cancellato per un errore su QUESTO intervento.
+    if (!esistente) await supabaseAdmin.from('rapportini').delete().eq('id', rapIdEff);
     if (eInt.code === '23505') {
       return NextResponse.json({
         error: 'intervento_duplicato',
@@ -175,12 +188,18 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: eInt.message }, { status: 500 });
   }
 
-  // 3) voce contenitore collegata all'intervento.
-  const voce = { ...buildVoceConsuntivo({ rapportinoId: rapId, committente, anagrafica, risposte, campi }), intervento_id: interventoId };
+  // 3) voce contenitore collegata all'intervento. `ordine` si accoda al lavoro che l'operatore ha
+  // già sul rapportino (1 se è appena stato creato, quindi vuoto — stesso risultato di prima).
+  const ordine = await prossimoOrdineVoce(supabaseAdmin, rapIdEff);
+  const voce = {
+    ...buildVoceConsuntivo({ rapportinoId: rapIdEff, committente, anagrafica, risposte, campi }),
+    ordine,
+    intervento_id: interventoId,
+  };
   const { error: eVoce } = await supabaseAdmin.from('rapportino_voci').insert(voce);
   if (eVoce) {
     await supabaseAdmin.from('interventi').delete().eq('id', interventoId);
-    await supabaseAdmin.from('rapportini').delete().eq('id', rapId);
+    if (!esistente) await supabaseAdmin.from('rapportini').delete().eq('id', rapIdEff);
     return NextResponse.json({ error: eVoce.message }, { status: 500 });
   }
 
@@ -202,7 +221,7 @@ export async function POST(req: Request) {
   return NextResponse.json({
     ok: true,
     interventoId,
-    rapId,
+    rapId: rapIdEff,
     esito: patch.esito,
     annullato: patch.stato === 'annullato',
     esitoMotivo: patch.esito_motivo,
