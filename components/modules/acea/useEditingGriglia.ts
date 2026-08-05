@@ -26,10 +26,10 @@ export type Operatore = {
  * Non e` una regola di dominio, e` una difesa: incollare mezzo documento in una cella renderebbe
  * illeggibile il rapportino dell'operatore, che quella nota se la trova in cima alla card.
  */
-const MAX_NOTA = 500;
+export const MAX_NOTA = 500;
 
 /** Quanto puo` essere lunga una matricola: una serigrafia di misuratore, non un testo libero. */
-const MAX_MATRICOLA_NUOVA = 100;
+export const MAX_MATRICOLA_NUOVA = 100;
 
 /** Colonne modificabili, nell'ordine in cui compaiono in tabella. */
 export const COLONNE_EDITABILI: ColonnaEditabile[] = ['pianificato_a', 'pianificato_il', 'note', 'matricola_nuova'];
@@ -127,6 +127,15 @@ export function useEditingGriglia({
    * andare. L'incolla resta per i blocchi.
    */
   const [editorEsecutore, setEditorEsecutore] = useState<Cella | null>(null);
+  /**
+   * Cella di testo libero (Note o Matricola nuova) con l'EDITOR aperto: un `<input>` dentro la
+   * cella, come per la Data e l'Esecutore.
+   *
+   * Senza questo, «scrivibile» voleva dire solo «ci si può incollare sopra»: selezionare la cella
+   * e battere Ctrl+V funziona, ma digitare a mano — il gesto più ovvio, doppio click compreso —
+   * non faceva niente, perché note e matricola nuova non avevano nessun editor come quelli sotto.
+   */
+  const [editorTesto, setEditorTesto] = useState<Cella | null>(null);
   const righeRef = useRef(righe);
   righeRef.current = righe;
 
@@ -165,7 +174,9 @@ export function useEditingGriglia({
 
   // Cambiano i dati (nuovo filtro, ricarica): le modifiche locali non hanno più senso, e
   // gli editor aperti starebbero su una riga che non è più quella.
-  useEffect(() => { setLocali(new Map()); setEditorData(null); setEditorEsecutore(null); }, [righe]);
+  useEffect(() => {
+    setLocali(new Map()); setEditorData(null); setEditorEsecutore(null); setEditorTesto(null);
+  }, [righe]);
 
   const chiaveDi = useCallback((i: number) => {
     const r = righeRef.current[i];
@@ -390,8 +401,9 @@ export function useEditingGriglia({
         setSelezione((s) => (e.shiftKey && s ? { da: s.da, a: nuovo } : { da: nuovo, a: nuovo }));
         return;
       }
-      // Enter o F2 aprono l'editor della cella, come in Excel: il calendario sulla Data, il
-      // menu degli operatori sull'Esecutore. Sugli altri campi i due tasti non fanno niente.
+      // Enter o F2 aprono l'editor della cella, come in Excel: il calendario sulla Data, il menu
+      // degli operatori sull'Esecutore, l'input su Note e Matricola nuova. Sugli altri campi i
+      // due tasti non fanno niente.
       if (e.key === 'Enter' || e.key === 'F2') {
         const chiave = colonneRef.current[focus.colonna];
         if (chiave === 'pianificato_il') {
@@ -400,6 +412,9 @@ export function useEditingGriglia({
         } else if (chiave === 'pianificato_a') {
           e.preventDefault();
           setEditorEsecutore(focus);
+        } else if (chiave === 'note' || chiave === 'matricola_nuova') {
+          e.preventDefault();
+          setEditorTesto(focus);
         }
         return;
       }
@@ -530,10 +545,44 @@ export function useEditingGriglia({
     if (nome) void applica([{ riga, colonna, valore: nome }]);
   }, [applica]);
 
+  /** Apre l'input SOLO su Note e Matricola nuova: le sole colonne di testo libero. */
+  const apriEditorTesto = useCallback((riga: number, colonna: number) => {
+    const chiave = colonneRef.current[colonna];
+    if (chiave !== 'note' && chiave !== 'matricola_nuova') return;
+    const c = { riga, colonna };
+    setFocus(c);
+    setSelezione({ da: c, a: c });
+    setEditorTesto(c);
+  }, []);
+
+  const chiudiEditorTesto = useCallback(() => setEditorTesto(null), []);
+
+  /**
+   * Conferma dell'input di testo: passa dalla stessa strada dell'incolla, `applica` — che per
+   * `note`/`matricola_nuova` non scarta la stringa vuota (a differenza di data e operatore): è
+   * così che si CANCELLA una nota già scritta, non solo che se ne aggiunge una.
+   */
+  const confermaTesto = useCallback((riga: number, colonna: number, valore: string) => {
+    setEditorTesto(null);
+    void applica([{ riga, colonna, valore }]);
+  }, [applica]);
+
+  /** Il testo grezzo di Note/Matricola nuova, per il `defaultValue` dell'input. */
+  const valoreTestoIniziale = useCallback((riga: number, colonna: number): string => {
+    const r = righeRef.current[riga];
+    if (!r) return '';
+    const chiave = colonneRef.current[colonna];
+    const loc = locali.get(`${r.odl}|${r.numero_operazione}`);
+    if (chiave === 'note') return loc?.note ?? r.note ?? '';
+    if (chiave === 'matricola_nuova') return loc?.matricola_nuova ?? r.matricola_nuova ?? '';
+    return '';
+  }, [locali]);
+
   return {
     focus, selezione, celleSelezionate, locali, salvando,
     clickCella, applica, setFocus, editabile, copiaRigheSpuntate,
     editorData, apriEditorData, chiudiEditorData, confermaData, valoreIsoData,
     editorEsecutore, apriEditorEsecutore, chiudiEditorEsecutore, confermaEsecutore,
+    editorTesto, apriEditorTesto, chiudiEditorTesto, confermaTesto, valoreTestoIniziale,
   };
 }

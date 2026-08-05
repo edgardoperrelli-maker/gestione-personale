@@ -14,6 +14,7 @@ import {
 } from '@/lib/acea/colonneTabella';
 import { ordinabile, type FiltriUI, type Opzioni } from '@/lib/acea/filtriOrdini';
 import { selezionaRighe } from '@/lib/acea/selezioneRighe';
+import { MAX_MATRICOLA_NUOVA, MAX_NOTA } from './useEditingGriglia';
 import Skeleton from '@/components/ui/Skeleton';
 import { toast } from '@/components/ui/Toast';
 import FiltroColonna from './FiltroColonna';
@@ -199,6 +200,16 @@ export type Props = {
     }>;
     /** Nome dell'attività di tabellone della vista (DUNNING / LIMITAZIONI MASSIVE), per lo stato vuoto. */
     etichettaAttivita?: string;
+    /**
+     * Editor di Note e Matricola nuova: doppio click (o Enter/F2) apre un `<input>` di testo
+     * libero. Senza, l'unico modo di scrivere una nota era incollarla da fuori — niente digitare
+     * a mano sulla cella.
+     */
+    editorTesto: { riga: number; colonna: number } | null;
+    onApriEditorTesto: (riga: number, colonna: number) => void;
+    onChiudiEditorTesto: () => void;
+    onConfermaTesto: (riga: number, colonna: number, valore: string) => void;
+    valoreTestoIniziale: (riga: number, colonna: number) => string;
   };
 };
 
@@ -706,6 +717,11 @@ export default function TabellaOrdini({
                       && c.chiave === 'pianificato_a'
                       && editing?.editorEsecutore?.riga === vi.index
                       && editing.editorEsecutore.colonna === iEdit;
+                    const inEditorTesto =
+                      iEdit !== null
+                      && (c.chiave === 'note' || c.chiave === 'matricola_nuova')
+                      && editing?.editorTesto?.riga === vi.index
+                      && editing.editorTesto.colonna === iEdit;
                     if (inEditorEsecutore && editing) {
                       /*
                         Il menu dell'Esecutore VIVE nella cella, come il calendario della data.
@@ -801,6 +817,41 @@ export default function TabellaOrdini({
                         </div>
                       );
                     }
+                    if (inEditorTesto && editing) {
+                      /*
+                        L'input di Note/Matricola nuova VIVE nella cella, come gli altri due editor.
+                        Stessa regola della Data: `defaultValue`, non `value` — l'input è vivo solo
+                        finché è aperto — e un valore identico a quello iniziale non parte nemmeno.
+                        A differenza della Data, qui una stringa VUOTA è un valore legittimo: è
+                        così che si cancella una nota già scritta.
+                      */
+                      const iniziale = editing.valoreTestoIniziale(vi.index, iEdit);
+                      const massimo = c.chiave === 'note' ? MAX_NOTA : MAX_MATRICOLA_NUOVA;
+                      const conferma = (valore: string) => {
+                        if (valore !== iniziale) {
+                          editing.onConfermaTesto(vi.index, iEdit, valore);
+                        } else {
+                          editing.onChiudiEditorTesto();
+                        }
+                      };
+                      return (
+                        <div key={c.chiave} role="gridcell" aria-colindex={iCol + 2} style={stileColonna(c)} className="px-1 py-1">
+                          <input
+                            type="text"
+                            aria-label={`${c.intestazione}, ODL ${r.odl}`}
+                            defaultValue={iniziale}
+                            maxLength={massimo}
+                            ref={(el) => el?.focus()}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') { e.preventDefault(); conferma(e.currentTarget.value); }
+                              if (e.key === 'Escape') { e.stopPropagation(); editing.onChiudiEditorTesto(); }
+                            }}
+                            onBlur={(e) => conferma(e.currentTarget.value)}
+                            className="h-full w-full rounded-[var(--radius-sm)] border border-[var(--brand-primary)] bg-[var(--brand-surface)] px-1 text-sm text-[var(--brand-text-main)] focus:outline-none"
+                          />
+                        </div>
+                      );
+                    }
                     return (
                       <div
                         key={c.chiave}
@@ -867,8 +918,9 @@ export default function TabellaOrdini({
                               }
                         }
                         // Doppio click: l'editor della cella — calendario sulla Data, menu degli
-                        // operatori sull'Esecutore. Le guardie sulle colonne stanno negli `onApri*`,
-                        // quindi sugli altri campi il doppio click non fa niente di diverso da due click.
+                        // operatori sull'Esecutore, input su Note e Matricola nuova. Le guardie
+                        // sulle colonne stanno negli `onApri*`, quindi sugli altri campi il doppio
+                        // click non fa niente di diverso da due click.
                         onDoubleClick={
                           iEdit === null || !scrivibile
                             ? undefined
@@ -876,7 +928,9 @@ export default function TabellaOrdini({
                               ? () => editing?.onApriEditorData(vi.index, iEdit)
                               : c.chiave === 'pianificato_a'
                                 ? () => editing?.onApriEditorEsecutore(vi.index, iEdit)
-                                : undefined
+                                : c.chiave === 'note' || c.chiave === 'matricola_nuova'
+                                  ? () => editing?.onApriEditorTesto(vi.index, iEdit)
+                                  : undefined
                         }
                         /*
                           Il colore del testo si decide in UN posto solo — scadenza, stato, o il
