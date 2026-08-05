@@ -2,6 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildCampiEditor, estraiFotoPaths, anagraficaPatchValida, anagraficaPatchIntervento, campiPerChiusuraStorico,
+  tabellaMisuratori,
 } from './modifica';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 
@@ -109,5 +110,17 @@ describe('anagraficaPatchIntervento', () => {
   });
   it('vuoto → vuoto', () => {
     expect(anagraficaPatchIntervento({})).toEqual({});
+  });
+});
+
+describe('tabellaMisuratori', () => {
+  it('acqualatina → il SUO registro, non quello ACEA', () => {
+    expect(tabellaMisuratori('acqualatina')).toBe('acqualatina_misuratori_rimossi');
+  });
+  it('acea, altri committenti o assente → registro ACEA (default storico)', () => {
+    expect(tabellaMisuratori('acea')).toBe('misuratori_rimossi');
+    expect(tabellaMisuratori('italgas')).toBe('misuratori_rimossi');
+    expect(tabellaMisuratori(null)).toBe('misuratori_rimossi');
+    expect(tabellaMisuratori(undefined)).toBe('misuratori_rimossi');
   });
 });

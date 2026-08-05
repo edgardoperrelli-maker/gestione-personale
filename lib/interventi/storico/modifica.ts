@@ -124,3 +124,14 @@ export function anagraficaPatchIntervento(p: AnagraficaPatch): Record<string, st
   }
   return out;
 }
+
+/**
+ * La tabella del registro misuratori rimossi per QUESTO committente: ognuno ha la sua (AGENTS.md
+ * §13, "registro gemello"). Chi aggiorna una riga di registro dallo storico (cambio esecutore)
+ * non deve scrivere sempre su quella ACEA — su una voce AcquaLatina l'update non troverebbe
+ * nessuna riga da correggere (0 righe non è un errore per un `.update().eq()`) e la riga gemella
+ * resterebbe con esecutore/rapportino_id obsoleti, senza nessuna correzione successiva.
+ */
+export function tabellaMisuratori(committente: string | null | undefined): 'misuratori_rimossi' | 'acqualatina_misuratori_rimossi' {
+  return committente === 'acqualatina' ? 'acqualatina_misuratori_rimossi' : 'misuratori_rimossi';
+}

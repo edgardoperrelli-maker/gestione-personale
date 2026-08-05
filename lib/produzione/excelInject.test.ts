@@ -10,6 +10,7 @@ type Dati = Parameters<typeof mappaCelleProduzione>[0];
 const mockDati = {
   from: '2026-06-01',
   to: '2026-06-30',
+  vista: 'acea',
   listino: [],
   produzione: {
     totale: { conteggio: 3, valore: 300 },
@@ -84,6 +85,15 @@ describe('mappaCelleProduzione', () => {
     expect(c.Dati.D1).toBe('Esitato ACEA');
     expect(c.Dashboard).toBeDefined();
     expect(c.Dashboard.B4).toBe('Esitato ACEA');
+  });
+
+  it('il titolo (Dashboard!A1) segue la vista, non resta il letterale ACEA del template', () => {
+    expect(mappaCelleProduzione({ ...mockDati, vista: 'acea' }).Dashboard.A1)
+      .toBe('Produzione economica — ACEA');
+    expect(mappaCelleProduzione({ ...mockDati, vista: 'acqualatina' }).Dashboard.A1)
+      .toBe('Produzione economica — AcquaLatina');
+    expect(mappaCelleProduzione({ ...mockDati, vista: 'tutti' }).Dashboard.A1)
+      .toBe('Produzione economica — Tutti');
   });
 });
 
