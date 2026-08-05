@@ -116,13 +116,6 @@ export default function ConfrontoSalProduzione({ dati }: { dati: DatiProduzione 
       <p className="mt-2 text-[11px] text-[var(--brand-text-subtle)]">
         {allineate} voci su {voci.length} combaciano al centesimo. Δ positivo = prodotto e non
         ancora contabilizzato da ACEA; Δ negativo = contabilizzato più di quanto risulta a noi.
-        {dati.senzaOrdine.totale.valore > 0 && (
-          <>
-            {' '}Dentro la differenza ci sono {eur(dati.senzaOrdine.totale.valore)} prodotti SENZA un
-            ordine ACEA: quella quota non potrà entrare in nessun SAL finché l&apos;ordine non viene
-            generato — non è un ritardo di contabilizzazione.
-          </>
-        )}
       </p>
     </div>
   );

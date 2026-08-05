@@ -29,7 +29,6 @@ const dati = {
   salStorico: [{ n: 1, mese: '2026-06', ordini: 2, valoreAps: 200, valoreListino: 190, deltaListino: 10, odlSconosciuti: 0 }],
   preSal: { n: 2, totale: { conteggio: 1, valore: 90 } },
   fuoriSal: { conteggio: 1, valore: 80 },
-  senzaOrdine: { totale: { conteggio: 2, valore: 70 }, perAttivita: [], perGiorno: [] },
   personale: {
     totaleGiornate: 1.5,
     operatoriAttivi: 1,

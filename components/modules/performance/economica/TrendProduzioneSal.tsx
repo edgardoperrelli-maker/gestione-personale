@@ -24,7 +24,7 @@ export default function TrendProduzioneSal({ dati }: { dati: DatiProduzione }) {
     produzione in vista: è la cadenza del lavoro, e non ha niente a che vedere col portale.
   */
   const serie = useMemo(
-    () => serieTrend(dati.produzioneAcea.perGiorno, dati.sal.perGiorno, dati.from, dati.to, dati.senzaOrdine?.perGiorno ?? []),
+    () => serieTrend(dati.produzioneAcea.perGiorno, dati.sal.perGiorno, dati.from, dati.to),
     [dati],
   );
   const ritmo = useMemo(() => {
@@ -76,9 +76,6 @@ export default function TrendProduzioneSal({ dati }: { dati: DatiProduzione }) {
                 <Legend wrapperStyle={{ fontSize: 12 }} />
                 <Area type="monotone" dataKey="salCum" stackId="cum" name="Esitato ACEA" stroke={cc.brandPrimary} fill={cc.brandPrimary} fillOpacity={0.55} />
                 <Area type="monotone" dataKey="scartoCum" stackId="cum" name="Da richiedere ad ACEA" stroke={cc.warning} fill={cc.warning} fillOpacity={0.35} />
-                {/* Area propria, non dentro «da richiedere»: è lavoro che nessun SAL potrà
-                    contenere finché ACEA non genera l'ordine (regola 2026-08-05). */}
-                <Area type="monotone" dataKey="senzaOrdineCum" stackId="cum" name="Senza ordine ACEA" stroke={cc.brandTextMuted} fill={cc.brandTextMuted} fillOpacity={0.2} />
                 <Line type="monotone" dataKey="prodCum" name="Produzione" stroke={cc.success} strokeWidth={2} dot={false} />
               </ComposedChart>
             </ResponsiveContainer>

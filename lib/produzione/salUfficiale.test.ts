@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   chiaveSalEffettiva, odlImputabileAlSal, odlPagatiDaSal, preparaRigheSal, riepilogoUnSal,
-  separaProduzioneDaEsitare, type SalRigaArricchita,
+  type SalRigaArricchita,
 } from './salUfficiale';
 
 describe('preparaRigheSal', () => {
@@ -110,35 +110,6 @@ describe('odlImputabileAlSal', () => {
     // È il caso dei 118 ODL «pagati e assenti dal database» del SAL 2: il portale li dà per
     // completati ma nessun rapportino li sostiene. Restano materia d'audit, non di SAL.
     expect(odlImputabileAlSal('957999999', positivi, figli)).toBe(false);
-  });
-});
-
-describe('separaProduzioneDaEsitare', () => {
-  type Riga = { odl: string; chiave: string };
-  const chiaveDi = (r: Riga) => r.chiave;
-
-  it('chiave assente → senza ordine; chiave non completata → fuori SAL; completata → esitata (né l’uno né l’altro)', () => {
-    const righe: Riga[] = [
-      { odl: 'A', chiave: 'A' }, // ordinata, non completata → fuoriSal
-      { odl: 'B', chiave: 'B' }, // ordinata e completata → esitata
-      { odl: 'C', chiave: '' }, // senza ordine → senzaOrdine
-    ];
-    const out = separaProduzioneDaEsitare(righe, chiaveDi, new Set(['B']));
-    expect(out.fuoriSal.map((r) => r.odl)).toEqual(['A']);
-    expect(out.senzaOrdine.map((r) => r.odl)).toEqual(['C']);
-  });
-
-  it('la saracinesca segue la chiave del FIGLIO, non il proprio odl', () => {
-    // La riga porta l'odl della limitazione madre, ma la chiave d'ordine è il figlio: se il
-    // figlio non esiste la riga è senza ordine anche se l'odl madre c'è.
-    const righe: Riga[] = [{ odl: 'MADRE', chiave: '' }];
-    const out = separaProduzioneDaEsitare(righe, chiaveDi, new Set());
-    expect(out.senzaOrdine).toHaveLength(1);
-    expect(out.fuoriSal).toHaveLength(0);
-  });
-
-  it('lista vuota → due liste vuote', () => {
-    expect(separaProduzioneDaEsitare([], chiaveDi, new Set())).toEqual({ fuoriSal: [], senzaOrdine: [] });
   });
 });
 

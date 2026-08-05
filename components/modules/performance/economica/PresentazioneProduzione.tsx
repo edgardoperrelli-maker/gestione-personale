@@ -108,9 +108,8 @@ export default function PresentazioneProduzione({
               {dati.conContabilizzazione && (
                 <>
                   {' '}SAL = ordini pagati dal file ufficiale ACEA; Pre-SAL = ODL nostri positivi, esitati sul
-                  portale (COMPLETATO, qualunque causale) e non ancora in un SAL; «Senza ordine ACEA» = lavoro
-                  positivo senza un ODL generato, che conta solo in produzione
-                  {vista === 'tutti' ? ' — SAL, pre-SAL e senza-ordine riguardano la sola quota ACEA' : ''}.
+                  portale (COMPLETATO, qualunque causale) e non ancora in un SAL
+                  {vista === 'tutti' ? ' — SAL e pre-SAL riguardano la sola quota ACEA' : ''}.
                 </>
               )}{' '}
               Giornate-uomo = quota di interventi in commessa lavorati sul totale lavorato, nei soli giorni

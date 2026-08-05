@@ -27,7 +27,6 @@ import {
   odlImputabileAlSal,
   odlPagatiDaSal,
   riepilogoUnSal,
-  separaProduzioneDaEsitare,
   type SalRigaArricchita,
   type SalStorico,
 } from './salUfficiale';
@@ -105,15 +104,13 @@ export interface ProduzioneEconomica {
    */
   confrontoSal: ConfrontoSal | null;
   preSal: { n: number; totale: Totale };
-  fuoriSal: Totale;
   /**
-   * Prodotto POSITIVO ma senza un ordine ACEA dietro (regola 2026-08-05): saracinesche
-   * dichiarate senza ordine di sostituzione, limitazioni massive nate senza ODL. Conta SOLO in
-   * `produzione`, mai in SAL / pre-SAL / fuori-SAL: non c'è un ordine da esitare, c'è un ordine
-   * da farsi generare. Tenuto separato perché sommato a «fuori SAL» si leggeva come credito
-   * esigibile verso ACEA — e a luglio 2026 era il 97% di quella card (113.682 € su 117.224 €).
+   * TUTTO il prodotto non ancora consuntivato dal portale, con o senza un ordine ACEA dietro.
+   * ⚠️ NON scomporlo in «con ordine» / «senza ordine» (correzione utente 2026-08-05): la card
+   * deve dire quanto lavoro fatto manca all'appello del portale, in un numero solo. La regola
+   * d'imputazione qui non c'entra: governa SAL e pre-SAL, non questa card.
    */
-  senzaOrdine: { totale: Totale; perAttivita: Aggregato[]; perGiorno: Aggregato[] };
+  fuoriSal: Totale;
   personale: ProduzionePersonale;
   esiti: EsitoOperatore[];
   audit: Discrepanza[];
@@ -630,23 +627,15 @@ export async function caricaProduzioneEconomica(
     e si sommerebbero al conto ACEA — nella vista «Tutti» la card diceva 110.437,51 € stando sotto
     l'intestazione «sola quota ACEA», cioè un numero giusto per nessuno.
 
-    Lo split fuori-SAL / senza-ordine è la seconda metà della regola d'imputazione: senza una
-    chiave d'ordine la riga non è «da esitare», è da far ORDINARE — due carte diverse in pagina.
+    UN numero solo, con dentro anche il lavoro senza ordine (correzione utente 2026-08-05: la
+    scomposizione con-ordine/senza-ordine è stata provata e rifiutata). La regola d'imputazione
+    vive nel giro portale qui sopra: filtra SAL e pre-SAL, non questa card.
   */
-  const { fuoriSal: fuoriSalRighe, senzaOrdine: senzaOrdineRighe } = separaProduzioneDaEsitare(
-    righeAcea,
-    (r) => (r.attivitaKey === SARA_KEY ? figlioDiRiga(r) : r.odl),
-    odlCompletatoAny,
-  );
+  const fuoriSalRighe = righeAcea.filter((r) => {
+    const k = r.attivitaKey === SARA_KEY ? figlioDiRiga(r) : r.odl;
+    return !k || !odlCompletatoAny.has(k);
+  });
   const fuoriSal: Totale = aggregaProduzione(fuoriSalRighe).totale;
-  const senzaOrdineAgg = aggregaProduzione(senzaOrdineRighe);
-  // `perGiorno` serve al trend: l'area «da richiedere ad ACEA» deve poter sottrarre giorno per
-  // giorno la quota che ad ACEA non si potrà mai richiedere.
-  const senzaOrdine = {
-    totale: senzaOrdineAgg.totale,
-    perAttivita: senzaOrdineAgg.perAttivita,
-    perGiorno: senzaOrdineAgg.perGiorno,
-  };
 
   // ODL "conosciuti" (controllo leggero dello storico SAL): presenti in DB, registro o portale.
   const odlConosciuti = new Set<string>([...dbAudit.keys(), ...registroAudit.keys(), ...portaleAudit.keys()]);
@@ -795,7 +784,6 @@ export async function caricaProduzioneEconomica(
     confrontoSal,
     preSal,
     fuoriSal,
-    senzaOrdine,
     personale,
     esiti,
     audit: auditTutte.slice(0, AUDIT_CAP),

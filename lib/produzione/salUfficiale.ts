@@ -132,32 +132,12 @@ export function odlImputabileAlSal(
   return positiviDb.has(odl) || figliSaracinescaPositivi.has(odl);
 }
 
-/**
- * Divide la produzione non ancora esitata in due destini DIVERSI (regola 2026-08-05):
- * - `fuoriSal`: c'è un ordine ACEA (la chiave) ma il portale non l'ha ancora consuntivato.
- *   È un credito in maturazione: si aspetta, o si sollecita l'esito.
- * - `senzaOrdine`: la chiave non c'è — saracinesche dichiarate senza ordine di sostituzione,
- *   massive nate senza ODL. Non può entrare in NESSUN SAL finché ACEA non genera l'ordine:
- *   conta solo in produzione, e la strada è commerciale (farsi ordinare il lavoro), non
- *   contabile. Prima stava dentro «fuori SAL» e ne gonfiava il totale: a luglio 2026 la
- *   vecchia card valeva 117.224 € e 113.682 € (il 97%) erano lavoro senza ordine, cioè era
- *   fatta quasi solo di lavoro che esitabile non era.
- * Le righe con chiave già COMPLETATA sul portale non escono da qui: sono l'esitato.
- */
-export function separaProduzioneDaEsitare<T>(
-  righe: readonly T[],
-  chiaveOrdineDi: (riga: T) => string,
-  completatiPortale: ReadonlySet<string>,
-): { fuoriSal: T[]; senzaOrdine: T[] } {
-  const fuoriSal: T[] = [];
-  const senzaOrdine: T[] = [];
-  for (const r of righe) {
-    const k = chiaveOrdineDi(r);
-    if (!k) senzaOrdine.push(r);
-    else if (!completatiPortale.has(k)) fuoriSal.push(r);
-  }
-  return { fuoriSal, senzaOrdine };
-}
+/*
+  ⚠️ NIENTE scomposizione del «fuori SAL» in con-ordine / senza-ordine. È stata provata
+  (2026-08-05, `separaProduzioneDaEsitare`) e RIFIUTATA dall'utente lo stesso giorno: la card
+  «Fuori SAL» deve restare UN numero — tutto il prodotto non ancora consuntivato dal portale,
+  ordine o non ordine. La regola d'imputazione qui sopra riguarda solo SAL e pre-SAL.
+*/
 
 /** Chiave "portale" effettiva di una riga di produzione, per il check pre-SAL/fuori-SAL: le
  *  saracinesche (attivitaKey === saracinescaKey) valgono per l'Odl FIGLIO (quello consuntivato sul

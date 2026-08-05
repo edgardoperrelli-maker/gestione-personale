@@ -70,8 +70,7 @@ export async function buildWorkbookProduzione(dati: ProduzioneEconomica): Promis
     // «nostri positivi»: dal 2026-08-05 l'Esitato conta solo i COMPLETATO del portale sostenuti
     // da un rapportino positivo — chi riconcilia col portale grezzo deve sapere del filtro.
     ['Esitato ACEA (nostri positivi consuntivati)', dati.sal.totale.valore, true],
-    ['Scarto Produzione − Esitato (incl. senza ordine)', dati.scarto.valore, true],
-    ['Senza ordine ACEA (mai nel SAL)', dati.senzaOrdine.totale.valore, true],
+    ['Scarto Produzione − Esitato', dati.scarto.valore, true],
     ['Ordini prodotti', dati.produzione.totale.conteggio, false],
   ];
   const labelRow = dash.addRow(kpi.map((k) => k[0]));
@@ -186,8 +185,6 @@ export async function buildWorkbookProduzione(dati: ProduzioneEconomica): Promis
   rPre.getCell(4).numFmt = EUR;
   const rFuori = ds.addRow(['Fuori SAL', '', dati.fuoriSal.conteggio, dati.fuoriSal.valore, '', '', '']);
   rFuori.getCell(4).numFmt = EUR;
-  const rSenza = ds.addRow(['Senza ordine ACEA', '', dati.senzaOrdine.totale.conteggio, dati.senzaOrdine.totale.valore, '', '', '']);
-  rSenza.getCell(4).numFmt = EUR;
 
   // ── DATI: audit ─────────────────────────────────────────────
   const au = wb.addWorksheet('Dati - audit');

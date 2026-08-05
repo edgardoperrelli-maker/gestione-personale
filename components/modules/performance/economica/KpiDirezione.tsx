@@ -84,22 +84,12 @@ function CardsConsuntivo({
         nota={`${num(dati.preSal.totale.conteggio)} ODL nostri positivi, esitati sul portale, non in un SAL · vivo oggi`}
         accent={dati.preSal.totale.valore > 0 ? 'warn' : undefined}
       />
+      {/* UN numero solo, mai scomposto con/senza ordine (correzione utente 2026-08-05). */}
       <Card
         titolo="Fuori SAL"
         valore={eur(dati.fuoriSal.valore)}
-        nota={`${num(dati.fuoriSal.conteggio)} interventi con ordine ACEA, da esitare · nel periodo`}
+        nota={`${num(dati.fuoriSal.conteggio)} interventi da esitare · nel periodo`}
         accent={dati.fuoriSal.valore > 0 ? 'warn' : undefined}
-      />
-      {/*
-        Regola 2026-08-05: il lavoro senza un ordine ACEA non è «da esitare» — non può entrare in
-        nessun SAL finché l'ordine non esiste. Sommato a «Fuori SAL» ne era il 97% e faceva
-        sembrare esigibile un credito che non lo è: qui ha la sua carta, col suo nome.
-      */}
-      <Card
-        titolo="Senza ordine ACEA"
-        valore={eur(dati.senzaOrdine.totale.valore)}
-        nota={`${num(dati.senzaOrdine.totale.conteggio)} lavori senza ODL · solo produzione, mai nel SAL`}
-        accent={dati.senzaOrdine.totale.valore > 0 ? 'warn' : undefined}
       />
       {operative && (
         <Card titolo="Discrepanze audit" valore={num(dati.auditTotale)} nota="3 vie: DB · registro · portale" accent={dati.auditTotale > 0 ? 'warn' : undefined} />

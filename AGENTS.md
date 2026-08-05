@@ -468,19 +468,21 @@ Nel **SAL atteso** («Esitato ACEA») e nel **pre-SAL** entra solo l'ODL che sod
 3. **COMPLETATO sul portale ACEA**.
 Un COMPLETATO del portale senza rapportino positivo dietro NON entra (a luglio 2026: 718 su
 3.604, di cui 622 nostri-ma-non-positivi e 96 mai visti) — resta materia dell'audit a tre vie.
-Helper puri: `odlImputabileAlSal` e `separaProduzioneDaEsitare` (`lib/produzione/salUfficiale.ts`).
+Helper puro: `odlImputabileAlSal` (`lib/produzione/salUfficiale.ts`).
 
-Il lavoro positivo **senza un ordine ACEA** (saracinesche dichiarate senza ordine di
-sostituzione, massive senza ODL) conta **solo in `produzione`** e vive nel campo `senzaOrdine`,
-con una card sua: NON è «fuori SAL» — non c'è un ordine da esitare, c'è un ordine da farsi
-generare. ⚠️ Prima dello split gonfiava «Fuori SAL» fino a farne il 97% (113.682 € dei
-117.224 € della vecchia card, luglio 2026) e si leggeva come credito esigibile. Le tre parti
-sono una PARTIZIONE esatta della produzione ACEA del periodo:
-`produzione = esitate + fuoriSal + senzaOrdine`. Anche il trend la rispetta: l'area «Da
-richiedere ad ACEA» è produzione − esitato − senzaOrdine, e la quota senza ordine ha un'area
-sua. L'aggancio madre→figlio delle saracinesche usa TUTTI i figli per chiave
-(impianto+matricola, via `chiaviAggancio`), con preferenza completato > aperto > primo — mai
-una mappa first-wins, che sceglierebbe a caso tra un figlio chiuso già pagato e uno nuovo.
+⚠️ **«Fuori SAL» resta UN numero solo e NON si scompone** (correzione utente 2026-08-05):
+tutto il prodotto non ancora consuntivato dal portale, CON o SENZA un ordine ACEA dietro
+(a luglio 2026: 117.224 €). La scomposizione con-ordine/senza-ordine è stata provata
+(`separaProduzioneDaEsitare` + card «Senza ordine ACEA» + area dedicata nel trend) e
+**rifiutata lo stesso giorno**: non reintrodurla. Il lavoro positivo senza ordine (saracinesche
+dichiarate senza ordine di sostituzione, massive senza ODL) conta in produzione e in fuori-SAL;
+la regola d'imputazione qui sopra governa solo SAL e pre-SAL. Il lavoro senza ordine emerge
+comunque dal confronto SAL per voce (Δ saracinesca/massive).
+
+L'aggancio madre→figlio delle saracinesche usa TUTTI i figli per chiave (impianto+matricola,
+via `chiaviAggancio`, anche dal misuratore dell'ordine madre nel registro), con preferenza
+completato > aperto > primo — mai una mappa first-wins, che sceglierebbe a caso tra un figlio
+chiuso già pagato e uno nuovo.
 
 ### Confronto SAL ↔ produzione (tendina «SAL» della barra periodo)
 La tendina accanto a Mese/Trim./Anno porta il periodo sulla **finestra dei lavori** del SAL

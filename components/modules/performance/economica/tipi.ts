@@ -28,9 +28,8 @@ export interface DatiProduzione {
   /** Presente solo quando la barra periodo ha un SAL selezionato nella tendina. */
   confrontoSal: ConfrontoSal | null;
   preSal: { n: number; totale: Totale };
+  /** UN numero solo, MAI scomposto con/senza ordine (correzione utente 2026-08-05). */
   fuoriSal: Totale;
-  /** Prodotto positivo senza un ordine ACEA dietro: conta solo in produzione, mai nel SAL. */
-  senzaOrdine: { totale: Totale; perAttivita: Aggregato[]; perGiorno: Aggregato[] };
   personale: ProduzionePersonale;
   esiti: EsitoOperatore[];
   audit: Discrepanza[];

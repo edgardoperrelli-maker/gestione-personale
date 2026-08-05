@@ -242,7 +242,6 @@ export function fogliSal(dati: ProduzioneEconomica): FoglioSemplice[] {
         ...dati.salStorico.map((s): Array<string | number> => [s.n, s.mese, s.ordini, s.valoreAps, s.valoreListino, s.deltaListino, s.odlSconosciuti]),
         [`Pre-SAL ${dati.preSal.n}`, '', dati.preSal.totale.conteggio, dati.preSal.totale.valore, '', '', ''],
         ['Fuori SAL', '', dati.fuoriSal.conteggio, dati.fuoriSal.valore, '', '', ''],
-        ['Senza ordine ACEA', '', dati.senzaOrdine.totale.conteggio, dati.senzaOrdine.totale.valore, '', '', ''],
       ],
     },
   ];

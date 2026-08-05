@@ -33,18 +33,6 @@ describe('serieTrend', () => {
     const s = serieTrend([g('2026-06-10', 10), g('2026-07-05', 99)], [], '2026-06-01', '2026-06-30');
     expect(s.map((p) => p.data)).toEqual(['2026-06-10']);
   });
-
-  it('la quota senza-ordine esce dal «da richiedere» e cumula per conto suo', () => {
-    // prod 100, sal 30, senza ordine 50 → da richiedere = 20, non 70: i 50 senza ordine non
-    // sono richiedibili ad ACEA (regola 2026-08-05) e hanno l'area loro.
-    const s = serieTrend([g('2026-06-10', 100)], [g('2026-06-10', 30)], '2026-06-01', '2026-06-30', [g('2026-06-10', 50)]);
-    expect(s[0]).toMatchObject({ prodCum: 100, salCum: 30, senzaOrdineCum: 50, scartoCum: 20 });
-  });
-
-  it('senza il quinto argomento la serie resta quella di sempre (senzaOrdineCum = 0)', () => {
-    const s = serieTrend([g('2026-06-10', 100)], [g('2026-06-10', 30)], '2026-06-01', '2026-06-30');
-    expect(s[0]).toMatchObject({ scartoCum: 70, senzaOrdineCum: 0 });
-  });
 });
 
 describe('raggruppaPerSettimana', () => {
