@@ -17,6 +17,7 @@ import { MOTIVO_SOLO_ATTIVAZIONI, soloAttivazioni } from '@/lib/acea/giorniProgr
 import { eRiapertura } from '@/lib/acea/scadenza';
 import { partiRoma } from '@/lib/orarioRoma';
 import { valoreMatricolaNuova, propagaMatricolaNuovaAInterventi } from '@/lib/acqualatina/matricolaNuova';
+import { erroreColonnaMancante } from '@/lib/rapportini/colonneOpzionali';
 
 export const runtime = 'nodejs';
 
@@ -113,6 +114,13 @@ export async function POST(req: Request) {
         .eq('odl', odl)
         .eq('numero_operazione', operazione)
         .select('id');
+      // La colonna può non esistere ancora (migration non applicata prima del deploy — vedi
+      // app/api/acea/ordini/route.ts): si salta e si dice, invece di far cadere l'intero
+      // salvataggio, note ed esecutore/data della stessa richiesta compresi.
+      if (error && erroreColonnaMancante(error, 'matricola_nuova')) {
+        console.error('[acea/celle] colonna matricola_nuova non ancora disponibile, riga saltata:', error.message);
+        continue;
+      }
       if (error) throw error;
       matricoleScritte += 1;
       if (valore) {
