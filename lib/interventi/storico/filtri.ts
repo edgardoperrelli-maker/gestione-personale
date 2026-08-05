@@ -50,6 +50,22 @@ export function puliziaQ(q: string | null | undefined): string {
   return (q ?? '').replace(/[,()%*]/g, ' ').trim().replace(/\s+/g, ' ');
 }
 
+/** Divide `q` in più termini quando contiene un delimitatore di lista (a capo, tab,
+ * virgola, punto e virgola) — supporta l'incolla di una colonna di ODL copiata da Excel
+ * nello stesso campo di ricerca. Senza delimitatori → un solo termine (comportamento
+ * di ricerca libero invariato). Trim, senza vuoti né duplicati. */
+export function terminiRicerca(q: string): string[] {
+  const t = q.trim();
+  if (!t) return [];
+  if (!/[\r\n\t;,]/.test(t)) return [t];
+  const out: string[] = [];
+  for (const v of t.split(/[\r\n\t;,]+/)) {
+    const s = v.trim();
+    if (s && !out.includes(s)) out.push(s);
+  }
+  return out;
+}
+
 export function parseFiltriStorico(params: URLSearchParams): FiltriStorico {
   const pageNum = Number.parseInt(params.get('page') ?? '0', 10);
   return {
