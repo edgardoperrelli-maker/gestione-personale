@@ -1,6 +1,6 @@
 // lib/interventi/storico/filtri.test.ts
 import { describe, it, expect } from 'vitest';
-import { parseFiltriStorico, risolviFinestra, puliziaQ, nessunFiltro } from './filtri';
+import { parseFiltriStorico, risolviFinestra, puliziaQ, nessunFiltro, terminiRicerca } from './filtri';
 
 describe('parseFiltriStorico', () => {
   it('default vuoto: tutti null/vuoti, page 0', () => {
@@ -80,5 +80,25 @@ describe('puliziaQ', () => {
   });
   it('stringa vuota resta vuota', () => {
     expect(puliziaQ('   ')).toBe('');
+  });
+});
+
+describe('terminiRicerca', () => {
+  it('stringa vuota → nessun termine', () => {
+    expect(terminiRicerca('   ')).toEqual([]);
+  });
+  it('valore singolo senza delimitatori → un solo termine (ricerca libera invariata)', () => {
+    expect(terminiRicerca('  12383018  ')).toEqual(['12383018']);
+    expect(terminiRicerca('via roma 12')).toEqual(['via roma 12']);
+  });
+  it('incolla multi-riga da Excel: split, trim, senza vuoti né duplicati', () => {
+    expect(terminiRicerca('12383018\r\n12384029\r\n12383018\r\n\r\n 12385711 ')).toEqual([
+      '12383018', '12384029', '12385711',
+    ]);
+  });
+  it('delimitatori tab/virgola/punto e virgola', () => {
+    expect(terminiRicerca('12383018,12384029;12385711\t12386000')).toEqual([
+      '12383018', '12384029', '12385711', '12386000',
+    ]);
   });
 });

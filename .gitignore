@@ -24,3 +24,11 @@ public/swe-worker-*.js
 
 # Playwright: config locale per ambienti con Chromium pre-installato (path macchina-specifici)
 playwright.local.config.ts
+
+# harness dev locale e stato goal (non committare/deployare)
+/public/device-wall.html
+/.claude/goal/
+
+# firma Android (ricreata in CI dai secrets, mai nel repo)
+/android/key.properties
+/android/keystore/

@@ -5,6 +5,7 @@ import { cookies } from 'next/headers';
 import { requireUser } from '@/lib/apiAuth';
 import { parseRegole, buildRuleRows, buildLockRows } from './rulePayload';
 import { idAnnullatiDaEliminare, type InterventoEsistente } from '@/lib/interventi/planInterventiForPiano';
+import { pianoResiduoEliminabile } from '@/lib/interventi/pianoResiduo';
 import { attoreDa, fotografaPiano, registraAzione } from '@/lib/audit/registra';
 
 const supabaseAdmin = createClient(
@@ -126,7 +127,13 @@ export async function POST(req: Request) {
       for (const v of (vecchi ?? []) as { id: string }[]) {
         const { count, error: eCount } = await supabaseAdmin
           .from('rapportini').select('id', { count: 'exact', head: true }).eq('piano_id', v.id);
-        if (!eCount && (count ?? 0) === 0) {
+        // Anche gli interventi del REGISTRO (created_from_mappa=false, es. commessa appena
+        // pianificata e non ancora generata) ancorano il piano: la Mappa non saprebbe
+        // ricrearli dai task, quindi il piano che li ospita NON è un residuo.
+        const { count: nRegistro, error: eReg } = await supabaseAdmin
+          .from('interventi').select('id', { count: 'exact', head: true })
+          .eq('piano_id', v.id).eq('created_from_mappa', false);
+        if (!eCount && !eReg && pianoResiduoEliminabile(count ?? 0, nRegistro ?? 0)) {
           // Eliminazione implicita: nessuno l'ha chiesta esplicitamente, è un effetto del
           // "crea nuovo piano". Va registrata come le altre, altrimenti resta invisibile.
           const fotografia = await fotografaPiano(v.id);
@@ -272,10 +279,16 @@ export async function DELETE(req: Request) {
     // È la lezione di VIA FAVONIA (PR #220), stavolta sul verso della cancellazione: il
     // piano sparisce, il lavoro fatto no (il CASCADE gli azzera `piano_id` e basta). Lo
     // stesso filtro del PUT che toglie un operatore (:376-383).
+    //
+    // E restano anche gli interventi del REGISTRO (`created_from_mappa=false`: commessa,
+    // «+», import): non sono nati dai task di questo piano e la loro fonte di verità sta
+    // altrove — eliminare il piano li SGANCIA soltanto (FK ON DELETE SET NULL), pronti per
+    // una nuova adozione. Si cancella solo ciò che la mappa ha creato.
     const { error: eInt } = await supabaseAdmin
       .from('interventi')
       .delete()
       .eq('piano_id', id)
+      .eq('created_from_mappa', true)
       .not('stato', 'in', '(completato,annullato)');
     if (eInt) throw new Error(eInt.message);
 
@@ -381,6 +394,10 @@ export async function PUT(req: Request) {
     // cancella pure il rapportino — lavoro irraggiungibile, che nessuno può né eseguire né
     // vedere. I TERMINALI (completato/annullato) non si toccano: quelli sono lavoro fatto e
     // restano al piano insieme al loro esito.
+    //
+    // Solo le righe della MAPPA (`created_from_mappa=true`): gli interventi del registro
+    // (commessa) hanno la loro pianificazione altrove e non si distruggono togliendo un
+    // operatore dal piano — restano assegnati e ri-adottabili al prossimo giro.
     let interventiLiberati = 0;
     if (operatoriRimossi.length > 0) {
       const { data: liberati, error: eLib } = await supabaseAdmin
@@ -388,6 +405,7 @@ export async function PUT(req: Request) {
         .delete()
         .eq('piano_id', id)
         .in('staff_id', operatoriRimossi.map((o) => String(o.staff_id)))
+        .eq('created_from_mappa', true)
         .eq('stato', 'assegnato')
         .is('iniziato_at', null)
         .is('chiuso_at', null)

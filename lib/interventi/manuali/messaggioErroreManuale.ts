@@ -19,6 +19,7 @@ export function messaggioErroreManuale(
     attivita_sconosciuta: "Descrizione attività non riconosciuta. Scegline una dall'elenco.",
     // Fallback: la route manda sempre un `dettaglio` con la matricola, che ha la precedenza.
     misuratore_non_censito: "Misuratore non presente nell'elenco del committente. Contatta l'ufficio.",
+    matricola_gia_nel_rapportino: 'Questo misuratore è già nel rapportino di oggi: apri la voce esistente.',
   };
   if (j.error && map[j.error]) return map[j.error];
   return j.error && j.error.trim() ? j.error : `Errore ${status}`;

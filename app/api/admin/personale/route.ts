@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
-import { resolveUserRole } from '@/lib/moduleAccess';
+import { requireAdmin } from '@/lib/api/requireAdmin';
 import { COST_CENTERS } from '@/constants/cost-centers';
 import { maiuscolo } from '@/lib/testo/maiuscolo';
 
@@ -48,24 +46,6 @@ function normalizeRanges(
     rows.push({ cost_center: cc, valid_from: from, valid_to: to || null });
   }
   return { ok: true, rows };
-}
-
-async function requireAdmin(): Promise<true | NextResponse> {
-  const cookieStore = await cookies();
-  const cookieMethods = (() => cookieStore) as unknown as () => ReturnType<typeof cookies>;
-  const supabase = createRouteHandlerClient({ cookies: cookieMethods });
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Non autenticato.' }, { status: 401 });
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .maybeSingle();
-  const role = resolveUserRole(profile?.role, user.app_metadata?.role);
-  if (role !== 'admin') {
-    return NextResponse.json({ error: 'Accesso riservato agli admin.' }, { status: 403 });
-  }
-  return true;
 }
 
 /**

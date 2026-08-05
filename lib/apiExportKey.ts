@@ -5,7 +5,7 @@ import { timingSafeEqual } from 'node:crypto';
  * Confronto byte-safe (timing-safe) della chiave export.
  * Legge `LIM_MASSIVE_EXPORT_KEY` dall'ambiente e la confronta con l'header
  * `x-export-key`. Estratta da app/api/export/limitazioni-massive/route.ts per
- * essere riusata da export + /api/agente/tick + /api/agente/report.
+ * essere riusata da /api/export/limitazioni-massive.
  */
 export function chiaveValida(req: Request): boolean {
   const atteso = process.env.LIM_MASSIVE_EXPORT_KEY ?? '';

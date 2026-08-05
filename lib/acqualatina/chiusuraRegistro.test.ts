@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
   agganciPerOdl, esitoRiga, gruppiChiusura, idsDaRiaprire, idsSenzaConcluso, NO_CHIUDE_DAL,
+  patchAggancioAnagrafica,
   STATO_APERTA_NON_ESEGUITA, STATO_CHIUSA_ESEGUITA, STATO_CHIUSA_NON_ESEGUITA,
-  type InterventoConcluso,
+  type InterventoConcluso, type InterventoSciolto, type RigaPerAggancio,
 } from './chiusuraRegistro';
 
 const concluso = (over: Partial<InterventoConcluso> = {}): InterventoConcluso => ({
@@ -141,6 +142,63 @@ describe('agganciPerOdl — il collegamento che si ripara da solo', () => {
       [sciolto('i1', '999999'), sciolto('i2', null)],
       [riga('o1', '100001')],
     )).toEqual([]);
+  });
+});
+
+describe('patchAggancioAnagrafica — il primo scatto per chi si aggancia senza averne mai avuto uno', () => {
+  const ordine = (over: Partial<RigaPerAggancio> = {}): RigaPerAggancio => ({
+    id: 'o1', odl: '100001', matricola_norm: 'MTR001',
+    impianto: '12345', nominativo: 'ROSSI MARIO', recapito: '3331234567',
+    via: 'VIA ROMA', civico: '10', comune: 'TERRACINA', cap: '04019', matricola: 'MTR001',
+    ...over,
+  });
+  const intervento = (over: Partial<InterventoSciolto> = {}): InterventoSciolto => ({
+    id: 'i1', odl: '100001', matricola_contatore: null, data: '2026-08-03',
+    esito: 'eseguito_positivo', stato: 'completato',
+    ...over,
+  });
+
+  it("riempie i campi vuoti dell'intervento con l'anagrafica del registro", () => {
+    expect(patchAggancioAnagrafica(ordine(), intervento())).toEqual({
+      pdr: '12345',
+      nominativo: 'ROSSI MARIO',
+      recapito: '3331234567',
+      indirizzo: 'VIA ROMA 10',
+      comune: 'TERRACINA',
+      cap: '04019',
+      matricola_contatore: 'MTR001',
+    });
+  });
+
+  it('vale anche sul COMPLETATO: senza ordine_id non ha mai avuto una fotografia da rispettare', () => {
+    const patch = patchAggancioAnagrafica(ordine(), intervento({ stato: 'completato' }));
+    expect(patch.pdr).toBe('12345');
+  });
+
+  it('non sovrascrive un campo che l\'intervento ha già, da qualunque fonte sia arrivato', () => {
+    const patch = patchAggancioAnagrafica(ordine({ impianto: '99999' }), intervento({ pdr: '12345' }));
+    expect(patch.pdr).toBeUndefined();
+  });
+
+  it('un registro senza un dato non lo inventa: il campo resta fuori dal patch', () => {
+    const patch = patchAggancioAnagrafica(ordine({ impianto: null, recapito: '' }), intervento());
+    expect(patch.pdr).toBeUndefined();
+    expect(patch.recapito).toBeUndefined();
+  });
+
+  it('via senza civico (o viceversa) basta a comporre un indirizzo', () => {
+    expect(patchAggancioAnagrafica(ordine({ via: 'VIA ROMA', civico: null }), intervento()).indirizzo)
+      .toBe('VIA ROMA');
+    expect(patchAggancioAnagrafica(ordine({ via: null, civico: '10' }), intervento()).indirizzo)
+      .toBe('10');
+  });
+
+  it('nessun campo da riempire produce un patch vuoto', () => {
+    const pieno = intervento({
+      pdr: '1', nominativo: 'X', recapito: '1', indirizzo: 'X', comune: 'X', cap: '1',
+      matricola_contatore: '1',
+    });
+    expect(patchAggancioAnagrafica(ordine(), pieno)).toEqual({});
   });
 });
 

@@ -1,6 +1,9 @@
 // lib/interventi/storico/modifica.test.ts
 import { describe, it, expect } from 'vitest';
-import { buildCampiEditor, estraiFotoPaths, anagraficaPatchValida, anagraficaPatchIntervento } from './modifica';
+import {
+  buildCampiEditor, estraiFotoPaths, anagraficaPatchValida, anagraficaPatchIntervento,
+  anagraficaPatchRegistro, campiPerChiusuraStorico,
+} from './modifica';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 
 const c = (p: Partial<TemplateCampo> & { chiave: string; tipo: TemplateCampo['tipo'] }): TemplateCampo => ({
@@ -52,6 +55,33 @@ describe('buildCampiEditor', () => {
   });
 });
 
+describe('campiPerChiusuraStorico', () => {
+  const matr = c({ chiave: 'matricola_nuova', etichetta: 'MATRICOLA NUOVO MISURATORE', tipo: 'matricola', obbligatoria: true, ordine: 2 });
+
+  it('rapportino prima del gate (03/08) → matricola obbligatoria spenta', () => {
+    const campi = campiPerChiusuraStorico([matr], '2026-08-03');
+    expect(campi[0].obbligatoria).toBe(false);
+  });
+  it('rapportino dal gate in poi (04/08) → resta obbligatoria', () => {
+    const campi = campiPerChiusuraStorico([matr], '2026-08-04');
+    expect(campi[0].obbligatoria).toBe(true);
+  });
+  it('rapportino successivo → resta obbligatoria', () => {
+    const campi = campiPerChiusuraStorico([matr], '2026-09-01');
+    expect(campi[0].obbligatoria).toBe(true);
+  });
+  it('data ignota (null) → spenta, prudente come "prima del gate"', () => {
+    const campi = campiPerChiusuraStorico([matr], null);
+    expect(campi[0].obbligatoria).toBe(false);
+  });
+  it('non tocca le matricole già facoltative, né i campi non-matricola', () => {
+    const facoltativa = c({ chiave: 'm2', tipo: 'matricola', obbligatoria: false, ordine: 1 });
+    const testo = c({ chiave: 'sigillo', tipo: 'testo', obbligatoria: true, ordine: 3 });
+    const campi = campiPerChiusuraStorico([facoltativa, testo], '2026-08-03');
+    expect(campi).toEqual([facoltativa, testo]);
+  });
+});
+
 describe('estraiFotoPaths', () => {
   it('estrae solo path rapportini/ dai campi foto', () => {
     const campi = [c({ chiave: 'foto1', tipo: 'foto', etichetta: 'Foto 1', ordine: 1 }), c({ chiave: 'eseguito', tipo: 'select', ordine: 2 })];
@@ -80,5 +110,40 @@ describe('anagraficaPatchIntervento', () => {
   });
   it('vuoto → vuoto', () => {
     expect(anagraficaPatchIntervento({})).toEqual({});
+  });
+});
+
+describe('anagraficaPatchRegistro', () => {
+  it('pdr → impianto, nominativo/comune/cap invariati', () => {
+    expect(anagraficaPatchRegistro({ pdr: 'P1', nominativo: 'ROSSI', comune: 'TERRACINA', cap: '04019' }))
+      .toEqual({ impianto: 'P1', nominativo: 'ROSSI', comune: 'TERRACINA', cap: '04019' });
+  });
+
+  it("via spezza l'indirizzo in via + civico, come il registro lo tiene", () => {
+    expect(anagraficaPatchRegistro({ via: 'VIA ROMA 10' })).toEqual({ via: 'VIA ROMA', civico: '10' });
+  });
+
+  it('un indirizzo senza numero finale: tutto in via, civico null', () => {
+    expect(anagraficaPatchRegistro({ via: 'VIA ROMA' })).toEqual({ via: 'VIA ROMA', civico: null });
+  });
+
+  it('via cancellata (null): svuota anche il civico', () => {
+    expect(anagraficaPatchRegistro({ via: null })).toEqual({ via: null, civico: null });
+  });
+
+  it("odl e matricola NON entrano: sono la chiave e l'identità della riga di registro, non anagrafica", () => {
+    expect(anagraficaPatchRegistro({ odl: '100001', matricola: 'M1', pdr: 'P1' })).toEqual({ impianto: 'P1' });
+  });
+
+  it('attivita e fascia_oraria NON entrano: classificazione dell\'intervento, non anagrafica del punto', () => {
+    expect(anagraficaPatchRegistro({ attivita: 'BONIFICHE', fascia_oraria: '8-12' })).toEqual({});
+  });
+
+  it('un campo cancellato (null) propaga null: la cancellazione è una correzione', () => {
+    expect(anagraficaPatchRegistro({ nominativo: null })).toEqual({ nominativo: null });
+  });
+
+  it('vuoto → vuoto', () => {
+    expect(anagraficaPatchRegistro({})).toEqual({});
   });
 });

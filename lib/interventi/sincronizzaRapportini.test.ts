@@ -407,3 +407,254 @@ describe('sincronizzaRapportini — voci per-attività (flusso dal gruppo)', () 
     expect(tables.rapportino_voci.find((v) => v.task_id === 't1')?.template_id).toBe('fl-dunning');
   });
 });
+
+describe('sincronizzaRapportini — guardie commessa (G1/G2, piani con task acea:*)', () => {
+  // Con l'unificazione i piani della commessa hanno operatori e task `acea:*` in
+  // mappa_piani_operatori: un admin può legittimamente aprirli/salvarli/rigenerarli.
+  // G1: un task già coperto da una voce superstite (origine != 'task') dello stesso
+  // rapportino non deve rigenerare una voce doppia. G2: nessun rapportino NUOVO per chi ha
+  // già tutto il lavoro commessa rendicontato nel rapportino (misto) di un altro piano.
+
+  it('G1: il task acea:* già coperto dalla voce acea del rapportino non produce una voce doppia', async () => {
+    const { db, tables } = makeFakeDb(seedBase({
+      mappa_piani_operatori: [{
+        piano_id: 'p1', staff_id: 's1', staff_name: 'Mario',
+        tasks: [{ id: 'acea:i1', odl: '912215286' }, { id: 'row-2', odl: 'ODL2' }],
+      }],
+      rapportini: [{ id: 'rap1', piano_id: 'p1', staff_id: 's1', token: 'TOK1', stato: 'in_corso' }],
+      rapportino_voci: [{
+        id: 'vacea', rapportino_id: 'rap1', task_id: 'acea:i1', origine: 'acea', manuale: false,
+        odl: '912215286', risposte: { esito: 'eseguito' }, raw_json: {},
+      }],
+    }));
+    const res = await sincronizzaRapportini(db, 'p1', OPTS);
+    expect(res.ok).toBe(true);
+    const voci = tables.rapportino_voci.filter((v) => v.rapportino_id === 'rap1');
+    // La voce acea è UNA, con le risposte intatte; il task Excel genera la sua voce 'task'.
+    expect(voci.filter((v) => v.task_id === 'acea:i1')).toHaveLength(1);
+    expect(voci.find((v) => v.task_id === 'acea:i1')?.origine).toBe('acea');
+    expect(voci.find((v) => v.task_id === 'acea:i1')?.risposte).toEqual({ esito: 'eseguito' });
+    expect(voci.filter((v) => v.task_id === 'row-2')).toHaveLength(1);
+  });
+
+  it('G1 cintura per unità: task row-N con lo stesso ODL della voce acea → nessun doppione', async () => {
+    const { db, tables } = makeFakeDb(seedBase({
+      mappa_piani_operatori: [{
+        piano_id: 'p1', staff_id: 's1', staff_name: 'Mario',
+        tasks: [{ id: 'row-9', odl: '912215286' }],
+      }],
+      rapportini: [{ id: 'rap1', piano_id: 'p1', staff_id: 's1', token: 'TOK1', stato: 'in_corso' }],
+      rapportino_voci: [{
+        id: 'vacea', rapportino_id: 'rap1', task_id: 'acea:i1', origine: 'acea', manuale: false,
+        odl: '912215286', risposte: {}, raw_json: {},
+      }],
+    }));
+    const res = await sincronizzaRapportini(db, 'p1', OPTS);
+    expect(res.ok).toBe(true);
+    const voci = tables.rapportino_voci.filter((v) => v.rapportino_id === 'rap1');
+    expect(voci).toHaveLength(1);
+    expect(voci[0].task_id).toBe('acea:i1');
+  });
+
+  it('G1 acqualatina: stesso ODL ma matricola diversa → la voce si genera (cinque contatori, cinque voci)', async () => {
+    const { db, tables } = makeFakeDb(seedBase({
+      mappa_piani_operatori: [{
+        piano_id: 'p1', staff_id: 's1', staff_name: 'Mario',
+        tasks: [{ id: 'row-1', odl: 'X100', matricola: 'M1' }],
+      }],
+      rapportini: [{ id: 'rap1', piano_id: 'p1', staff_id: 's1', token: 'TOK1', stato: 'in_corso' }],
+      rapportino_voci: [{
+        id: 'vacea', rapportino_id: 'rap1', task_id: 'acea:i2', origine: 'acea', manuale: false,
+        odl: 'X100', matricola: 'M2', risposte: {}, raw_json: {},
+      }],
+    }));
+    const res = await sincronizzaRapportini(db, 'p1', OPTS);
+    expect(res.ok).toBe(true);
+    const voci = tables.rapportino_voci.filter((v) => v.rapportino_id === 'rap1');
+    expect(voci.map((v) => v.task_id).sort()).toEqual(['acea:i2', 'row-1']);
+  });
+
+  it('G2: operatore misto con tutti i task acea:* già rendicontati su un altro piano → nessun rapportino nuovo, con warning', async () => {
+    const { db, tables } = makeFakeDb(seedBase({
+      // Il rapportino "misto" vive su un piano di un ALTRO territorio (Italgas): niente
+      // conflitto per rilevaConflitti, quindi senza G2 nascerebbe un secondo rapportino.
+      mappa_piani: [
+        { id: 'p1', data: '2026-06-10', territorio: 'TERR' },
+        { id: 'p-italgas', data: '2026-06-10', territorio: 'ITALGAS' },
+      ],
+      mappa_piani_operatori: [{
+        piano_id: 'p1', staff_id: 's1', staff_name: 'Mario',
+        tasks: [{ id: 'acea:i1', odl: '912215286' }],
+      }],
+      rapportini: [{
+        id: 'rap-misto', piano_id: 'p-italgas', staff_id: 's1', data: '2026-06-10',
+        token: 'TOKM', stato: 'in_corso',
+      }],
+      rapportino_voci: [{
+        id: 'vacea', rapportino_id: 'rap-misto', task_id: 'acea:i1', origine: 'acea', manuale: false,
+        odl: '912215286', risposte: {}, raw_json: {},
+      }],
+    }));
+    const res = await sincronizzaRapportini(db, 'p1', OPTS);
+    expect(res.ok).toBe(true);
+    // Nessun rapportino su p1: il lavoro è già tutto nel rapportino misto.
+    expect(tables.rapportini.filter((r) => r.piano_id === 'p1')).toHaveLength(0);
+    expect(tables.rapportini).toHaveLength(1);
+    if (res.ok) expect(res.interventiWarning).toMatch(/già rendicontato/);
+  });
+
+  it('G1 cintura ODL: la voce MANUALE con lo stesso ODL di un task Excel NON filtra il task — la voce da-task compilata sopravvive', async () => {
+    // Regressione FIRENZE/PERUGIA/LAZIO: prima della restrizione della cintura alle sole voci
+    // 'acea', una voce dal «+» con lo stesso ODL faceva sparire la voce da-task COMPILATA
+    // (delete senza ricreazione) — la stessa classe di incidente del 27/07-03/08.
+    const { db, tables } = makeFakeDb(seedBase({
+      mappa_piani_operatori: [{
+        piano_id: 'p1', staff_id: 's1', staff_name: 'Mario',
+        tasks: [{ id: 'row-5', odl: 'X100' }],
+      }],
+      rapportini: [{ id: 'rap1', piano_id: 'p1', staff_id: 's1', token: 'TOK1', stato: 'in_corso' }],
+      rapportino_voci: [
+        { id: 'vtask', rapportino_id: 'rap1', task_id: 'row-5', origine: 'task', manuale: false, odl: 'X100', risposte: { eseguito: 'SI', sigillo: 'X123' }, raw_json: {} },
+        { id: 'vman', rapportino_id: 'rap1', task_id: null, origine: 'manuale', manuale: true, odl: 'X100', matricola: null, risposte: { esito: 'OK' }, raw_json: {} },
+      ],
+    }));
+    const res = await sincronizzaRapportini(db, 'p1', OPTS);
+    expect(res.ok).toBe(true);
+    const voci = tables.rapportino_voci.filter((v) => v.rapportino_id === 'rap1');
+    const daTask = voci.filter((v) => v.task_id === 'row-5');
+    expect(daTask).toHaveLength(1);                                     // ricreata, non persa
+    expect(daTask[0].risposte).toEqual({ eseguito: 'SI', sigillo: 'X123' }); // risposte intatte
+    expect(voci.find((v) => v.id === 'vman')).toBeTruthy();             // la manuale resta
+  });
+
+  it('G1 cintura ODL: la voce ACEA con lo stesso ODL di un task la cui voce da-task è COMPILATA non la cancella', async () => {
+    // Il set `taskConRisposte` esenta il task dal filtro: meglio un doppione visibile che
+    // lavoro registrato perso in silenzio.
+    const { db, tables } = makeFakeDb(seedBase({
+      mappa_piani_operatori: [{
+        piano_id: 'p1', staff_id: 's1', staff_name: 'Mario',
+        tasks: [{ id: 'row-5', odl: 'X100' }],
+      }],
+      rapportini: [{ id: 'rap1', piano_id: 'p1', staff_id: 's1', token: 'TOK1', stato: 'in_corso' }],
+      rapportino_voci: [
+        { id: 'vtask', rapportino_id: 'rap1', task_id: 'row-5', origine: 'task', manuale: false, odl: 'X100', risposte: { eseguito: 'SI' }, raw_json: {} },
+        { id: 'vacea', rapportino_id: 'rap1', task_id: 'acea:i9', origine: 'acea', manuale: false, odl: 'X100', risposte: { esito: 'eseguito' }, raw_json: {} },
+      ],
+    }));
+    const res = await sincronizzaRapportini(db, 'p1', OPTS);
+    expect(res.ok).toBe(true);
+    const daTask = tables.rapportino_voci.filter((v) => v.task_id === 'row-5');
+    expect(daTask).toHaveLength(1);
+    expect(daTask[0].risposte).toEqual({ eseguito: 'SI' });
+    expect(tables.rapportino_voci.find((v) => v.id === 'vacea')?.risposte).toEqual({ esito: 'eseguito' });
+  });
+
+  it('task acea:* sotto un ALTRO operatore dello STESSO piano: nessuna voce doppione (la voce resta al titolare)', async () => {
+    // Task spostato in pianifica da s1 a s2: la voce acea (compilata) vive nel rapportino di
+    // s1. G1 non scatta (rapportino diverso), taskAceaAltrove nemmeno (stesso piano): è la
+    // cintura same-piano a impedire il doppione nel rapportino di s2.
+    const { db, tables } = makeFakeDb(seedBase({
+      mappa_piani_operatori: [
+        { piano_id: 'p1', staff_id: 's1', staff_name: 'Mario', tasks: [] },
+        { piano_id: 'p1', staff_id: 's2', staff_name: 'Luigi', tasks: [{ id: 'acea:i1', odl: '912215286' }, { id: 'row-7', odl: 'ODL7' }] },
+      ],
+      rapportini: [{ id: 'rap1', piano_id: 'p1', staff_id: 's1', data: '2026-06-10', token: 'TOK1', stato: 'in_corso' }],
+      rapportino_voci: [{
+        id: 'vacea', rapportino_id: 'rap1', task_id: 'acea:i1', origine: 'acea', manuale: false,
+        odl: '912215286', risposte: { esito: 'eseguito' }, raw_json: {},
+      }],
+    }));
+    const res = await sincronizzaRapportini(db, 'p1', OPTS);
+    expect(res.ok).toBe(true);
+    const rap2 = tables.rapportini.find((r) => r.staff_id === 's2');
+    expect(rap2).toBeTruthy();
+    const vociS2 = tables.rapportino_voci.filter((v) => v.rapportino_id === rap2!.id);
+    // Solo il task Excel: l'acea:* è già rendicontato nel rapportino di s1.
+    expect(vociS2.map((v) => v.task_id)).toEqual(['row-7']);
+    expect(tables.rapportino_voci.find((v) => v.id === 'vacea')?.risposte).toEqual({ esito: 'eseguito' });
+  });
+
+  it('G2 non scatta con un task Excel nel piano: il rapportino serve, ma il task acea:* rendicontato altrove non si duplica', async () => {
+    const { db, tables } = makeFakeDb(seedBase({
+      mappa_piani: [
+        { id: 'p1', data: '2026-06-10', territorio: 'TERR' },
+        { id: 'p-italgas', data: '2026-06-10', territorio: 'ITALGAS' },
+      ],
+      mappa_piani_operatori: [{
+        piano_id: 'p1', staff_id: 's1', staff_name: 'Mario',
+        tasks: [{ id: 'acea:i1', odl: '912215286' }, { id: 'row-7', odl: 'ODL7' }],
+      }],
+      rapportini: [{
+        id: 'rap-misto', piano_id: 'p-italgas', staff_id: 's1', data: '2026-06-10',
+        token: 'TOKM', stato: 'in_corso',
+      }],
+      rapportino_voci: [{
+        id: 'vacea', rapportino_id: 'rap-misto', task_id: 'acea:i1', origine: 'acea', manuale: false,
+        odl: '912215286', risposte: {}, raw_json: {},
+      }],
+    }));
+    const res = await sincronizzaRapportini(db, 'p1', OPTS);
+    expect(res.ok).toBe(true);
+    const nuovo = tables.rapportini.find((r) => r.piano_id === 'p1');
+    expect(nuovo).toBeTruthy();
+    const voci = tables.rapportino_voci.filter((v) => v.rapportino_id === nuovo!.id);
+    // Solo il task Excel: l'acea:* resta rendicontato una volta sola, sul rapportino misto.
+    expect(voci.map((v) => v.task_id)).toEqual(['row-7']);
+  });
+});
+
+describe('sincronizzaRapportini — blocco orfani con guardie (operatore non più nel piano)', () => {
+  // Il blocco orfani gira PRIMA del loop per-operatore e cancella l'INTERO rapportino:
+  // le guardie impediscono che un salvataggio del piano (payload senza l'operatore commessa,
+  // tab stantio) distrugga lavoro che questo motore non possiede.
+
+  it('un rapportino orfano con voci acea NON si elimina: resta con warning', async () => {
+    const { db, tables } = makeFakeDb(seedBase({
+      mappa_piani_operatori: [{ piano_id: 'p1', staff_id: 's1', staff_name: 'Mario', tasks: [{ id: 't1', odl: 'ODL1' }] }],
+      rapportini: [
+        { id: 'rap1', piano_id: 'p1', staff_id: 's1', token: 'TOK1', stato: 'in_corso' },
+        // PASTORELLI: rapportino della commessa sul piano, ma l'operatore non è (più) fra gli ops.
+        { id: 'rap-acea', piano_id: 'p1', staff_id: 's9', staff_name: 'Pastorelli', token: 'TOK9', stato: 'inviato' },
+      ],
+      rapportino_voci: [{
+        id: 'vacea', rapportino_id: 'rap-acea', task_id: 'acea:i1', origine: 'acea', manuale: false,
+        odl: '912215286', risposte: { esito: 'eseguito' }, raw_json: {},
+      }],
+    }));
+    const res = await sincronizzaRapportini(db, 'p1', OPTS);
+    expect(res.ok).toBe(true);
+    // Il rapportino sopravvive con le sue voci; l'anomalia è dichiarata, non taciuta.
+    expect(tables.rapportini.find((r) => r.id === 'rap-acea')).toBeTruthy();
+    expect(tables.rapportino_voci.find((v) => v.id === 'vacea')?.risposte).toEqual({ esito: 'eseguito' });
+    if (res.ok) expect(res.interventiWarning).toMatch(/NON eliminato/);
+  });
+
+  it('con skipInviati un rapportino orfano INVIATO non si elimina (stessa promessa del loop voci)', async () => {
+    const { db, tables } = makeFakeDb(seedBase({
+      mappa_piani_operatori: [{ piano_id: 'p1', staff_id: 's1', staff_name: 'Mario', tasks: [{ id: 't1', odl: 'ODL1' }] }],
+      rapportini: [
+        { id: 'rap1', piano_id: 'p1', staff_id: 's1', token: 'TOK1', stato: 'in_corso' },
+        { id: 'rap-inv', piano_id: 'p1', staff_id: 's9', staff_name: 'Rossi', token: 'TOK9', stato: 'inviato' },
+      ],
+      rapportino_voci: [{ id: 'v9', rapportino_id: 'rap-inv', task_id: 'x1', origine: 'task', manuale: false, risposte: { eseguito: 'SI' }, raw_json: {} }],
+    }));
+    const res = await sincronizzaRapportini(db, 'p1', { templateId: 'tpl1', skipInviati: true });
+    expect(res.ok).toBe(true);
+    expect(tables.rapportini.find((r) => r.id === 'rap-inv')).toBeTruthy();
+    if (res.ok) expect(res.interventiWarning).toMatch(/NON eliminato/);
+  });
+
+  it('un orfano senza protezioni (solo voci da-task, non inviato con skipInviati) si elimina come prima', async () => {
+    const { db, tables } = makeFakeDb(seedBase({
+      mappa_piani_operatori: [{ piano_id: 'p1', staff_id: 's1', staff_name: 'Mario', tasks: [{ id: 't1', odl: 'ODL1' }] }],
+      rapportini: [
+        { id: 'rap1', piano_id: 'p1', staff_id: 's1', token: 'TOK1', stato: 'in_corso' },
+        { id: 'rap-orf', piano_id: 'p1', staff_id: 's9', staff_name: 'Verdi', token: 'TOK9', stato: 'in_corso' },
+      ],
+      rapportino_voci: [{ id: 'v9', rapportino_id: 'rap-orf', task_id: 'x1', origine: 'task', manuale: false, risposte: {}, raw_json: {} }],
+    }));
+    const res = await sincronizzaRapportini(db, 'p1', OPTS);
+    expect(res.ok).toBe(true);
+    expect(tables.rapportini.find((r) => r.id === 'rap-orf')).toBeUndefined();
+  });
+});

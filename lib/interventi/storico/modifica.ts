@@ -3,6 +3,7 @@
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { comeArrayFoto } from '@/utils/rapportini/comeArrayFoto';
 import { campiConEsitoCorreggibile } from '@/utils/rapportini/opzioniEsito';
+import { spezzaIndirizzo } from '@/lib/acqualatina/ordiniDaMaster';
 
 /** Colonne anagrafiche editabili di `rapportino_voci` (whitelist). */
 export const ANAGRAFICA_COLONNE = [
@@ -75,6 +76,33 @@ export function estraiFotoPaths(
   return out;
 }
 
+/**
+ * MATRICOLA NUOVO MISURATORE obbligatoria (Sostituzione misuratori AcquaLatina) dai rapportini
+ * generati da questo giorno in poi — migration `20260803160000_acqualatina_matricola_nuova`,
+ * che l'ha aggiunta "ai rapportini generati DOPO" il 03/08 ore 16 (cioè da domani, il 04/08).
+ *
+ * Le voci di rapportini precedenti sono nate SENZA il campo, o senza l'obbligo: in correzione
+ * (questa modale) pretenderlo bloccherebbe per sempre interventi che il gate non ha mai visto
+ * nascere — l'esito resterebbe "neutro" a vita, mai chiuso, mai in riconciliazione AcquaLatina.
+ * Invecchia da sola — fra qualche mese non filtra più niente e resta come traccia della data in
+ * cui la regola è cambiata (stesso pattern di `NO_CHIUDE_DAL` in `chiusuraRegistro.ts`).
+ */
+export const MATRICOLA_NUOVA_OBBLIGATORIA_DAL = '2026-08-04';
+
+/**
+ * I campi da usare per calcolare la CHIUSURA di una voce in correzione: le matricole
+ * obbligatorie si spengono per le voci di rapportini nati prima del gate (v. sopra). `null`
+ * (data ignota, es. voce senza rapportino) conta come "prima": più prudente non bloccare un
+ * caso che il gate non può nemmeno collocare nel tempo.
+ */
+export function campiPerChiusuraStorico(
+  campi: TemplateCampo[],
+  dataRapportino: string | null,
+): TemplateCampo[] {
+  if (dataRapportino !== null && dataRapportino >= MATRICOLA_NUOVA_OBBLIGATORIA_DAL) return campi;
+  return campi.map((c) => (c.tipo === 'matricola' && c.obbligatoria ? { ...c, obbligatoria: false } : c));
+}
+
 /** Whitelist colonne anagrafiche: scarta chiavi ignote, trim, '' → null. */
 export function anagraficaPatchValida(body: unknown): AnagraficaPatch {
   const out: AnagraficaPatch = {};
@@ -96,4 +124,36 @@ export function anagraficaPatchIntervento(p: AnagraficaPatch): Record<string, st
     if (k in p) out[VOCE_TO_INTERVENTO[k]] = p[k] ?? null;
   }
   return out;
+}
+
+/** Le colonne dell'anagrafica che convergono anche sul registro `acqualatina_ordini`. */
+export type RegistroAnagraficaPatch = Partial<Record<
+  'impianto' | 'nominativo' | 'via' | 'civico' | 'comune' | 'cap', string | null
+>>;
+
+/**
+ * Traduce la correzione d'ufficio verso il registro AcquaLatina — PDR/impianto, nominativo,
+ * indirizzo (spezzato in via+civico, come il registro lo tiene) e comune/cap. Restano FUORI,
+ * apposta:
+ *  - `odl`: è la CHIAVE del registro (odl, numero_operazione), non un campo anagrafico —
+ *    propagarlo sposterebbe la correzione su una riga diversa, non la applicherebbe;
+ *  - `matricola`: è l'IDENTITÀ della riga a registro (indice unico odl+matricola_norm).
+ *    `ordiniDaMaster.ts` la esclude dalla sovrascrittura del sync per lo stesso motivo — «una
+ *    matricola diversa non è una correzione, è un'altra riga» — e vale identico qui: la
+ *    matricola del contatore rimosso, corretta su un intervento, non deve poter far «adottare»
+ *    o confondere una riga di registro diversa;
+ *  - `attivita`/`fascia_oraria`: classificazione dell'intervento, non anagrafica del punto.
+ */
+export function anagraficaPatchRegistro(p: AnagraficaPatch): RegistroAnagraficaPatch {
+  const patch: RegistroAnagraficaPatch = {};
+  if ('pdr' in p) patch.impianto = p.pdr;
+  if ('nominativo' in p) patch.nominativo = p.nominativo;
+  if ('comune' in p) patch.comune = p.comune;
+  if ('cap' in p) patch.cap = p.cap;
+  if ('via' in p) {
+    const { via, civico } = spezzaIndirizzo(p.via);
+    patch.via = via;
+    patch.civico = civico;
+  }
+  return patch;
 }

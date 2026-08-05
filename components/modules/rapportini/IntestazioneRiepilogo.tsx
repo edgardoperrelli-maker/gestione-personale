@@ -1,16 +1,20 @@
 /* Hallmark · redesign: Cockpit-aligned · variante: campo (DESIGN.md §7quater) · tone: utilitarian · anchor hue: sapphire 260 */
 'use client';
 
-import { Check, X } from 'lucide-react';
+import Link from 'next/link';
+import { Check, ChevronLeft, X } from 'lucide-react';
 import type { RiepilogoRapportino } from '@/utils/rapportini/riepilogo';
 
 export function IntestazioneRiepilogo({
   staffName,
+  tornaA = null,
   dataLabel,
   riepilogo,
   mostraSaracinesche = false,
 }: {
   staffName: string;
+  /** Rotta di ritorno all'app (home «Il mio giorno»); null = arrivo da link, l'header resta com'era. */
+  tornaA?: string | null;
   dataLabel: string;
   riepilogo: RiepilogoRapportino;
   /** Mostra il riepilogo "Saracinesche esitate" (template ACEA/limitazioni con campo valvola). */
@@ -21,6 +25,15 @@ export function IntestazioneRiepilogo({
   const pct = totali > 0 ? Math.round((completati / totali) * 100) : 0;
   return (
     <header className="rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 shadow-[var(--shadow-sm)]">
+      {tornaA && (
+        <Link
+          href={tornaA}
+          className="-mx-1 -mt-0.5 mb-0.5 inline-flex min-h-[32px] items-center gap-0.5 rounded-[var(--radius-md)] px-1 py-1 text-xs font-medium text-[var(--primary-text)] active:opacity-70"
+        >
+          <ChevronLeft size={14} strokeWidth={2.2} aria-hidden />
+          Il mio giorno
+        </Link>
+      )}
       <div className="flex items-baseline justify-between gap-3">
         <h1 className="truncate text-base font-semibold text-[var(--brand-text-main)]">{staffName}</h1>
         <span className="shrink-0 text-xs text-[var(--brand-text-muted)]">{dataLabel}</span>

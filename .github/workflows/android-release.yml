@@ -1,0 +1,197 @@
+name: Android Release
+
+# APK firmata della shell Gestilab Plenzich (pattern app-gelateria, adattato):
+# - la shell carica la web app da produzione (server.url) -> NIENTE build Next,
+#   niente Firebase/google-services: la APK cambia solo quando cambia la shell.
+# - il repo e' gia' pubblico -> la release vive QUI (GITHUB_TOKEN), senza
+#   repository releases separato ne' PAT.
+# Lancio manuale da Actions -> Android Release -> Run workflow.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: "Android versionName, ad esempio 1.0"
+        required: true
+        default: "1.0"
+      version_code:
+        description: "Android versionCode numerico (intero crescente). Esempio 1"
+        required: true
+        default: "1"
+      release_notes:
+        description: "Note della release"
+        required: false
+        default: "Build Android Gestilab Plenzich da GitHub Actions"
+      publish_release:
+        description: "Pubblica la APK nelle Releases di questo repository."
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-android:
+    name: Build signed Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    env:
+      NODE_VERSION: "22"
+      JAVA_VERSION: "21"
+      VERSION_NAME: ${{ inputs.version_name }}
+      VERSION_CODE: ${{ inputs.version_code }}
+      RELEASE_NOTES: ${{ inputs.release_notes }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate manual inputs
+        run: |
+          set -euo pipefail
+
+          if ! [[ "$VERSION_CODE" =~ ^[0-9]+$ ]]; then
+            echo "version_code deve essere numerico." >&2
+            exit 1
+          fi
+
+          if ! [[ "$VERSION_NAME" =~ ^[0-9]+(\.[0-9]+)*$ ]]; then
+            echo "version_name deve usare il formato numerico puntato, ad esempio 1.0." >&2
+            exit 1
+          fi
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: gradle
+
+      - name: Install JavaScript dependencies
+        run: npm ci --no-audit --fund=false
+
+      - name: Update Android version metadata
+        run: |
+          set -euo pipefail
+
+          perl -0pi -e "s/versionCode\\s+\\d+/versionCode ${VERSION_CODE}/; s/versionName\\s+\"[^\"]+\"/versionName \"${VERSION_NAME}\"/" android/app/build.gradle
+          grep -n "versionCode\\|versionName" android/app/build.gradle
+
+      - name: Rebuild Android signing files from secrets
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          for required_var in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [[ -z "${!required_var:-}" ]]; then
+              echo "Missing required secret: ${required_var}" >&2
+              exit 1
+            fi
+          done
+
+          mkdir -p android/keystore
+
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/keystore/release-signing-key.jks
+
+          cat > android/key.properties <<EOF
+          storeFile=../keystore/release-signing-key.jks
+          storePassword=${ANDROID_KEYSTORE_PASSWORD}
+          keyAlias=${ANDROID_KEY_ALIAS}
+          keyPassword=${ANDROID_KEY_PASSWORD}
+          EOF
+
+      - name: Sync Capacitor Android
+        run: npx cap sync android
+
+      - name: Build signed release APK
+        run: |
+          set -euo pipefail
+
+          chmod +x android/gradlew
+          cd android
+          ./gradlew assembleRelease
+
+      - name: Verify signed APK output
+        run: |
+          set -euo pipefail
+
+          SIGNED_APK_PATH="android/app/build/outputs/apk/release/app-release.apk"
+          UNSIGNED_APK_PATH="android/app/build/outputs/apk/release/app-release-unsigned.apk"
+
+          if [[ ! -f "$SIGNED_APK_PATH" ]]; then
+            if [[ -f "$UNSIGNED_APK_PATH" ]]; then
+              echo "Build completata ma la APK release risulta unsigned." >&2
+              exit 1
+            fi
+
+            echo "APK release firmata non trovata." >&2
+            exit 1
+          fi
+
+          RELEASE_APK_NAME="gestilab-personale-android-v${VERSION_NAME}-${VERSION_CODE}.apk"
+          RELEASE_APK_PATH="${RUNNER_TEMP}/${RELEASE_APK_NAME}"
+          cp "$SIGNED_APK_PATH" "$RELEASE_APK_PATH"
+
+          {
+            echo "RELEASE_APK_NAME=${RELEASE_APK_NAME}"
+            echo "RELEASE_APK_PATH=${RELEASE_APK_PATH}"
+            echo "RELEASE_TAG=android-v${VERSION_NAME}-${VERSION_CODE}"
+            echo "RELEASE_TITLE=Gestilab Plenzich Android v${VERSION_NAME} (${VERSION_CODE})"
+          } >> "$GITHUB_ENV"
+
+          ls -lah "$RELEASE_APK_PATH"
+
+      - name: Upload private workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.RELEASE_APK_NAME }}
+          path: ${{ env.RELEASE_APK_PATH }}
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Publish APK to GitHub Releases
+        if: ${{ inputs.publish_release }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release edit "$RELEASE_TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "$RELEASE_TITLE" \
+              --notes "$RELEASE_NOTES"
+
+            gh release upload "$RELEASE_TAG" "$RELEASE_APK_PATH" \
+              --repo "$GITHUB_REPOSITORY" \
+              --clobber
+          else
+            gh release create "$RELEASE_TAG" "$RELEASE_APK_PATH" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "$RELEASE_TITLE" \
+              --notes "$RELEASE_NOTES"
+          fi
+
+      - name: Cleanup signing files
+        if: always()
+        run: |
+          rm -f android/key.properties
+          rm -f android/keystore/release-signing-key.jks

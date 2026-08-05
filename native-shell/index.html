@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Gestilab Plenzich</title>
+<style>
+  /* Fallback offline della shell nativa: appare solo se il caricamento remoto
+     fallisce al primo avvio. Palette allineata al tema sobrio della web app. */
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; }
+  body {
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px calc(16px + env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));
+    background: oklch(0.965 0.006 250);
+    color: oklch(0.27 0.02 255);
+    font: 16px/1.5 system-ui, -apple-system, sans-serif;
+    text-align: center;
+  }
+  .card {
+    max-width: 420px; background: oklch(1 0 0);
+    border: 1px solid oklch(0.92 0.006 250); border-radius: 16px;
+    padding: 32px 24px; box-shadow: 0 2px 4px rgba(16,24,40,0.05), 0 6px 16px rgba(16,24,40,0.07);
+  }
+  h1 { font-size: 1.25rem; margin-bottom: 8px; }
+  p { color: oklch(0.44 0.02 255); font-size: 0.95rem; }
+  button {
+    margin-top: 20px; min-height: 48px; padding: 0 24px; width: 100%;
+    border: none; border-radius: 10px; cursor: pointer;
+    background: oklch(0.42 0.14 260); color: #fff; font: inherit; font-weight: 600;
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>Sei offline</h1>
+    <p>Gestilab non riesce a raggiungere il server. I dati già salvati sul telefono sono al sicuro: appena torna la rete riprova.</p>
+    <button onclick="location.reload()">Riprova</button>
+  </div>
+</body>
+</html>

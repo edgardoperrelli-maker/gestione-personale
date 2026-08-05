@@ -6,8 +6,7 @@ import { dataDaRaw } from './dataDaRaw';
 // L'unica parte con I/O dell'import SAL: da workbook a righe grezze. Tutto il resto —
 // lotti, numerazione, righe da scrivere — sta in `importSal.ts`, che è puro e provato.
 //
-// Le colonne si risolvono per NOME e non per posizione, come fa già l'agente su questi stessi
-// file (tools/limitazioni-sync/lib/acea/leggiSal.mjs): SAP riordina le colonne fra un export e
+// Le colonne si risolvono per NOME e non per posizione: SAP riordina le colonne fra un export e
 // l'altro, e un parser posizionale scriverebbe numeri sbagliati senza accorgersene.
 
 const COL = {

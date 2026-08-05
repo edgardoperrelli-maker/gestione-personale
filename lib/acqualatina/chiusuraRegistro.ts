@@ -37,7 +37,11 @@ export type InterventoConcluso = {
 
 /** Un intervento SENZA il collegamento: `ordine_id` mai scritto. Anche APERTO — l'aggancio
  *  serve pure a lui: senza, le correzioni anagrafiche del sync non lo raggiungono e la
- *  tabella del registro non lo mostra fra Esecutore/Data pianificata. */
+ *  tabella del registro non lo mostra fra Esecutore/Data pianificata.
+ *
+ *  I campi anagrafici (`pdr`…`cap`) sono opzionali e servono solo al «primo scatto» in
+ *  `patchAggancioAnagrafica`: senza `ordine_id` non poteva mai arrivarci una fotografia,
+ *  quindi qui si legge cos'ha già l'intervento per capire cosa manca ancora. */
 export type InterventoSciolto = {
   id: string;
   odl: string | null;
@@ -45,13 +49,30 @@ export type InterventoSciolto = {
   data: string | null;
   esito: string | null;
   stato?: string | null;
+  pdr?: string | null;
+  nominativo?: string | null;
+  recapito?: string | null;
+  indirizzo?: string | null;
+  comune?: string | null;
+  cap?: string | null;
 };
 
-/** La riga di registro come serve all'aggancio: identità e matricola normalizzata. */
+/** La riga di registro come serve all'aggancio: identità e matricola normalizzata.
+ *  I campi anagrafici sono opzionali: servono solo al «primo scatto» qui sotto, e restano
+ *  assenti nei punti che leggono la riga solo per l'identità (es. `riconciliaRegistro`
+ *  quando cerca l'ODL). */
 export type RigaPerAggancio = {
   id: string;
   odl: string;
   matricola_norm: string | null;
+  impianto?: string | null;
+  nominativo?: string | null;
+  recapito?: string | null;
+  via?: string | null;
+  civico?: string | null;
+  comune?: string | null;
+  cap?: string | null;
+  matricola?: string | null;
 };
 
 /** Come `normMatricola` di ordiniDaMaster: qui per non importare il modulo del sync intero. */
@@ -95,6 +116,51 @@ export function agganciPerOdl(
     if (scelta) agganci.push({ interventoId: s.id, ordineId: scelta.id });
   }
   return agganci;
+}
+
+/** Le colonne che l'aggancio può riempire sull'intervento. */
+export type PatchAggancioAnagrafica = Partial<{
+  pdr: string;
+  nominativo: string;
+  recapito: string;
+  indirizzo: string;
+  comune: string;
+  cap: string;
+  matricola_contatore: string;
+}>;
+
+const vuoto = (v: string | null | undefined): boolean => String(v ?? '').trim() === '';
+
+/**
+ * L'anagrafica da scrivere sull'intervento appena agganciato: SOLO i campi ancora vuoti.
+ *
+ * Non è la «correzione» del sync (`ordini/sync/route.ts`), che sovrascrive un valore già
+ * presente perché il file del committente è la fonte: qui l'intervento non ha MAI avuto
+ * `ordine_id`, quindi nessun meccanismo ha mai potuto scrivergli un valore — non c'è una
+ * fotografia da rispettare o falsificare, solo un vuoto da riempire. Per questo vale anche
+ * sui COMPLETATI (a differenza della propagazione del sync, che li esclude apposta): è
+ * esattamente il buco del 12379075 del 03/08, eseguito positivo dall'operatore ma senza PDR
+ * perché l'aggancio gli ha dato l'`ordine_id` senza mai portargli dietro l'anagrafica.
+ */
+export function patchAggancioAnagrafica(
+  ordine: RigaPerAggancio,
+  intervento: InterventoSciolto,
+): PatchAggancioAnagrafica {
+  const patch: PatchAggancioAnagrafica = {};
+  if (vuoto(intervento.pdr) && !vuoto(ordine.impianto)) patch.pdr = String(ordine.impianto).trim();
+  if (vuoto(intervento.nominativo) && !vuoto(ordine.nominativo)) {
+    patch.nominativo = String(ordine.nominativo).trim();
+  }
+  if (vuoto(intervento.recapito) && !vuoto(ordine.recapito)) patch.recapito = String(ordine.recapito).trim();
+  if (vuoto(intervento.indirizzo) && (!vuoto(ordine.via) || !vuoto(ordine.civico))) {
+    patch.indirizzo = [ordine.via, ordine.civico].filter((v) => !vuoto(v)).join(' ').trim();
+  }
+  if (vuoto(intervento.comune) && !vuoto(ordine.comune)) patch.comune = String(ordine.comune).trim();
+  if (vuoto(intervento.cap) && !vuoto(ordine.cap)) patch.cap = String(ordine.cap).trim();
+  if (vuoto(intervento.matricola_contatore) && !vuoto(ordine.matricola)) {
+    patch.matricola_contatore = String(ordine.matricola).trim();
+  }
+  return patch;
 }
 
 /** Le colonne di stato della riga di registro, riscritte in blocco. */

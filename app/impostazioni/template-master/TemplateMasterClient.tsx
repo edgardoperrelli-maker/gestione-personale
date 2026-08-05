@@ -290,12 +290,13 @@ export default function TemplateMasterClient() {
         <p className="text-xs text-[var(--brand-text-muted)]">
           Il DUNNING entra nel template da solo, dal registro degli ordini del modulo ACEA (l&apos;import del
           Cruscotto): qui non c&apos;è niente da caricare né da spegnere. Se il registro non è disponibile,
-          fa da riserva la foto inviata dall&apos;agente.
+          fa da riserva una foto storica, ferma dal 04/08/2026: l&apos;agente Playwright che
+          l&apos;aggiornava è stato ritirato.
         </p>
         <p className="mt-2 text-sm text-[var(--brand-text-main)]">
           {fonteAcea
             ? <>
-                {fonteAcea.tipo === 'registro' ? 'Righe nel registro: ' : "ODL nella foto dell'agente (riserva): "}
+                {fonteAcea.tipo === 'registro' ? 'Righe nel registro: ' : 'ODL nella foto storica (ferma dal 04/08/2026): '}
                 <span className="font-medium">{fonteAcea.righe}</span>
                 {fonteAcea.aggiornato ? <span className="text-xs text-[var(--brand-text-muted)]"> · aggiornato {new Date(fonteAcea.aggiornato).toLocaleString('it-IT')}</span> : null}
               </>

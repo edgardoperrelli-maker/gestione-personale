@@ -118,6 +118,30 @@ describe('normalizeAllowedModules (moduli requiresAdminRole forzati per gli admi
   });
 });
 
+/*
+  `oggi` e' la home operatore (/hub/oggi): il perimetro minimo delle utenze create da
+  /impostazioni/personale (app_metadata.allowedModules = ['oggi']). Questi test fissano
+  che resti concedibile a un operatore — se qualcuno lo marcasse requiresAdminRole,
+  normalizeAllowedModules lo toglierebbe a TUTTE le utenze operatore in silenzio.
+*/
+describe("modulo 'oggi' (home operatore)", () => {
+  it('concedibile a operatore: normalizeAllowedModules non lo rimuove', () => {
+    expect(normalizeAllowedModules(['oggi'], 'operatore')).toEqual(['oggi']);
+  });
+  it('operatore con solo oggi accede a /hub/oggi e a nient’altro', () => {
+    const metadata = { role: 'operatore', allowedModules: ['oggi'] };
+    expect(canAccessPathFromMetadata('/hub/oggi', metadata)).toBe(true);
+    expect(canAccessPathFromMetadata('/hub/mappa', metadata)).toBe(false);
+  });
+  it('presente per admin: fallback e normalizzazione lo conservano', () => {
+    expect(fallbackModulesForRole('admin')).toContain('oggi');
+    expect(normalizeAllowedModules(['oggi'], 'admin')).toContain('oggi');
+  });
+  it('nel fallback legacy operatore (non adminOnly)', () => {
+    expect(fallbackModulesForRole('operatore')).toContain('oggi');
+  });
+});
+
 describe('canAccessPathFromMetadata (logica del middleware)', () => {
   it('admin può accedere a /impostazioni', () => {
     expect(canAccessPathFromMetadata('/impostazioni', { role: 'admin' })).toBe(true);
@@ -139,6 +163,34 @@ describe('canAccessPathFromMetadata (logica del middleware)', () => {
   });
   it('admin legacy (nessun allowedModules in metadata) può accedere a /hub/live', () => {
     expect(canAccessPathFromMetadata('/hub/live', { role: 'admin' })).toBe(true);
+  });
+});
+
+/*
+  Tappa C login operatore: il middleware ridirige /hub → /hub/oggi quando il ruolo
+  risolto dai metadata è operatore E /hub/oggi gli è concesso. La seconda condizione
+  è la guardia anti-loop: senza, un operatore con una lista moduli salvata che non
+  contiene 'oggi' rimbalzerebbe all'infinito tra /hub/oggi (pagina negata → /hub) e
+  /hub (redirect → /hub/oggi). Qui si fissa la DECISIONE con le stesse funzioni pure
+  che il middleware compone — se una delle due cambia verso, questo se ne accorge.
+*/
+describe('redirect operatore /hub → /hub/oggi (decisione del middleware)', () => {
+  const decideRedirect = (appMetadata: { role?: unknown; allowedModules?: unknown }) =>
+    resolveUserRole(null, appMetadata.role) === 'operatore' &&
+    canAccessPathFromMetadata('/hub/oggi', appMetadata);
+
+  it('operatore nuovo (solo oggi nei metadata): redirige', () => {
+    expect(decideRedirect({ role: 'operatore', allowedModules: ['oggi'] })).toBe(true);
+  });
+  it('operatore con lista salvata SENZA oggi: NON redirige (anti-loop)', () => {
+    expect(decideRedirect({ role: 'operatore', allowedModules: ['mappa'] })).toBe(false);
+  });
+  it('operatore legacy senza allowedModules: redirige (oggi è nel fallback)', () => {
+    expect(decideRedirect({ role: 'operatore' })).toBe(true);
+  });
+  it('admin e admin_plus restano sul lanciatore', () => {
+    expect(decideRedirect({ role: 'admin', allowedModules: ['oggi'] })).toBe(false);
+    expect(decideRedirect({ role: 'admin_plus' })).toBe(false);
   });
 });
 

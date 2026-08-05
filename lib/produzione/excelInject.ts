@@ -3,7 +3,7 @@ import type { ProduzioneEconomica } from './load';
 
 // Iniezione dati in un template .xlsx PRESERVANDO i grafici nativi: si riscrivono solo i valori delle
 // celle (foglio "Dati"/"Dettaglio"/"Audit"), non si ri-serializza il workbook (ExcelJS perderebbe i
-// grafici). Tecnica jszip-chirurgica, gemella di tools/limitazioni-sync/lib/acea/aggiornaStatoXlsx.mjs.
+// grafici). Tecnica jszip-chirurgica.
 
 const AUDIT_LABEL: Record<string, string> = {
   SOLO_PORTALE: 'Solo nel portale (assente da DB e master)',

@@ -2,7 +2,6 @@ import type { ReactNode } from 'react';
 import {
   Activity,
   BedDouble,
-  Bot,
   Droplets,
   CalendarClock,
   ChartColumn,
@@ -16,7 +15,7 @@ import {
   Package,
   Settings,
   Siren,
-  Sparkles,
+  Sun,
   Table,
   Waves,
   Wrench,
@@ -41,6 +40,9 @@ import type { AppModuleKey } from '@/lib/moduleAccess';
 const ICON_PROPS = { className: 'h-5 w-5', strokeWidth: 1.6 } as const;
 
 export const MODULE_ICONS: Record<AppModuleKey, ReactNode> = {
+  // «Il mio giorno»: il sole è la giornata di lavoro. Non `House` (già la home
+  // della sidebar) né un calendario (Appuntamenti/Consuntivazione li presidiano).
+  oggi: <Sun {...ICON_PROPS} />,
   dashboard: <ChartGantt {...ICON_PROPS} />,
   'hotel-calendar': <BedDouble {...ICON_PROPS} />,
   mappa: <MapPinned {...ICON_PROPS} />,
@@ -56,10 +58,8 @@ export const MODULE_ICONS: Record<AppModuleKey, ReactNode> = {
   acea: <Waves {...ICON_PROPS} />,
   misuratori: <Gauge {...ICON_PROPS} />,
   acqualatina: <Droplets {...ICON_PROPS} />,
-  agente: <Bot {...ICON_PROPS} />,
   performance: <ChartColumn {...ICON_PROPS} />,
   impostazioni: <Settings {...ICON_PROPS} />,
-  'assegnazione-ai': <Sparkles {...ICON_PROPS} />,
 };
 
 /** Icona "Dashboard / Home" usata in cima alla sidebar. */

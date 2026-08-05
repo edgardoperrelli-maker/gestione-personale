@@ -192,6 +192,39 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     if (esistente) return rispostaIdempotente(esistente as RichiestaEsistente, received);
   }
 
+  // Stessa matricola già presente in QUESTO rapportino: è un doppione, non un secondo lavoro.
+  // L'idempotenza sopra copre solo il re-invio della STESSA richiesta, ma il `richiestaId` nasce
+  // nuovo a ogni tap su «Invia» (lib/offline/persistManuale) e il ramo di fallback non lo manda
+  // affatto: due tocchi = due voci sullo stesso contatore nello stesso giro. L'anti-duplicato
+  // per matricola eseguita non li vede — vale solo per ACEA e legge gli interventi, che in
+  // corsia normale non esistono ancora.
+  // Solo sulla matricola (identificativo fisico del contatore): sull'ODL no, che sulle massive
+  // porta legittimamente più operazioni. Le voci RIFIUTATE non contano: rifarle è il flusso
+  // previsto, e più sotto c'è già la sostituzione del rifiutato.
+  // Confronto NORMALIZZATO come la sostituzione del rifiutato più sotto: la stessa matricola
+  // digitata due volte non arriva mai identica carattere per carattere.
+  const matricolaRichiesta = normMatricola(anagrafica.matricola);
+  if (matricolaRichiesta) {
+    const { data: giaPresenti } = await supabaseAdmin
+      .from('rapportino_voci')
+      .select('matricola, approvazione_stato')
+      .eq('rapportino_id', rap.id);
+    const doppione = ((giaPresenti ?? []) as Array<{ matricola: string | null; approvazione_stato: string | null }>)
+      .some((v) => v.approvazione_stato !== 'rifiutato' && normMatricola(v.matricola) === matricolaRichiesta);
+    if (doppione) {
+      return NextResponse.json(
+        {
+          error: 'matricola_gia_nel_rapportino',
+          dettaglio: 'Questo misuratore è già nel rapportino di oggi: apri la voce esistente invece di aggiungerla di nuovo.',
+        },
+        // 400 e non 409: `classificaEsito` dà a ogni 409 il motivo generico «Link scaduto o non
+        // più modificabile», che qui manderebbe l'operatore a cercare un problema che non c'è.
+        // Sul 400 il sync legge il corpo (`motivoManuale400`) e mostra il motivo vero.
+        { status: 400 },
+      );
+    }
+  }
+
   // Anti-duplicato "matricola già eseguita": stesso controllo di /cerca-limitazione, qui
   // RI-VERIFICATO all'invio finale. Il flusso è offline-first (accodaManuale → sincronizzaToken):
   // la ricerca che sblocca il "+" può essere avvenuta molto prima dell'invio effettivo (più foto

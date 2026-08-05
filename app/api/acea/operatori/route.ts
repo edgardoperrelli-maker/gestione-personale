@@ -1,7 +1,7 @@
 import 'server-only';
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/apiAuth';
-import { partiRoma } from '@/lib/agente/orarioRoma';
+import { partiRoma } from '@/lib/orarioRoma';
 import { finestraProgrammabile } from '@/lib/acea/operatoriGiorno';
 import { eDataIso } from '@/lib/acea/giorniProgrammabili';
 import { parseFamiglia } from '@/lib/acea/famiglia';

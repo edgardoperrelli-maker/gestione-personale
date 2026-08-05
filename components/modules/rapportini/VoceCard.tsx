@@ -156,7 +156,8 @@ export function VoceCard({
           className="mt-2 flex items-center gap-2 rounded-lg border border-[var(--status-warn)] bg-[var(--status-warn-soft)] px-2.5 py-1"
           title="Segnalato da ACEA come prioritario"
         >
-          <span className="rounded-[var(--radius-sm)] bg-[var(--status-warn)] px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-white">TOP</span>
+          {/* `--on-warning` e non `text-white`: DESIGN.md §3 — il testo sui fill pieni sta su token. */}
+          <span className="rounded-[var(--radius-sm)] bg-[var(--status-warn)] px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-[var(--on-warning)]">TOP</span>
           <p className="text-xs font-semibold text-[var(--brand-text-main)]">Da fare per primo</p>
         </div>
       )}

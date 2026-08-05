@@ -15,7 +15,9 @@ import {
 } from '@/lib/acqualatina/contratto';
 import { MOTIVO_SOLO_ATTIVAZIONI, soloAttivazioni } from '@/lib/acea/giorniProgrammabili';
 import { eRiapertura } from '@/lib/acea/scadenza';
-import { partiRoma } from '@/lib/agente/orarioRoma';
+import { partiRoma } from '@/lib/orarioRoma';
+import { valoreMatricolaNuova, propagaMatricolaNuovaAInterventi } from '@/lib/acqualatina/matricolaNuova';
+import { erroreColonnaMancante } from '@/lib/rapportini/colonneOpzionali';
 
 export const runtime = 'nodejs';
 
@@ -32,6 +34,14 @@ type Modifica = {
    * cioè mentre si guarda la riga, non dopo averla assegnata.
    */
   nota?: string | null;
+  /**
+   * La matricola del misuratore NUOVO (colonna AcquaLatina): assente = invariata, stringa
+   * vuota = cancellata. Stessa ragione della nota — sta sul registro, non sull'intervento, e
+   * si scrive PRIMA di qualunque pianificazione — ma da qui in poi scende anche sull'intervento
+   * agganciato e sulla sua voce di rapportino (`propagaMatricolaNuovaAInterventi`), perché
+   * questa non è un appunto: è lo stesso dato che il modulo Interventi mostra e corregge.
+   */
+  matricolaNuova?: string | null;
 };
 
 type Corpo = {
@@ -84,11 +94,47 @@ export async function POST(req: Request) {
       if (error) throw error;
       noteScritte += 1;
     }
-    // Solo note: non c'è pianificazione da toccare, e si evita di aprire un'operazione annullabile
-    // vuota che comparirebbe nello storico come se avesse spostato qualcosa.
+
+    /*
+      La MATRICOLA NUOVA, stessa corsia della nota: si scrive subito sul registro, a parte dalla
+      pianificazione. Da qui però scende anche sull'intervento agganciato e sulla sua voce di
+      rapportino (`propagaMatricolaNuovaAInterventi`) — a differenza della nota, che resta
+      un appunto del solo registro, questa è lo stesso dato che il modulo Interventi mostra e
+      corregge: senza la discesa, la griglia AcquaLatina e lo storico interventi
+      divergerebbero appena l'ufficio corregge da qui.
+    */
+    let matricoleScritte = 0;
+    for (const m of lista) {
+      if (m.matricolaNuova === undefined) continue;
+      const [odl, operazione] = m.chiave.split('|');
+      const valore = valoreMatricolaNuova(m.matricolaNuova);
+      const { data: righeToccate, error } = await supabaseAdmin
+        .from(profilo.tabellaOrdini)
+        .update({ matricola_nuova: valore })
+        .eq('odl', odl)
+        .eq('numero_operazione', operazione)
+        .select('id');
+      // La colonna può non esistere ancora (migration non applicata prima del deploy — vedi
+      // app/api/acea/ordini/route.ts): si salta e si dice, invece di far cadere l'intero
+      // salvataggio, note ed esecutore/data della stessa richiesta compresi.
+      if (error && erroreColonnaMancante(error, 'matricola_nuova')) {
+        console.error('[acea/celle] colonna matricola_nuova non ancora disponibile, riga saltata:', error.message);
+        continue;
+      }
+      if (error) throw error;
+      matricoleScritte += 1;
+      if (valore) {
+        for (const r of (righeToccate ?? []) as Array<{ id: string }>) {
+          await propagaMatricolaNuovaAInterventi(supabaseAdmin, r.id, valore);
+        }
+      }
+    }
+    // Solo note/matricola nuova: non c'è pianificazione da toccare, e si evita di aprire
+    // un'operazione annullabile vuota che comparirebbe nello storico come se avesse spostato
+    // qualcosa.
     if (lista.every((m) => m.staffId === undefined && m.data === undefined)) {
       return NextResponse.json({
-        operazioneId: null, creati: 0, aggiornati: noteScritte, rifiutate: [], bozze: 0,
+        operazioneId: null, creati: 0, aggiornati: noteScritte + matricoleScritte, rifiutate: [], bozze: 0,
       });
     }
 

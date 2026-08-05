@@ -10,8 +10,13 @@ import { resolveAssignableRole, canManageUsers, canEditStorico } from '@/lib/mod
 import { mergeRisposte } from '@/utils/rapportini/mergeRisposte';
 import { patchInterventoLiveDaVoce } from '@/lib/interventi/esitoDaVoce';
 import { sweepDopoPositivi } from '@/lib/interventi/sweepOdlPositivo';
+import { esitoDichiarato, matricoleObbligatorieCompilate } from '@/utils/rapportini/voceColore';
+import { valoreMatricolaNuova, propagaMatricolaNuovaARegistro } from '@/lib/acqualatina/matricolaNuova';
+import { propagaAnagraficaARegistro } from '@/lib/acqualatina/propagaAnagrafica';
+import { scriviSenzaColonnaMancante } from '@/lib/rapportini/colonneOpzionali';
 import {
-  buildCampiEditor, anagraficaPatchValida, anagraficaPatchIntervento, ANAGRAFICA_COLONNE, estraiFotoPaths,
+  buildCampiEditor, anagraficaPatchValida, anagraficaPatchIntervento, anagraficaPatchRegistro,
+  ANAGRAFICA_COLONNE, estraiFotoPaths, campiPerChiusuraStorico,
 } from '@/lib/interventi/storico/modifica';
 import {
   esecutoreIdValido, scegliRapportinoDestinazione, prossimoOrdine, esecutoriConNuovoPrimario,
@@ -203,8 +208,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ voceId
   const v = voce as { intervento_id: string | null; rapportino_id: string; risposte: Record<string, unknown> | null; campi_snapshot?: unknown };
 
   const { data: rap } = await supabaseAdmin
-    .from('rapportini').select('campi_snapshot').eq('id', v.rapportino_id).maybeSingle();
-  const campi = campiEffettivi(v.campi_snapshot, rap?.campi_snapshot);
+    .from('rapportini').select('campi_snapshot, data').eq('id', v.rapportino_id).maybeSingle();
+  // Le matricole obbligatorie (es. MATRICOLA NUOVO MISURATORE) non si pretendono sulle voci
+  // di rapportini nati prima del gate che le ha introdotte — vedi `campiPerChiusuraStorico`.
+  const campi = campiPerChiusuraStorico(
+    campiEffettivi(v.campi_snapshot, rap?.campi_snapshot),
+    (rap as { data?: string | null } | null)?.data ?? null,
+  );
 
   const merged = risposteIn
     ? mergeRisposte(v.risposte ?? {}, risposteIn, { soloCompletamentoFoto: false })
@@ -220,7 +230,18 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ voceId
 
   // Allinea l'intervento collegato (best-effort): anagrafica sempre (tranne annullato),
   // esito ripropagato solo se sono cambiate le risposte (come la route /api/admin/rapportini/voce).
+  //
+  // `avviso`: la voce può dichiararsi positiva (es. "Eseguito" = SI) e salvare comunque senza
+  // errori mentre l'intervento NON si chiude — succede quando manca una matricola obbligatoria
+  // (gate di `voceEsitoColore`/`matricoleObbligatorieCompilate`). Prima di questo avviso il
+  // salvataggio tornava `{ok:true}` silenzioso: in ufficio si leggeva "Eseguito: SI" in tabella
+  // e si credeva l'intervento chiuso, ma restando `stato != 'completato'` non entra MAI nella
+  // riconciliazione AcquaLatina (`riconciliaChiusureAcqualatina` filtra su `stato='completato'`)
+  // e il conflitto nel confronto esiti col sito non si risolve mai, qualunque numero di volte si
+  // ripeta la correzione — la correzione va rifatta compilando anche il campo che manca.
+  let avviso: string | null = null;
   if (v.intervento_id) {
+    const interventoId = v.intervento_id;
     try {
       const intAnag = anagraficaPatchIntervento(anag);
       // Coerenza tassonomia: se è stata modificata la descrizione attività, riscrivila
@@ -235,21 +256,54 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ voceId
         }
       }
       if (Object.keys(intAnag).length > 0) {
-        await supabaseAdmin.from('interventi').update(intAnag).eq('id', v.intervento_id).neq('stato', 'annullato');
+        await supabaseAdmin.from('interventi').update(intAnag).eq('id', interventoId).neq('stato', 'annullato');
+      }
+      // La stessa correzione converge sul registro AcquaLatina (PDR/impianto, nominativo,
+      // indirizzo, comune, cap) — come già succede per la matricola nuova. `odl` e `matricola`
+      // restano fuori: sono la chiave e l'identità della riga di registro, non anagrafica
+      // correggibile (vedi il commento su `anagraficaPatchRegistro`).
+      const regAnag = anagraficaPatchRegistro(anag);
+      if (Object.keys(regAnag).length > 0) {
+        await propagaAnagraficaARegistro(supabaseAdmin, interventoId, regAnag);
       }
       if (risposteIn) {
         const patch = patchInterventoLiveDaVoce(merged, campi);
-        const interventoPatch = patch.azione === 'completa'
-          ? { stato: 'completato', esito: patch.esito, esito_motivo: patch.esito_motivo, chiuso_at: new Date().toISOString() }
-          : { stato: 'assegnato', esito: null, esito_motivo: null, chiuso_at: null };
-        const query = supabaseAdmin.from('interventi').update(interventoPatch).eq('id', v.intervento_id);
-        const { error: errInt } = await (patch.azione === 'completa'
-          ? query.neq('stato', 'annullato')
-          : query.eq('stato', 'completato'));
+        // La matricola del misuratore installato, se la correzione l'ha appena toccata.
+        const matricolaNuova = valoreMatricolaNuova(merged['matricola_nuova']);
+        const interventoPatch = {
+          ...(patch.azione === 'completa'
+            ? { stato: 'completato', esito: patch.esito, esito_motivo: patch.esito_motivo, chiuso_at: new Date().toISOString() }
+            : { stato: 'assegnato', esito: null, esito_motivo: null, chiuso_at: null }),
+          ...(matricolaNuova ? { matricola_nuova: matricolaNuova } : {}),
+        };
+        // `matricola_nuova` può non esistere ancora (migration non applicata prima del deploy):
+        // senza questa guardia una correzione d'ufficio non chiuderebbe MAI l'intervento finché
+        // la colonna non arriva, perché l'update è uno solo con stato/esito/chiuso_at.
+        const { error: errInt } = await scriviSenzaColonnaMancante(interventoPatch, 'matricola_nuova', (valori) => {
+          const q = supabaseAdmin.from('interventi').update(valori).eq('id', interventoId);
+          return patch.azione === 'completa' ? q.neq('stato', 'annullato') : q.eq('stato', 'completato');
+        });
         if (errInt) console.error('[storico/voce] propagazione esito fallita:', errInt.message);
         // Positivo appena registrato → sweep delle voci/interventi aperti con lo stesso ODL altrove.
         if (!errInt && patch.azione === 'completa' && patch.esito === 'eseguito_positivo') {
-          await sweepDopoPositivi(supabaseAdmin, [v.intervento_id]);
+          await sweepDopoPositivi(supabaseAdmin, [interventoId]);
+        }
+        // Il registro AcquaLatina la vuole anche lui (colonna «Matricola nuova» in griglia).
+        if (!errInt && matricolaNuova) {
+          await propagaMatricolaNuovaARegistro(supabaseAdmin, interventoId, matricolaNuova);
+        }
+        // Esito dichiarato positivo ma NON chiuso: il gate delle matricole obbligatorie ha
+        // tenuto la voce "neutra" (vedi commento sopra `avviso`). Si dice subito cosa manca.
+        if (!errInt && patch.azione !== 'completa' && esitoDichiarato(merged, campi) === 'positivo'
+          && !matricoleObbligatorieCompilate(merged, campi)) {
+          const mancanti = campi
+            .filter((c) => c.tipo === 'matricola' && c.obbligatoria === true)
+            .filter((c) => !(typeof merged[c.chiave] === 'string' && (merged[c.chiave] as string).trim() !== ''))
+            .map((c) => c.etichetta);
+          if (mancanti.length > 0) {
+            avviso = `Salvato, ma l'intervento NON risulta chiuso: manca "${mancanti.join('", "')}". `
+              + 'Finché non è compilata resta aperto e il conflitto col sito non si risolve.';
+          }
         }
       }
     } catch (e) {
@@ -264,7 +318,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ voceId
     if (!esito.ok) return NextResponse.json({ error: esito.error }, { status: esito.status });
   }
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, ...(avviso ? { avviso } : {}) });
 }
 
 // DELETE: pulizia completa della riga. Elimina voce + intervento collegato +

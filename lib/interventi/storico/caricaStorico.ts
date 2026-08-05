@@ -5,7 +5,7 @@ import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { buildTassonomiaIndex } from '@/lib/attivita/tassonomia';
 import { isTaskVia } from '@/lib/interventi/manuali/taskVia';
-import { risolviFinestra, puliziaQ, type FiltriStorico } from './filtri';
+import { risolviFinestra, puliziaQ, terminiRicerca, type FiltriStorico } from './filtri';
 import {
   voceToRigaStorico, interventoPiToRigaStorico, ordinaRighe, filtraSiNo, filtraMulti,
   type InterventoPiRow, type TassonomiaIndex, type TerritoriById,
@@ -13,6 +13,9 @@ import {
 import type { VoceStoricoRow, RigaStorico } from './types';
 
 const PAGE_DB = 1000;
+// Cap sui termini di una ricerca multi-ODL: `.in()` finisce in querystring verso PostgREST,
+// e una lista troppo lunga rischia di superare i limiti di lunghezza URL del gateway.
+const MAX_TERMINI = 500;
 
 const COLONNE =
   'id, odl, via, comune, matricola, nominativo, pdr, attivita, risposte, manuale, rapportini!inner(staff_id, staff_name, data), interventi(committente, gruppo_attivita, territorio_id)';
@@ -69,7 +72,11 @@ export async function caricaRigheStorico(
   maxRighe: number,
 ): Promise<{ righe: RigaStorico[]; troncato: boolean }> {
   const finestra = risolviFinestra(f);
-  const qPulita = puliziaQ(f.q);
+  const termini = terminiRicerca(f.q).map(puliziaQ).filter(Boolean).slice(0, MAX_TERMINI);
+  // Più termini (incolla lista ODL da Excel) → corrispondenza esatta sull'ODL, non substring:
+  // resta scalabile a centinaia di valori e coerente con "cerca questi ordini precisi".
+  const multi = termini.length > 1;
+  const qPulita = termini[0] ?? '';
   const [tassonomia, territori] = await Promise.all([
     caricaTassonomiaIndex(supabase),
     caricaTerritori(supabase),
@@ -88,7 +95,9 @@ export async function caricaRigheStorico(
     if (finestra.lte) q = q.lte('rapportini.data', finestra.lte);
     if (f.esecutori.length > 0) q = q.in('rapportini.staff_id', f.esecutori);
     if (f.comune) q = q.ilike('comune', `%${puliziaQ(f.comune)}%`);
-    if (qPulita) {
+    if (multi) {
+      q = q.in('odl', termini);
+    } else if (qPulita) {
       q = q.or(
         `odl.ilike.%${qPulita}%,via.ilike.%${qPulita}%,matricola.ilike.%${qPulita}%,nominativo.ilike.%${qPulita}%,pdr.ilike.%${qPulita}%,risposte->>sigillo.ilike.%${qPulita}%`,
       );
@@ -124,7 +133,11 @@ export async function caricaRigheStorico(
   if (finestra.lte) qpi = qpi.lte('data', finestra.lte);
   if (f.esecutori.length > 0) qpi = qpi.in('staff_id', f.esecutori);
   if (f.comune) qpi = qpi.ilike('comune', `%${puliziaQ(f.comune)}%`);
-  if (qPulita) qpi = qpi.or(`indirizzo.ilike.%${qPulita}%,rif_esterno.ilike.%${qPulita}%`);
+  if (multi) {
+    qpi = qpi.in('rif_esterno', termini);
+  } else if (qPulita) {
+    qpi = qpi.or(`indirizzo.ilike.%${qPulita}%,rif_esterno.ilike.%${qPulita}%`);
+  }
   const { data: piRows } = await qpi;
   for (const r of (piRows ?? []) as InterventoPiRow[]) righe.push(interventoPiToRigaStorico(r, staffById, tassonomia, territori));
 

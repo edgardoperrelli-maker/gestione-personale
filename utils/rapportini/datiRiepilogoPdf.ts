@@ -1,6 +1,7 @@
 // utils/rapportini/datiRiepilogoPdf.ts
-import { riepilogoRapportino, statoVoce } from './riepilogo';
+import { riepilogoRapportino, statoVoceEffettivo } from './riepilogo';
 import { resolveInfoCampi, valoreInfo, type VoceInfo, type TemplateInfoCampo } from './infoCampi';
+import { campiDiVoce } from './campiDiVoce';
 import { campiEsportabili, type TemplateCampo } from './buildVoci';
 import { esitoPositivoDefault } from '@/lib/interventi/manuali/esitoPositivoDefault';
 import { isTaskVia } from '@/lib/interventi/manuali/taskVia';
@@ -11,6 +12,8 @@ export interface VoceRiepilogo extends VoceInfo {
   manuale?: boolean;
   /** Stato approvazione ufficio: le voci `rifiutato` sono scartate dal PDF e dai conteggi. */
   approvazione_stato?: string | null;
+  /** Campi del flusso della voce (gruppo attività). Assenti/vuoti = eredita quelli del rapportino. */
+  campi?: TemplateCampo[] | null;
 }
 
 /** Colonna del PDF: campo anagrafico (info_snapshot) o campo compilabile (campi_snapshot). */
@@ -132,15 +135,23 @@ export function costruisciDatiPdf(params: {
   // lettura riapplichiamo l'UNICA fonte di verità `esitoPositivoDefault` (i `campi` del rapportino
   // dichiarano `eseguito`), così barra e cella restano allineate ai totali a prescindere dai dati
   // salvati. Le voci pianificate restano intatte (un "NO" legittimo non viene toccato).
-  const risposteVoce = voci.map((v) =>
-    v.manuale ? esitoPositivoDefault(campi, v.risposte ?? {}) : (v.risposte ?? {}),
+  // L'esito si valuta sui campi DELLA voce (flusso del suo gruppo attività), non su quelli del
+  // rapportino: è la stessa fonte di verità di `riepilogoRapportino`, della lista e del form.
+  // Valutarlo sui campi del rapportino faceva finire in «Da eseguire» voci che l'header contava
+  // come ESEGUITI — bastava un obbligo (es. `matricola_nuova`) presente nel template del
+  // rapportino ma non nel flusso della voce (rapportino TODINI 04/08: 16 ESEGUITI vs sezione
+  // «Da eseguire (16)»).
+  const campiVoce = voci.map((v) => campiDiVoce(v, campi));
+
+  const risposteVoce = voci.map((v, i) =>
+    v.manuale ? esitoPositivoDefault(campiVoce[i], v.risposte ?? {}) : (v.risposte ?? {}),
   );
 
   // Una lavorazione si conta SOLO sugli interventi ESEGUITI: un'azione (es. mini_bag) marcata su
   // una voce NON eseguita non è una "lavorazione svolta" e gonfiava il conteggio oltre il numero
   // di eseguiti (caso DELL'AQUILA: mini_bag > eseguiti). Le voci manuali (dal "+") sono sempre eseguite.
-  const vociEseguite = voci.map((v, i) =>
-    v.manuale ? true : statoVoce(risposteVoce[i], campi) === 'eseguito',
+  const vociEseguite = voci.map(
+    (v, i) => statoVoceEffettivo({ risposte: risposteVoce[i], manuale: v.manuale }, campiVoce[i]) === 'eseguito',
   );
 
   // Barre "Lavorazioni svolte": crocette spuntate + select positivi (es. saracinesca "SI"),
@@ -164,10 +175,11 @@ export function costruisciDatiPdf(params: {
       ...campiOrd.map((c) => valoreCampo(rsp, c)),
     ];
     const riga: RigaPdf = { n: i + 1, valori };
-    // Le voci manuali (dal "+") sono sempre complete → "Eseguiti", coerente con riepilogo/lista.
-    // Senza questo, la loro `risposte` (chiavi del template manuale, diverse dal pianificato)
-    // dava 'da_fare' e la riga spariva dal PDF pur essendo conteggiata nei totali.
-    const stato = v.manuale ? 'eseguito' : statoVoce(rsp, campi);
+    // Stessa regola di riepilogo e lista: una voce dal "+" senza esito dichiarato è "Eseguiti"
+    // (le sue chiavi sono quelle del template manuale, non del pianificato: senza la scorciatoia
+    // dava 'da_fare' e la riga spariva dal PDF pur essendo conteggiata nei totali), ma un esito
+    // dichiarato — anche negativo — vince sempre.
+    const stato = statoVoceEffettivo({ risposte: rsp, manuale: v.manuale }, campiVoce[i]);
     if (stato === 'eseguito') eseguiti.push(riga);
     else if (stato === 'non_eseguito') nonEseguiti.push(riga);
     // 'da_fare' (non compilata, o template senza campo `eseguito` es. BONIFICHE EXTRA): NON scartare.

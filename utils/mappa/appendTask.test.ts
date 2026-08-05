@@ -110,9 +110,18 @@ describe('moveAllTasksToOperator', () => {
     expect(out[1].tasks.map((t) => t.id)).toEqual(['a1']);
   });
 
-  it('niente da spostare (solo completati o vuoto) → stesso riferimento', () => {
+  it('lascia i task acea:* (commessa) sulla sorgente: la voce del rapportino vive sotto il titolare', () => {
+    const dist = [entry('A', [task('acea:i1'), task('a1')]), entry('B', [])];
+    const out = moveAllTasksToOperator(dist, 0, 1, fakeOptimize);
+    expect(out[0].tasks.map((t) => t.id)).toEqual(['acea:i1']);
+    expect(out[1].tasks.map((t) => t.id)).toEqual(['a1']);
+  });
+
+  it('niente da spostare (solo completati/acea o vuoto) → stesso riferimento', () => {
     const soloCompletati = [entry('A', [completato('a1')]), entry('B', [])];
     expect(moveAllTasksToOperator(soloCompletati, 0, 1, fakeOptimize)).toBe(soloCompletati);
+    const soloAcea = [entry('A', [task('acea:i1')]), entry('B', [])];
+    expect(moveAllTasksToOperator(soloAcea, 0, 1, fakeOptimize)).toBe(soloAcea);
     const vuoto = [entry('A', []), entry('B', [])];
     expect(moveAllTasksToOperator(vuoto, 0, 1, fakeOptimize)).toBe(vuoto);
   });

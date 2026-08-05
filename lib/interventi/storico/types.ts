@@ -9,6 +9,9 @@ export type RigaStorico = {
   odl: string | null;
   pdr: string | null;
   matricola: string | null;
+  /** Matricola del misuratore INSTALLATO (sostituzione AcquaLatina),
+   *  rapportino_voci.risposte->>'matricola_nuova'. Non è `matricola`, che è quella VECCHIA rimossa. */
+  matricolaNuova: string | null;
   sigillo: string | null; // n° sigillo posato (rapportino_voci.risposte->>'sigillo')
   data: string | null; // data esecuzione = data del rapportino (YYYY-MM-DD)
   esecutore: string | null;

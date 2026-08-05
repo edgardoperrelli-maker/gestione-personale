@@ -10,9 +10,10 @@ import type { RigaRichiesta } from './types';
 /**
  * Committenti la cui assegnazione sul portale si fa A MANO, e va quindi registrata.
  *
- * Non è un elenco di comodo: su ACEA (`lim_massive`) l'assegnazione degli ODL la fa l'agente
- * automatico del Cruscotto, e Italgas non ha un portale su cui assegnare. Metterli in questa
- * coda significherebbe chiedere all'ufficio di spuntare a mano righe che nessuno deve toccare.
+ * Non è un elenco di comodo: su ACEA (`lim_massive`) l'assegnazione degli ODL la faceva l'agente
+ * automatico del Cruscotto — fermo dal 29/06, ritirato del tutto il 04/08/2026 — e Italgas non
+ * ha un portale su cui assegnare. Metterli in questa coda significherebbe chiedere all'ufficio
+ * di spuntare a mano righe che nessuno deve toccare.
  *
  * Senza questo filtro la coda nascerebbe con **2.521 righe** storiche già approvate (misurato
  * sul prod il 30/07: 2.140 lim_massive + 381 italgas), tutte con timestamp nullo perché la

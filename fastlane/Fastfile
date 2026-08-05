@@ -1,0 +1,30 @@
+default_platform(:ios)
+
+platform :ios do
+  desc "Upload a generated IPA to TestFlight"
+  lane :upload_testflight do
+    required_vars = %w[
+      APPSTORE_API_KEY_ID
+      APPSTORE_API_ISSUER_ID
+      APPSTORE_API_KEY_PATH
+      IPA_PATH
+      APP_IDENTIFIER
+    ]
+
+    missing_vars = required_vars.select { |name| ENV[name].to_s.empty? }
+    UI.user_error!("Missing environment variables: #{missing_vars.join(', ')}") unless missing_vars.empty?
+
+    api_key = app_store_connect_api_key(
+      key_id: ENV["APPSTORE_API_KEY_ID"],
+      issuer_id: ENV["APPSTORE_API_ISSUER_ID"],
+      key_filepath: ENV["APPSTORE_API_KEY_PATH"]
+    )
+
+    upload_to_testflight(
+      api_key: api_key,
+      ipa: ENV["IPA_PATH"],
+      app_identifier: ENV["APP_IDENTIFIER"],
+      skip_waiting_for_build_processing: true
+    )
+  end
+end

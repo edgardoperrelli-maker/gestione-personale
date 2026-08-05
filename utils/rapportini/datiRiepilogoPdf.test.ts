@@ -325,3 +325,34 @@ describe('costruisciDatiPdf — template senza campo `eseguito` (BONIFICHE EXTRA
     expect(dati.eseguiti.length + dati.nonEseguiti.length + dati.daFare.length).toBe(2);
   });
 });
+
+// Regressione TODINI 04/08/2026: header "16 ESEGUITI" ma sezione "Da eseguire (16)".
+// Il rapportino dichiara `matricola_nuova` obbligatoria; il flusso della voce (DIS001,
+// disattivazione) no. Valutando l'esito sui campi del rapportino le voci restavano "da fare".
+describe('costruisciDatiPdf — esito sui campi DELLA voce (flusso per gruppo attività)', () => {
+  const campiRapportino: TemplateCampo[] = [
+    { chiave: 'eseguito', etichetta: 'ESEGUITO', tipo: 'select', opzioni: ['SI', 'NO'], obbligatoria: true, ordine: 1 },
+    { chiave: 'matricola_nuova', etichetta: 'MATRICOLA NUOVO MISURATORE', tipo: 'matricola', obbligatoria: true, ordine: 2 },
+    { chiave: 'note', etichetta: 'NOTE', tipo: 'testo', ordine: 3 },
+  ];
+  const campiVoce: TemplateCampo[] = [
+    { chiave: 'eseguito', etichetta: 'ESEGUITO', tipo: 'select', opzioni: ['SI', 'NO'], obbligatoria: true, ordine: 1 },
+    { chiave: 'note', etichetta: 'NOTE', tipo: 'testo', ordine: 2 },
+  ];
+  const voci = [
+    { matricola: 'M1', via: 'Via S.Girolamo 72', comune: 'Perugia', campi: campiVoce, risposte: { eseguito: 'SI' } },
+    { matricola: 'M2', via: 'Via Salto del 3', comune: 'Perugia', campi: campiVoce, risposte: { eseguito: 'NO', note: 'ASSENTE' } },
+  ];
+  const dati = costruisciDatiPdf({ staffName: 'Todini Emanuele', dataLabel: '04/08/2026', voci, campi: campiRapportino, infoCampi: null });
+
+  it('la voce SI finisce in "Eseguiti", non in "Da eseguire"', () => {
+    expect(dati.eseguiti.length).toBe(1);
+    expect(dati.nonEseguiti.length).toBe(1);
+    expect(dati.daFare.length).toBe(0);
+  });
+
+  it('le sezioni combaciano con i totali dell\'intestazione', () => {
+    expect(dati.eseguiti.length).toBe(dati.stats.eseguiti);
+    expect(dati.nonEseguiti.length).toBe(dati.stats.nonEseguiti);
+  });
+});
