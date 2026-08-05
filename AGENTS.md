@@ -484,6 +484,17 @@ via `chiaviAggancio`, anche dal misuratore dell'ordine madre nel registro), con 
 completato > aperto > primo — mai una mappa first-wins, che sceglierebbe a caso tra un figlio
 chiuso già pagato e uno nuovo.
 
+### Guardia DB: niente annullamenti muti su lavoro dichiarato SI
+Trigger `interventi_blocca_annullamento_voce_si` (migration `20260805100000`): un intervento la
+cui voce di rapportino dichiara `eseguito = SI` NON può passare ad `annullato` senza
+`esito_motivo` o `riconciliazione_rif_id` **nello stesso UPDATE**. I flussi legittimi (doppio
+positivo, annullamento motivato) li scrivono già; quello che si blocca è solo l'update muto —
+il caso dell'ODL 957276247: 4 positivi pagati da ACEA nel SAL 1 annullati senza firma né audit,
+spariti da produzione/Esitato/pre-SAL (ripristinati dalla migration `20260805090000`, con
+guardia: voce SI + nessun altro positivo sull'ODL + annullamento non motivato). La transizione
+è sorvegliata solo verso `annullato` (old ≠ annullato): i backfill sugli annullati storici non
+inciampano nel trigger.
+
 ### Confronto SAL ↔ produzione (tendina «SAL» della barra periodo)
 La tendina accanto a Mese/Trim./Anno porta il periodo sulla **finestra dei lavori** del SAL
 (`SalStorico.dal/al`, cioè min/max `data_completamento`) e passa `&sal=N` all'endpoint produzione:
