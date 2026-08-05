@@ -460,6 +460,28 @@ il committente, non una regola nostra. La scrittura è **delete+insert per `sal_
 dell'agente: ACEA riemette il file corretto, e un upsert lascerebbe in vita le righe che la
 correzione voleva togliere) e tocca **solo i lotti selezionati**.
 
+### Regola d'imputazione al SAL (decisione utente 2026-08-05)
+Nel **SAL atteso** («Esitato ACEA») e nel **pre-SAL** entra solo l'ODL che soddisfa TUTTE E TRE:
+1. **positivo dai nostri rapportini** (`stato='completato'` + `esito='eseguito_positivo'`);
+2. **ODL generato** (per le saracinesche vale l'ordine FIGLIO di sostituzione, agganciato per
+   matricola alla limitazione madre con dichiarazione positiva — `figliSaracinescaPositivi`);
+3. **COMPLETATO sul portale ACEA**.
+Un COMPLETATO del portale senza rapportino positivo dietro NON entra (a luglio 2026: 718 su
+3.604, di cui 622 nostri-ma-non-positivi e 96 mai visti) — resta materia dell'audit a tre vie.
+Helper puri: `odlImputabileAlSal` e `separaProduzioneDaEsitare` (`lib/produzione/salUfficiale.ts`).
+
+Il lavoro positivo **senza un ordine ACEA** (saracinesche dichiarate senza ordine di
+sostituzione, massive senza ODL) conta **solo in `produzione`** e vive nel campo `senzaOrdine`,
+con una card sua: NON è «fuori SAL» — non c'è un ordine da esitare, c'è un ordine da farsi
+generare. ⚠️ Prima dello split gonfiava «Fuori SAL» fino a farne il 97% (113.682 € dei
+117.224 € della vecchia card, luglio 2026) e si leggeva come credito esigibile. Le tre parti
+sono una PARTIZIONE esatta della produzione ACEA del periodo:
+`produzione = esitate + fuoriSal + senzaOrdine`. Anche il trend la rispetta: l'area «Da
+richiedere ad ACEA» è produzione − esitato − senzaOrdine, e la quota senza ordine ha un'area
+sua. L'aggancio madre→figlio delle saracinesche usa TUTTI i figli per chiave
+(impianto+matricola, via `chiaviAggancio`), con preferenza completato > aperto > primo — mai
+una mappa first-wins, che sceglierebbe a caso tra un figlio chiuso già pagato e uno nuovo.
+
 ### Confronto SAL ↔ produzione (tendina «SAL» della barra periodo)
 La tendina accanto a Mese/Trim./Anno porta il periodo sulla **finestra dei lavori** del SAL
 (`SalStorico.dal/al`, cioè min/max `data_completamento`) e passa `&sal=N` all'endpoint produzione:

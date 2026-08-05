@@ -111,6 +111,54 @@ export function odlPagatiDaSal(righeSal: Array<{ odl: string }>): Set<string> {
   return new Set(righeSal.map((r) => r.odl.trim()).filter(Boolean));
 }
 
+/**
+ * REGOLA D'IMPUTAZIONE AL SAL (decisione utente 2026-08-05): nel SAL atteso («Esitato ACEA») e
+ * nel pre-SAL entra solo l'ODL che, oltre a essere COMPLETATO sul portale, è POSITIVO anche nei
+ * nostri rapportini. Il portale da solo non basta: a luglio 2026 conteneva 118 ODL completati
+ * che nel nostro database non esistevano e 7 non positivi — denaro che il pre-SAL prometteva
+ * senza che un rapportino lo sostenesse. Quel lavoro resta visibile nell'audit a tre vie
+ * (SOLO_PORTALE / COMPLETATO_PORTALE_NON_POSITIVO_DB), che è il posto dei sospetti; il SAL è il
+ * posto delle certezze.
+ *
+ * `figliSaracinescaPositivi`: gli ODL degli ordini di sostituzione il cui lavoro è dichiarato su
+ * un ALTRO intervento (la limitazione madre) — l'unico caso in cui il positivo nostro non porta
+ * l'ODL consuntivato.
+ */
+export function odlImputabileAlSal(
+  odl: string,
+  positiviDb: ReadonlySet<string>,
+  figliSaracinescaPositivi: ReadonlySet<string>,
+): boolean {
+  return positiviDb.has(odl) || figliSaracinescaPositivi.has(odl);
+}
+
+/**
+ * Divide la produzione non ancora esitata in due destini DIVERSI (regola 2026-08-05):
+ * - `fuoriSal`: c'è un ordine ACEA (la chiave) ma il portale non l'ha ancora consuntivato.
+ *   È un credito in maturazione: si aspetta, o si sollecita l'esito.
+ * - `senzaOrdine`: la chiave non c'è — saracinesche dichiarate senza ordine di sostituzione,
+ *   massive nate senza ODL. Non può entrare in NESSUN SAL finché ACEA non genera l'ordine:
+ *   conta solo in produzione, e la strada è commerciale (farsi ordinare il lavoro), non
+ *   contabile. Prima stava dentro «fuori SAL» e ne gonfiava il totale: a luglio 2026 la
+ *   vecchia card valeva 117.224 € e 113.682 € (il 97%) erano lavoro senza ordine, cioè era
+ *   fatta quasi solo di lavoro che esitabile non era.
+ * Le righe con chiave già COMPLETATA sul portale non escono da qui: sono l'esitato.
+ */
+export function separaProduzioneDaEsitare<T>(
+  righe: readonly T[],
+  chiaveOrdineDi: (riga: T) => string,
+  completatiPortale: ReadonlySet<string>,
+): { fuoriSal: T[]; senzaOrdine: T[] } {
+  const fuoriSal: T[] = [];
+  const senzaOrdine: T[] = [];
+  for (const r of righe) {
+    const k = chiaveOrdineDi(r);
+    if (!k) senzaOrdine.push(r);
+    else if (!completatiPortale.has(k)) fuoriSal.push(r);
+  }
+  return { fuoriSal, senzaOrdine };
+}
+
 /** Chiave "portale" effettiva di una riga di produzione, per il check pre-SAL/fuori-SAL: le
  *  saracinesche (attivitaKey === saracinescaKey) valgono per l'Odl FIGLIO (quello consuntivato sul
  *  portale), non per l'odl padre della limitazione scritto in riga. '' se non risolvibile

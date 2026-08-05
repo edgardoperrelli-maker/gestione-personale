@@ -141,9 +141,11 @@ export function confrontaSalProduzione(
     else odl.sconosciuti += 1;
   }
   /*
-    Il prodotto-non-pagato si conta sugli ODL della produzione a schermo, non su `positiviPeriodo`:
-    le limitazioni massive nate senza ordine ACEA un ODL non ce l'hanno, e contarle come «non
-    pagate» sarebbe vero ma inutile — non c'è un ordine da reclamare, c'è un ordine da chiedere.
+    Il prodotto-non-pagato si conta sugli ODL della produzione a schermo: le limitazioni massive
+    nate senza ordine ACEA un ODL non ce l'hanno e restano fuori da sole — non c'è un ordine da
+    reclamare, c'è un ordine da chiedere. Le righe saracinesca invece l'ODL ce l'hanno (quello
+    della limitazione MADRE): non gonfiano il conteggio solo perché il Set lo ha già contato con
+    la riga della limitazione stessa.
   */
   const odlProdotti = new Set(produzione.map((r) => r.odl.trim()).filter(Boolean));
   for (const o of odlProdotti) if (!indice.inQualcheSal.has(o)) odl.produzioneNonPagata += 1;

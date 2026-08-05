@@ -29,6 +29,8 @@ export interface DatiProduzione {
   confrontoSal: ConfrontoSal | null;
   preSal: { n: number; totale: Totale };
   fuoriSal: Totale;
+  /** Prodotto positivo senza un ordine ACEA dietro: conta solo in produzione, mai nel SAL. */
+  senzaOrdine: { totale: Totale; perAttivita: Aggregato[]; perGiorno: Aggregato[] };
   personale: ProduzionePersonale;
   esiti: EsitoOperatore[];
   audit: Discrepanza[];
