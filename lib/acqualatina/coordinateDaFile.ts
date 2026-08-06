@@ -13,6 +13,7 @@
 
 import { parseLatLng } from '@/utils/routing/parseCoordinate';
 import { normHeader } from '@/lib/attivita/masterUpload';
+import { normMatricola } from './ordiniDaMaster';
 
 /** Una riga del file ridotta a ciò che serve: come si aggancia, e cosa porta. */
 export type RigaCoordinata = {
@@ -20,6 +21,21 @@ export type RigaCoordinata = {
   impianto: string;
   coordinate: string;
 };
+
+/**
+ * Quante righe di FOGLIO leggere al massimo (`sheetRows` di SheetJS).
+ *
+ * Non è una difesa dai file grandi, è una difesa dai file GONFI: l'estrazione di Terracina
+ * dichiara un intervallo di 835.771 righe per 4.195 righe di dati — 19 MB di righe fantasma. Senza
+ * questo tetto SheetJS le percorre tutte, e sono 35 milioni di celle: 40 secondi di lavoro per
+ * leggerne 176 mila utili. Con il tetto sono meno di quattro.
+ *
+ * Alto abbastanza da non entrare mai in mezzo ai dati veri (il registro intero della commessa è
+ * 4.205 righe), e se un giorno un file lo toccasse il parser se ne accorge e lo dice: vedi
+ * `parseCoordinateFile`. Un troncamento silenzioso qui vorrebbe dire punti senza coordinate senza
+ * che nessuno lo sappia.
+ */
+export const LIMITE_RIGHE_FOGLIO = 100_000;
 
 export type ParseCoordinateResult = {
   righe: RigaCoordinata[];
@@ -102,6 +118,13 @@ export function parseCoordinateFile(rows: unknown[][]): ParseCoordinateResult {
   const dataRows = (rows.slice(headerIdx + 1)).filter(
     (r) => Array.isArray(r) && r.some((c) => cell(c) !== ''),
   );
+  // Il foglio è stato letto col tetto di `LIMITE_RIGHE_FOGLIO`: se i dati arrivano fin lassù non
+  // si può sapere se sotto ce n'erano altri. Meglio fermarsi che importarne una parte in silenzio.
+  if (dataRows.length >= LIMITE_RIGHE_FOGLIO - 1) {
+    throw new Error(
+      `Il file supera le ${LIMITE_RIGHE_FOGLIO.toLocaleString('it-IT')} righe leggibili in un colpo: dividilo per comune e caricalo in più volte.`,
+    );
+  }
   const righe: RigaCoordinata[] = [];
   let senzaCoordinate = 0;
   let senzaAggancio = 0;
@@ -116,6 +139,42 @@ export function parseCoordinateFile(rows: unknown[][]): ParseCoordinateResult {
   }
 
   return { righe, totale: dataRows.length, senzaCoordinate, senzaAggancio };
+}
+
+/**
+ * Le righe che arrivano dal CLIENT, ricontrollate una per una.
+ *
+ * Il foglio si legge nel browser — 19 MB di file non passano da una funzione serverless, e i dati
+ * utili sono 300 KB — quindi quello che il server riceve non l'ha prodotto lui: è un payload, e un
+ * payload si valida. La coordinata si ricalcola da capo con `parseLatLng`, la stessa guardia del
+ * percorso di prima: quello che non è una coordinata italiana valida non entra nel registro,
+ * comunque sia stato scritto.
+ *
+ * Scarta invece di lanciare: una riga malformata in mezzo a quattromila non deve far fallire
+ * l'import: chi chiama conta quante ne restano.
+ */
+export function righeDaPayload(input: unknown): RigaCoordinata[] {
+  if (!Array.isArray(input)) return [];
+  const out: RigaCoordinata[] = [];
+  for (const v of input) {
+    if (!v || typeof v !== 'object') continue;
+    const r = v as Record<string, unknown>;
+    /*
+      Il contratto è la forma che produce `parseLatLng`: «lat, lng» col PUNTO decimale. Si pretende
+      che le parti siano esattamente due — una coppia scritta all'italiana («41,288, 13,224») ne
+      darebbe quattro, e indovinare quale virgola separa i due numeri e quale è decimale
+      significherebbe scrivere a registro una coordinata inventata. Meglio scartarla.
+    */
+    const parti = String(r.coordinate ?? '').split(',');
+    if (parti.length !== 2) continue;
+    const coordinate = parseLatLng(parti[0], parti[1]);
+    if (!coordinate) continue;
+    const odl = String(r.odl ?? '').trim();
+    const impianto = String(r.impianto ?? '').trim();
+    if (odl === '' && impianto === '') continue;
+    out.push({ odl, impianto, coordinate });
+  }
+  return out;
 }
 
 /** Una riga del registro, ridotta a quello che l'abbinamento guarda. */
@@ -194,4 +253,83 @@ export function abbinaCoordinate(
   }
 
   return { aggiornamenti, giaUguali, nonTrovate };
+}
+
+/* ------------------------------------------------------------------------------------------------
+   Dal registro ai rapportini GIÀ APERTI.
+
+   Il motore dei rapportini scrive la coordinata nel `raw_json` della voce quando la voce NASCE. Una
+   giornata già distribuita — gli operatori hanno il link in mano da stamattina — resterebbe senza,
+   e l'import servirebbe solo da domani. Queste due funzioni chiudono quel buco: dopo aver scritto
+   il registro, l'import ripassa sulle voci del giorno e ci mette la coordinata che ora esiste.
+   ------------------------------------------------------------------------------------------------ */
+
+/** Riga di registro come serve alla propagazione: la matricola normalizzata è la seconda chiave. */
+export type OrdineConMatricola = OrdineDaCoordinare & { matricola_norm?: string | null };
+
+/**
+ * Le coordinate del registro indicizzate come le cerca una voce di rapportino.
+ *
+ * DUE chiavi per riga, e l'ordine di preferenza lo decide chi legge (`vociDaAggiornare`):
+ *  - `odl#matricola` — quella giusta, perché su AcquaLatina un ordine copre fino a cinque contatori
+ *    e ognuno ha la sua fornitura, quindi il suo punto;
+ *  - `odl` da solo — il ripiego per la voce che la matricola non ce l'ha (o l'ha scritta in un'altra
+ *    forma). Vince la prima riga dell'ordine: su un condominio è comunque il portone.
+ *
+ * `aggiornamenti` sono le scritture appena fatte: si sovrappongono al valore letto prima, così la
+ * mappa descrive il registro com'è ADESSO senza doverlo rileggere.
+ */
+export function coordinatePerVoce(
+  registro: readonly OrdineConMatricola[],
+  aggiornamenti: readonly Aggiornamento[],
+): Map<string, string> {
+  const appena = new Map<string, string>(
+    aggiornamenti.map((a) => [`${a.odl}|${a.numero_operazione}`, a.coordinate]),
+  );
+  const out = new Map<string, string>();
+  for (const r of registro) {
+    const coordinata = appena.get(`${r.odl}|${r.numero_operazione}`) ?? chiave(r.coordinate);
+    if (coordinata === '') continue;
+    const odl = chiave(r.odl);
+    if (odl === '') continue;
+    const m = normMatricola(r.matricola_norm);
+    if (m !== '') out.set(`${odl}#${m}`, coordinata);
+    if (!out.has(odl)) out.set(odl, coordinata);
+  }
+  return out;
+}
+
+/** Una voce di rapportino, ridotta a quello che la propagazione guarda. */
+export type VoceDaCoordinare = {
+  id: string;
+  odl: string | null;
+  matricola: string | null;
+  raw_json: Record<string, unknown> | null;
+};
+
+/**
+ * Le voci da riscrivere, col loro `raw_json` GIÀ FUSO.
+ *
+ * Il raw_json si conserva intero e ci si aggiunge `coordinate`: dentro ci vivono la nota
+ * dell'ufficio, il badge «nuovo», il flag di provenienza — sostituirlo con un oggetto di una chiave
+ * sola cancellerebbe roba che l'operatore sta guardando.
+ *
+ * Chi ha già quella coordinata non entra: rilanciare l'import non riscrive le voci.
+ */
+export function vociDaAggiornare(
+  voci: readonly VoceDaCoordinare[],
+  coordinate: ReadonlyMap<string, string>,
+): Array<{ id: string; raw_json: Record<string, unknown> }> {
+  const out: Array<{ id: string; raw_json: Record<string, unknown> }> = [];
+  for (const v of voci) {
+    const odl = chiave(v.odl);
+    if (odl === '') continue;
+    const m = normMatricola(v.matricola);
+    const coordinata = (m !== '' ? coordinate.get(`${odl}#${m}`) : undefined) ?? coordinate.get(odl);
+    if (!coordinata) continue;
+    const raw = v.raw_json ?? {};
+    if (chiave(raw.coordinate as string | undefined) === coordinata) continue;
+    out.push({ id: v.id, raw_json: { ...raw, coordinate: coordinata } });
+  }
+  return out;
 }
