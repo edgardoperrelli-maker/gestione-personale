@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { TemplateSchema } from '@/lib/rapportini/templateSchema';
 import { normalizzaCollegamento } from '@/lib/rapportini/flussiGruppo';
 import { propagaAzioniAiRapportiniAperti, type EsitoPropagazione } from '@/lib/rapportini/propagaAzioni';
+import { riagganciaVociAperte } from '@/lib/rapportini/riagganciaVoci';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireAdmin } from '@/lib/apiAuth';
 import { modelloPlusInConflitto, type ModelloPlusRow } from '@/lib/rapportini/modelloPlus';
@@ -15,6 +16,33 @@ const COLONNE_GET = 'id, nome, committente, campi, info_campi, titolo_campi, fot
 
 /** Ciò che insert/update restituiscono: id e il nuovo version token del lock ottimistico. */
 type RigaSalvata = { id: string; updated_at: string };
+
+/**
+ * Il flusso appena salvato prende in carico anche le voci GIÀ generate del suo gruppo.
+ * `propagaAzioni` aggiorna le azioni di chi punta già a questo flusso; qui si sistema il caso
+ * che quello non copre: la voce puntava a un ALTRO flusso (o a nessuno) perché quando è nata
+ * il gruppo era coperto diversamente — un flusso nuovo su un gruppo scoperto, un'attività
+ * appena spostata in un gruppo suo. Senza questo, l'unica strada era rigenerare il rapportino.
+ * Best-effort: il flusso è già salvato, un errore qui non lo annulla.
+ */
+async function riagganciaVociDelFlusso(templateId: string): Promise<number> {
+  try {
+    const { data } = await supabaseAdmin
+      .from('rapportino_template')
+      .select('gruppo_committente, gruppi_attivita, active')
+      .eq('id', templateId)
+      .maybeSingle();
+    const riga = data as { gruppo_committente?: string | null; gruppi_attivita?: string[] | null; active?: boolean | null } | null;
+    if (!riga || riga.active === false || !riga.gruppo_committente || !(riga.gruppi_attivita?.length)) return 0;
+    const esito = await riagganciaVociAperte(supabaseAdmin, new Date().toISOString(), {
+      gruppi: { committente: riga.gruppo_committente, nomi: riga.gruppi_attivita },
+    });
+    return esito.voci;
+  } catch (e) {
+    console.error('[rapportino-template] riaggancio voci dei rapportini aperti fallito:', e);
+    return 0;
+  }
+}
 
 export async function GET() {
   // supabaseAdmin bypassa la RLS: senza guard la lista dei flussi era leggibile
@@ -70,7 +98,8 @@ export async function POST(req: Request) {
   );
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   const creato = data?.[0];
-  return NextResponse.json({ ok: true, id: creato?.id, updated_at: creato?.updated_at });
+  const riagganciate = creato?.id ? await riagganciaVociDelFlusso(creato.id) : 0;
+  return NextResponse.json({ ok: true, id: creato?.id, updated_at: creato?.updated_at, ...(riagganciate ? { riagganciate } : {}) });
 }
 
 export async function PATCH(req: Request) {
@@ -143,7 +172,13 @@ export async function PATCH(req: Request) {
       console.error('[rapportino-template] propagazione azioni ai rapportini aperti fallita:', e);
     }
   }
-  return NextResponse.json({ ok: true, updated_at: data?.[0]?.updated_at ?? null, ...(propagazione ? { propagazione } : {}) });
+  const riagganciate = data && data.length > 0 ? await riagganciaVociDelFlusso(body.id) : 0;
+  return NextResponse.json({
+    ok: true,
+    updated_at: data?.[0]?.updated_at ?? null,
+    ...(propagazione ? { propagazione } : {}),
+    ...(riagganciate ? { riagganciate } : {}),
+  });
 }
 
 export async function DELETE(req: Request) {

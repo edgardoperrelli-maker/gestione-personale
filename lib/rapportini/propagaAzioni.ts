@@ -21,7 +21,7 @@ export type EsitoPropagazione = {
   voci: number;
 };
 
-type RapAperto = {
+export type RapAperto = {
   id: string;
   template_id: string | null;
   data: string;
@@ -29,24 +29,35 @@ type RapAperto = {
   riaperto_at: string | null;
 };
 
+/**
+ * I rapportini ANCORA IN MANO agli operatori, con i loro modelli: candidati 'in_corso',
+ * filtro fine `tokenStatus` (scadenza 48h, finestra di riapertura) — la stessa regola con
+ * cui /r/[token] decide se il rapportino è compilabile, riusata tal quale così non esistono
+ * due definizioni divergenti di «ancora aperto».
+ */
+export async function rapportiniCompilabili(db: SupabaseClient, nowIso: string): Promise<RapAperto[]> {
+  const { data: rows, error } = await db
+    .from('rapportini')
+    .select('id, template_id, data, stato, riaperto_at')
+    .eq('stato', 'in_corso');
+  if (error) throw new Error(`propagazione azioni: lettura rapportini: ${error.message}`);
+  return (((rows ?? []) as unknown) as RapAperto[]).filter(
+    (r) => tokenStatus({ stato: r.stato, data: r.data, riaperto_at: r.riaperto_at }, nowIso) === 'valido',
+  );
+}
+
+/** Solo gli id, per chi deve filtrare le voci dei rapportini aperti. */
+export async function idRapportiniCompilabili(db: SupabaseClient, nowIso: string): Promise<string[]> {
+  return (await rapportiniCompilabili(db, nowIso)).map((r) => r.id);
+}
+
 export async function propagaAzioniAiRapportiniAperti(
   db: SupabaseClient,
   templateId: string,
   campi: TemplateCampo[],
   nowIso: string,
 ): Promise<EsitoPropagazione> {
-  // Candidati: i soli 'in_corso'. Il filtro fine (scadenza 48h, finestra di riapertura)
-  // è `tokenStatus`, riusato tal quale: se un giorno la regola di validità cambia lì,
-  // la propagazione la segue senza un secondo posto da aggiornare.
-  const { data: rows, error: eRaps } = await db
-    .from('rapportini')
-    .select('id, template_id, data, stato, riaperto_at')
-    .eq('stato', 'in_corso');
-  if (eRaps) throw new Error(`propagazione azioni: lettura rapportini: ${eRaps.message}`);
-
-  const aperti = (((rows ?? []) as unknown) as RapAperto[]).filter(
-    (r) => tokenStatus({ stato: r.stato, data: r.data, riaperto_at: r.riaperto_at }, nowIso) === 'valido',
-  );
+  const aperti = await rapportiniCompilabili(db, nowIso);
   if (aperti.length === 0) return { rapportini: 0, voci: 0 };
 
   // 1) Snapshot a livello di rapportino: è il fallback delle voci senza flusso per-attività
