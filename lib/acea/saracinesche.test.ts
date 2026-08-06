@@ -1,13 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import {
-  chiaviAggancio, isAttivitaSaracinesca, saracinescaContemplata, statiSaracinesche,
+  chiaviAggancio, isAttivitaSaracinesca, statiSaracinesche,
   valoreDaRichiedere,
   type Dichiarazione, type OrdineSostituzione,
 } from './saracinesche';
 
 const dich = (over: Partial<Dichiarazione> = {}): Dichiarazione => ({
-  odl: '912215286', impianto: '4000308907', matricola: '202415647231', famiglia: 'massive',
-  data: '2026-06-04', operatore: 'MARIO ROSSI', comune: 'LABICO', ...over,
+  odl: '912215286', intervento_id: 'int-1', impianto: '4000308907', matricola: '202415647231',
+  famiglia: 'massive', data: '2026-06-04', operatore: 'MARIO ROSSI', comune: 'LABICO',
+  indirizzo: 'VIA ROMA 1', cap: '00030', ...over,
 });
 
 const ord = (over: Partial<OrdineSostituzione> = {}): OrdineSostituzione => ({
@@ -185,25 +186,43 @@ describe('statiSaracinesche · filtro per famiglia', () => {
     expect(statiSaracinesche(args).fatte).toBe(3);
   });
 
-  it('un ordine aperto si mostra sotto la famiglia della saracinesca che copre', () => {
+  /*
+    Questi due test dicevano il contrario, e fissavano `famiglia_vista`: un ordine di sostituzione
+    si mostrava sotto la famiglia del LAVORO che lo aveva generato invece che sotto la propria.
+    Ritirata il 2026-08-06 — gli ordini di sostituzione sono tutti `massive` perché e` ACEA a
+    classificarli cosi`, e il rimappaggio avrebbe fatto divergere card e tabella il giorno in cui
+    le 141 saracinesche del dunning vengono chieste e ACEA le apre, come sempre, in massive.
+  */
+  it('un ordine aperto sta sotto la PROPRIA famiglia, non sotto quella del lavoro', () => {
     const args = {
       dichiarazioni: [dich({ famiglia: 'dunning' as const })],
       ordini: [ord({ famiglia: 'massive' as const, aperto: true, stato: 'DAPI' })],
     };
-    expect(statiSaracinesche({ ...args, famiglia: 'dunning' }).daEsitare).toBe(1);
-    expect(statiSaracinesche({ ...args, famiglia: 'massive' }).daEsitare).toBe(0);
-    expect(statiSaracinesche({ ...args, famiglia: 'dunning' }).ordiniAperti[0])
-      .toMatchObject({ famiglia_vista: 'dunning', odl_dichiarazione: '912215286' });
+    expect(statiSaracinesche({ ...args, famiglia: 'dunning' }).daEsitare).toBe(0);
+    expect(statiSaracinesche({ ...args, famiglia: 'massive' }).daEsitare).toBe(1);
   });
 
-  it('un ordine aperto senza dichiarazione resta sotto la propria famiglia', () => {
+  it('l’ODL del lavoro che l’ha generato resta, come informazione', () => {
+    // `odl_dichiarazione` sopravvive a `famiglia_vista`: dice da quale lavoro nasce la
+    // sostituzione senza pretendere di spostare la riga sotto un'altra vista.
+    const r = statiSaracinesche({
+      dichiarazioni: [dich({ famiglia: 'dunning' as const })],
+      ordini: [ord({ famiglia: 'massive' as const, aperto: true, stato: 'DAPI' })],
+      famiglia: 'massive',
+    });
+    expect(r.ordiniAperti[0]).toMatchObject({ odl_dichiarazione: '912215286' });
+  });
+
+  it('un ordine aperto senza dichiarazione dietro resta comunque in elenco', () => {
+    // Sono 7 su 80 nei dati reali: ordini che ACEA ha aperto e che non risultano a nessun lavoro
+    // nostro. Se sparissero, sarebbero proprio quelli con piu` probabilita` di scadere non esitati.
     const r = statiSaracinesche({
       dichiarazioni: [],
       ordini: [ord({ aperto: true, stato: 'DAPI', impianto: '999', matricola: null })],
       famiglia: 'massive',
     });
     expect(r.daEsitare).toBe(1);
-    expect(r.ordiniAperti[0]).toMatchObject({ famiglia_vista: 'massive', odl_dichiarazione: null });
+    expect(r.ordiniAperti[0]).toMatchObject({ odl_dichiarazione: null });
   });
 });
 
@@ -239,34 +258,10 @@ describe('la dichiarazione viene dal rapportino, non dal foglio', () => {
   });
 });
 
-describe('saracinescaContemplata', () => {
-  // Se il misuratore o l'allaccio vengono portati via, non resta niente su cui montare una valvola.
-  it.each([
-    'Rimozione misuratore per morosità',
-    'Rimozione impianto abusivo',
-    'Rimozione ctr 2042551',
-    'RIMOZIONE MISURATORE',
-  ])('su «%s» non è contemplata', (a) => {
-    expect(saracinescaContemplata(a)).toBe(false);
-  });
+/*
+  I test di `saracinescaContemplata` stavano qui, e sono stati rimossi con la funzione il
+  2026-08-06. Fissavano il comportamento giusto per l'argomento sbagliato: verificavano che sulle
+  rimozioni la sostituzione non fosse «contemplata», quando la domanda che decide se una riga si
+  fattura e` se ACEA la paga — e ACEA la paga.
+*/
 
-  // Su tutto il resto la sostituzione ci sta: limitazioni, sospensioni, regolarizzazioni,
-  // riattivazioni. Escluderne una per eccesso di zelo nasconderebbe lavoro davvero fatturabile.
-  it.each([
-    'Limitazione flusso idrico',
-    'Limitazione Massiva su Impianto',
-    'Sospensione fornitura',
-    'Regolarizzazione flusso idrico',
-    'Riattivazione fornitura',
-  ])('su «%s» è contemplata', (a) => {
-    expect(saracinescaContemplata(a)).toBe(true);
-  });
-
-  it('un’attività sconosciuta si considera contemplata', () => {
-    // Nel dubbio si mostra: una riga di troppo si vede e si scarta, una riga in meno e` lavoro
-    // che nessuno va a reclamare.
-    expect(saracinescaContemplata('Attività nuova mai vista')).toBe(true);
-    expect(saracinescaContemplata(null)).toBe(true);
-    expect(saracinescaContemplata('')).toBe(true);
-  });
-});

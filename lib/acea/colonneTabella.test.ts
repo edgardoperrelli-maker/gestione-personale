@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   AVVISO_MATRICOLA_TRONCA, AVVISO_REVOCA, COLONNE_DUNNING, COLONNE_MASSIVE, colonnePerStato,
+  colonneScheda,
   dataIt, eRevocaDaVerificare, valoreCella, tonoScadenza, statoOrdine,
   type RigaTabella,
 } from './colonneTabella';
@@ -15,7 +16,7 @@ const riga = (over: Partial<RigaTabella> = {}): RigaTabella => ({
   impianto: '4003635716', nominativo: null, recapito: null,
   matricola: '201215053510', valore_netto: 25.46,
   escludi_consuntivazione: false, codice_sla: 'NSLA', priorita_testo: null, centro_lavoro: null,
-  sospetto_troncamento: false, saracinesca: null, odl_saracinesca: null, stato_saracinesca: null, note: null, pianificato_il: null, pianificato_a: null, stato_intervento: null,
+  sospetto_troncamento: false, saracinesca: null, odl_saracinesca: null, stato_saracinesca: null, sostituzione_aperta: false, note: null, pianificato_il: null, pianificato_a: null, stato_intervento: null,
   ...over,
 });
 
@@ -391,7 +392,44 @@ describe('colonnePerStato', () => {
     expect(colonnePerStato(COLONNE_DUNNING, false)).toBe(COLONNE_DUNNING);
   });
 
-  it('su una vista senza la colonna sostituzione non inventa nulla', () => {
-    expect(colonnePerStato(COLONNE_MASSIVE, true)).toBe(COLONNE_MASSIVE);
+  it('vale anche sulle MASSIVE, dov’è il grosso delle saracinesche', () => {
+    /*
+      Questo test diceva il contrario: «su una vista senza la colonna sostituzione non inventa
+      nulla», e passava perché `COLONNE_MASSIVE` le tre colonne non le aveva proprio. La funzione
+      si comportava bene — non inventava — ma la definizione era incompleta, e il risultato era
+      che sulla vista dove stanno 1.400 delle 1.541 saracinesche da chiedere la scheda non poteva
+      mostrare l'ordine di sostituzione nemmeno accendendo tutto a mano.
+    */
+    const c = colonnePerStato(COLONNE_MASSIVE, true);
+    expect(c[0].chiave).toBe('odl_saracinesca');
+    expect(c[0].intestazione).toBe('ODL');
+    expect(c.find((x) => x.chiave === 'odl')?.intestazione).toBe('ODL limitazione');
+  });
+
+  it('su «Da esitare» le colonne restano quelle normali', () => {
+    // Lì la riga È l'ordine di sostituzione: «ODL sostituzione» accanto a un ODL che è già la
+    // sostituzione mostrerebbe due volte lo stesso numero.
+    expect(colonnePerStato(COLONNE_DUNNING, true, 'da_esitare')).toBe(COLONNE_DUNNING);
+    expect(colonnePerStato(COLONNE_MASSIVE, true, 'da_esitare')).toBe(COLONNE_MASSIVE);
+  });
+});
+
+describe('colonneScheda', () => {
+  /*
+    È l'elenco che mancava, ed è la causa del difetto per cui l'ODL di sostituzione non si è mai
+    visto: le colonne visibili sono uno STATO del componente, e nessuno diceva quali accendere
+    entrando nella scheda. `colonnePerStato` metteva `predefinita: true` e non lo leggeva nessuno.
+  */
+  it('dice quali colonne la scheda accende, su entrambe le viste', () => {
+    for (const def of [COLONNE_DUNNING, COLONNE_MASSIVE]) {
+      expect(new Set(colonneScheda(def)))
+        .toEqual(new Set(['saracinesca', 'odl_saracinesca', 'stato_saracinesca']));
+    }
+  });
+
+  it('non elenca colonne già accese nella vista normale', () => {
+    // Se le innestasse tutte, uscendo dalla scheda ne spegnerebbe di quelle che c'erano prima.
+    const base = COLONNE_DUNNING.filter((c) => c.predefinita).map((c) => c.chiave);
+    for (const k of colonneScheda(COLONNE_DUNNING)) expect(base).not.toContain(k);
   });
 });

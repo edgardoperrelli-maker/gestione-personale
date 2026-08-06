@@ -10,7 +10,7 @@ import { consuntivazioneAcea } from './consuntivazioneAcea';
 import { caricaAliasAttivita } from './aliasAttivita';
 import { caricaComuniMassive } from './comuniMassive';
 import { caricaOrdiniSostituzione } from '@/lib/acea/caricaSaracinesche';
-import { chiaviAggancio, saracinescaContemplata } from '@/lib/acea/saracinesche';
+import { chiaviAggancio } from '@/lib/acea/saracinesche';
 import { aggregaProduzione, deduplicaMassivePerMatricola, type Aggregato, type ProduzioneAggregata, type RigaProduzione } from './aggregaProduzione';
 import { aggregaPersonale, giornoSettimana, type ProduzionePersonale, type RigaLavoro } from './aggregaPersonale';
 import { aggregaEsiti, type EsitoOperatore, type RigaEsito } from './aggregaEsiti';
@@ -487,14 +487,17 @@ export async function caricaProduzioneEconomica(
     // figlio si aggancia per matricola/impianto, e la matricola c'è anche quando l'ODL madre no.
     // TUTTI i figli agganciati, non uno: quale sia quello consuntivato lo dirà il portale.
     /*
-      `saracinescaContemplata`: sulle RIMOZIONI una valvola non si sostituisce — se il misuratore
-      o l'allaccio se ne vanno, non resta niente su cui montarla. Il modulo ACEA filtra già così
-      (le «10 dichiarazioni SI su rimozione misuratore» che documenta `saracinesche.ts`); qui non
-      lo faceva, e le stesse dichiarazioni valevano 91,12 € l'una in Produzione economica ma zero
-      nella vista saracinesche: due numeri diversi per lo stesso lavoro, col nostro più alto.
+      Nessun filtro sull'ATTIVITÀ: vale la dichiarazione, e basta.
+
+      Qui c'era `saracinescaContemplata`, che scartava le dichiarazioni sulle RIMOZIONI partendo
+      dal fatto fisico che se il misuratore o l'allaccio se ne vanno non resta niente su cui
+      montare una valvola. Ritirata il 2026-08-06 su verifica dell'ufficio: ACEA quelle
+      sostituzioni le accetta come interventi e le liquida. Il fatto fisico non decideva la
+      domanda giusta — la domanda è cosa il committente paga, non cosa il committente dovrebbe
+      pagare — e finché il filtro c'è stato la Produzione economica ha scartato 13 saracinesche
+      liquidabili, 91,12 € l'una, senza che comparissero da nessuna parte.
     */
-    const saracinescaValida = saracinescaDichiarata.has(it.id)
-      && saracinescaContemplata(attivitaKey || it.intervento_tipo);
+    const saracinescaValida = saracinescaDichiarata.has(it.id);
     if (commessa === 'acea' && esitoOk === true && saracinescaValida) {
       for (const f of figliDiIntervento((it.matricola_contatore ?? '').trim(), odl)) {
         figliSaracinescaPositivi.add(f);

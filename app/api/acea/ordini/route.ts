@@ -10,9 +10,11 @@ import {
 } from '@/lib/acea/filtriOrdini';
 import { partiRoma } from '@/lib/orarioRoma';
 import {
-  chiaviAggancio, isAttivitaSaracinesca, saracinescaContemplata, FRAMMENTI_SARACINESCA,
+  chiaviAggancio, isAttivitaSaracinesca, FRAMMENTI_SARACINESCA,
 } from '@/lib/acea/saracinesche';
-import { odlConSaracinescaDichiarata } from '@/lib/acea/caricaSaracinesche';
+import {
+  interventiDichiarati, odlConSaracinescaDichiarata,
+} from '@/lib/acea/caricaSaracinesche';
 import { comuniMassiveAperti } from '@/lib/acea/caricaComuniMassive';
 import { contaSenzaData, type InterventoDellOdl } from '@/lib/acea/codaRiaperture';
 import { PROFILO_COMMESSA } from '@/lib/acea/famiglia';
@@ -85,6 +87,35 @@ const COLONNE = [
 type OrdineRow = Record<string, unknown> & { odl: string; numero_operazione: string };
 
 /**
+ * Da dove si LEGGE il registro di questa vista.
+ *
+ * Sulle massive è una vista che unisce `acea_ordini` e gli interventi completati senza ODL — le
+ * limitazioni aperte a mano dal «+», che un ordine ACEA non ce l'hanno per costruzione. Sono
+ * 1.317 righe di lavoro fatto che il registro non mostrava da nessuna parte.
+ *
+ * Vale solo in LETTURA, ed è il motivo per cui non è in `PROFILO_COMMESSA.tabellaOrdini`: quel
+ * campo lo usano anche le scritture (pianificazione, appunti, celle), che devono continuare a
+ * puntare alla tabella vera. Una vista con una UNION non è aggiornabile, e farcele passare sopra
+ * avrebbe rotto il salvataggio su ogni riga del registro.
+ */
+function relazioneRegistro(f: FiltriOrdini): string {
+  if (f.famiglia === 'massive') return 'acea_registro_massive';
+  return PROFILO_COMMESSA[f.famiglia ?? 'dunning'].tabellaOrdini;
+}
+
+/**
+ * Le colonne da leggere: quelle di sempre, più le due che esistono solo nella vista massive.
+ *
+ * Aggiunte QUI e non nella `COLONNE` condivisa perché quella gira anche su `acea_ordini` e su
+ * `acqualatina_ordini`, dove `intervento_id` e `sola_lettura` non esistono. Una colonna ignota in
+ * quell'elenco non degrada una decorazione: fa fallire la query del registro, cioè la schermata.
+ * È già successo due volte (vedi la nota dentro `COLONNE`), e non serve una terza.
+ */
+function selezioneRegistro(f: FiltriOrdini): string {
+  return f.famiglia === 'massive' ? `${COLONNE}, intervento_id, sola_lettura` : COLONNE;
+}
+
+/**
  * GET /api/acea/ordini — registro filtrato e paginato.
  *
  * Query: famiglia, stato (tutti|aperti|chiusi), scadenza (tutte|scaduti|in_scadenza|senza_scadenza),
@@ -103,10 +134,7 @@ type OrdineRow = Record<string, unknown> & { odl: string; numero_operazione: str
  */
 /** La query sul registro con tutti i criteri e l'ordinamento canonico. */
 function queryRegistro(selezione: string, f: FiltriOrdini, oggi: string) {
-  // La tabella la decide la famiglia: acqualatina ha il SUO registro, con la stessa forma di
-  // colonne — è ciò che permette a questa query (e alla select condivisa) di valere su entrambi.
-  const profilo = PROFILO_COMMESSA[f.famiglia ?? 'dunning'];
-  let q = supabaseAdmin.from(profilo.tabellaOrdini).select(selezione, { count: 'exact' });
+  let q = supabaseAdmin.from(relazioneRegistro(f)).select(selezione, { count: 'exact' });
 
   if (f.famiglia) q = q.eq('famiglia', f.famiglia);
   if (f.stato === 'aperti') q = q.eq('aperto', true);
@@ -127,6 +155,21 @@ function queryRegistro(selezione: string, f: FiltriOrdini, oggi: string) {
   // del taglio — «non completata nei rapportini» — si fa nell'incrocio, perche` vive in
   // `interventi` e Postgres da qui non la vede.
   if (f.stato === 'riaperture') q = q.eq('riapertura', true).eq('aperto', true);
+
+  /*
+    «Da esitare»: gli ORDINI di sostituzione ancora aperti, e si tagliano QUI.
+
+    È l'altra popolazione della scheda saracinesche, e a differenza di «Ordini per ACEA» il
+    registro la conosce da sé: attività e `aperto` sono due sue colonne. Nessun incrocio, nessuna
+    colonna derivata — quindi filtri, ordinamenti e paginazione restano quelli di sempre.
+
+    È anche la riga che si assegna davvero a un operatore. La limitazione su cui la saracinesca fu
+    dichiarata è chiusa da mesi: mandarci qualcuno non esita niente. L'ordine di sostituzione è
+    quello che va eseguito e rendicontato, ed è questo.
+  */
+  if (f.stato === 'saracinesche' && f.sara === 'da_esitare') {
+    q = q.or(FRAMMENTI_SARACINESCA.map((k: string) => `attivita.ilike.*${k}*`).join(',')).eq('aperto', true);
+  }
 
   // Filtri di colonna. `in` per le spunte (un valore solo resta un `in` di uno: stesso piano di
   // esecuzione di `eq` su Postgres), `ilike` per il «contiene».
@@ -210,16 +253,48 @@ function queryRegistro(selezione: string, f: FiltriOrdini, oggi: string) {
 type Chiave = {
   odl: string;
   numero_operazione: string;
+  /**
+   * L'identificativo della riga, con cui la pagina si rilegge dopo l'incrocio.
+   *
+   * Serve perché nella vista massive l'ODL non è più una chiave utilizzabile: le righe senza
+   * ordine ce l'hanno vuoto, e sono 1.317. L'`id` c'è su entrambi i rami della UNION.
+   */
+  id?: string;
   attivita: string | null;
   /** Solo acqualatina: entra nella chiave di aggancio con gli interventi. */
   matricola?: string | null;
+  /**
+   * Solo sulla scheda saracinesche: le due chiavi con cui si cerca l'ordine di sostituzione.
+   *
+   * Si proiettano nella SCANSIONE, non sulla pagina, perché il tasto «Ordini per ACEA» taglia
+   * sull'ordine di sostituzione — che non è una colonna ma un aggancio per impianto o matricola.
+   * Applicarlo alle sole righe scese darebbe «le 300 che sono capitate a schermo e non hanno un
+   * ordine» invece di «tutte quelle che non ce l'hanno», con un conteggio che mente e un export
+   * che manca righe. È lo stesso difetto che i filtri e gli ordinamenti evitano già.
+   */
+  impianto?: string | null;
+  /**
+   * L'intervento da cui nasce la riga, sulle sole massive senza ODL.
+   *
+   * È l'unica chiave con cui una dichiarazione si aggancia a quelle righe: l'ODL, che è la chiave
+   * di tutte le altre, lì non c'è.
+   */
+  intervento_id?: string | null;
 };
 
 /** Tutte le chiavi che passano i criteri della vista, nell'ordine della tabella. */
 async function scansionaChiavi(f: FiltriOrdini, oggi: string): Promise<Chiave[]> {
-  const colonne = f.famiglia === 'acqualatina'
-    ? 'odl, numero_operazione, attivita, matricola'
-    : 'odl, numero_operazione, attivita';
+  const campi = ['id', 'odl', 'numero_operazione', 'attivita'];
+  if (f.famiglia === 'acqualatina') campi.push('matricola');
+  // Le chiavi di aggancio solo dove servono: su una scansione da 5.000 righe, colonne in più a
+  // ogni caricamento del registro si pagherebbero per una scheda che si apre di rado.
+  else if (f.stato === 'saracinesche') {
+    campi.push('impianto', 'matricola');
+    // `intervento_id` esiste SOLO nella vista massive: chiederlo su `acea_ordini` farebbe fallire
+    // la scansione, cioè la schermata, invece di degradare una decorazione.
+    if (f.famiglia === 'massive') campi.push('intervento_id');
+  }
+  const colonne = campi.join(', ');
   const chiavi: Chiave[] = [];
   for (let offset = 0; ; offset += PAGINA_SCAN) {
     const { data, error } = await queryRegistro(colonne, f, oggi)
@@ -524,7 +599,7 @@ export async function GET(req: Request) {
 
     if (!serveIncrocio(f)) {
       // Percorso normale: una sola interrogazione paginata, il conteggio lo fa Postgres.
-      const { data, error, count } = await queryRegistro(COLONNE, f, oggi).range(da, a);
+      const { data, error, count } = await queryRegistro(selezioneRegistro(f), f, oggi).range(da, a);
       if (error) throw error;
       righe = (data ?? []) as unknown as OrdineRow[];
       totale = count ?? righe.length;
@@ -550,11 +625,29 @@ export async function GET(req: Request) {
       */
       const serveIndiceCompleto =
         filtriPianificazioneAttivi(f.pianificazione) || ordinamentoDaIncrociare(f);
-      const [chiavi, indiceCompleto, saracinesche] = await Promise.all([
+      /*
+        L'indice delle sostituzioni serve PRIMA della paginazione quando c'è «Ordini per ACEA».
+
+        Più in basso viene letto comunque, per decorare le righe della pagina. Qui serve un momento
+        prima, perché il tasto taglia sull'insieme completo delle chiavi e non sulle 300 scese: è
+        la differenza fra «744 da chiedere» e «quelle fra le prime 300 che non hanno un ordine».
+        Non è una lettura in più — è la stessa, spostata: `indiceSostituzioni` ha una cache di 60
+        secondi, quindi la seconda chiamata più sotto trova il risultato già pronto.
+      */
+      const perAcea = f.stato === 'saracinesche' && f.sara === 'per_acea';
+      const [chiavi, indiceCompleto, saracinesche, sostPerFiltro, intDichFiltro] = await Promise.all([
         scansionaChiavi(f, oggi),
         serveIndiceCompleto ? indicePianificazione(f) : Promise.resolve(null),
-        f.stato === 'saracinesche'
+        // Su «Da esitare» le dichiarazioni non c'entrano: quella popolazione sono gli ordini di
+        // sostituzione, già tagliati da Postgres in `queryRegistro`.
+        f.stato === 'saracinesche' && f.sara !== 'da_esitare'
           ? odlConSaracinescaDichiarata(supabaseAdmin)
+          : Promise.resolve(new Set<string>()),
+        perAcea ? indiceSostituzioni() : Promise.resolve(new Map<string, Sostituzione>()),
+        // Le dichiarazioni per INTERVENTO: le righe massive senza ODL non si possono agganciare
+        // altrimenti, e sono 803 di quelle dichiarate.
+        f.stato === 'saracinesche' && f.sara !== 'da_esitare' && f.famiglia === 'massive'
+          ? interventiDichiarati(supabaseAdmin)
           : Promise.resolve(new Set<string>()),
       ]);
       const indice = indiceCompleto
@@ -576,8 +669,26 @@ export async function GET(req: Request) {
         for (const s of (staff ?? []) as Array<{ id: string }>) staffScelti.add(s.id);
       }
 
+      /** `true` se su quella riga esiste gia` un ordine di sostituzione (aperto o chiuso). */
+      const haSostituzione = (k: Chiave): boolean =>
+        chiaviAggancio({ impianto: k.impianto ?? null, matricola: k.matricola ?? null })
+          .some((chiave) => sostPerFiltro.has(chiave));
+
+      /** La dichiarazione si cerca per ODL; dove l'ODL non c'è, per intervento. */
+      const dichiarata = (k: Chiave): boolean =>
+        saracinesche.has(k.odl) || (!!k.intervento_id && intDichFiltro.has(k.intervento_id));
+
       let passate = chiavi.filter(
-        (k) => (f.stato !== 'saracinesche' || saracinesche.has(k.odl))
+        (k) => (f.stato !== 'saracinesche' || f.sara === 'da_esitare' || dichiarata(k))
+          /*
+            «Ordini per ACEA»: restano le dichiarazioni SENZA ordine di sostituzione.
+
+            Sono il lavoro fatto che nessuno ha ancora chiesto ad ACEA, quindi il lavoro che non
+            verra` mai pagato finche` l'ordine non esiste. Non teniamo memoria di cosa e` gia`
+            stato inviato: una riga esce di qui quando l'ordine COMPARE nell'import, non quando la
+            richiesta parte — cosi` l'elenco resta vero anche se ACEA evade solo in parte.
+          */
+          && (!perAcea || !haSostituzione(k))
           // La coda delle riaperture: fuori le completate nei rapportini. Le chiuse su ACEA sono
           // gia` fuori dalla query (`aperto=true` in `queryRegistro`).
           && (f.stato !== 'riaperture' || indice.get(chiaveDi(k))?.completato !== true)
@@ -623,19 +734,25 @@ export async function GET(req: Request) {
       if (pagina.length === 0) {
         righe = [];
       } else {
-        // Solo le righe della pagina: al massimo `perPagina` ODL, quindi un `in` corto.
+        /*
+          Solo le righe della pagina, cercate per IDENTIFICATIVO e non per ODL.
+
+          Per ODL non funzionerebbe più: nella vista massive le righe senza ordine hanno l'ODL
+          vuoto, e un `in('odl', [''])` ne riporterebbe indietro tutte e 1.317 invece delle poche
+          della pagina — o nessuna, a seconda di come cade il filtro. L'`id` c'è su entrambi i
+          rami della UNION ed è unico, quindi la lettura resta esatta e corta.
+        */
         const { data, error } = await supabaseAdmin
-          .from(PROFILO_COMMESSA[f.famiglia ?? 'dunning'].tabellaOrdini)
-          .select(COLONNE)
-          .in('odl', [...new Set(pagina.map((k) => k.odl))]);
+          .from(relazioneRegistro(f))
+          .select(selezioneRegistro(f))
+          .in('id', [...new Set(pagina.map((k) => k.id).filter(Boolean))]);
         if (error) throw error;
-        const perChiave = new Map(
-          ((data ?? []) as unknown as OrdineRow[]).map((r) => [`${r.odl}|${r.numero_operazione}`, r]),
+        const perId = new Map<string, OrdineRow>(
+          ((data ?? []) as unknown as Array<OrdineRow & { id: string }>).map((r) => [r.id, r]),
         );
-        // Riordinate come le chiavi: `in` non conserva l'ordine, e un ODL con più operazioni ne
-        // riporta indietro anche di non richieste.
+        // Riordinate come le chiavi: `in` non conserva l'ordine di richiesta.
         righe = pagina
-          .map((k) => perChiave.get(`${k.odl}|${k.numero_operazione}`))
+          .map((k): OrdineRow | undefined => (k.id ? perId.get(k.id) : undefined))
           .filter((r): r is OrdineRow => Boolean(r));
       }
     }
@@ -769,6 +886,14 @@ export async function GET(req: Request) {
         console.error('[acea/ordini] dichiarazioni saracinesca non lette:', e);
         return new Set<string>();
       });
+    // Le stesse dichiarazioni viste per INTERVENTO: è l'unico aggancio possibile sulle righe
+    // massive senza ODL. Solo dove quelle righe esistono, e best-effort come la precedente.
+    const dichiaratiInterventi = f.famiglia === 'massive'
+      ? await interventiDichiarati(supabaseAdmin).catch((e) => {
+        console.error('[acea/ordini] dichiarazioni per intervento non lette:', e);
+        return new Set<string>();
+      })
+      : new Set<string>();
     const sostituzioni = acqua
       ? new Map<string, Sostituzione>()
       : await indiceSostituzioni().catch((e) => {
@@ -889,12 +1014,34 @@ export async function GET(req: Request) {
         ?? (parziale ? { data: bozzaData, staff_id: bozzaStaff, stato: null } : p ?? null);
       return {
         ...r,
+        /*
+          La dichiarazione dell'operatore, senza filtri sull'attivita`.
+
+          Prima le RIMOZIONI venivano scolorite a `—` per via di `saracinescaContemplata`: sulle
+          rimozioni — misuratore per morosita`, allaccio abusivo — il misuratore viene portato via,
+          quindi si assumeva che una valvola non ci fosse da sostituire e che quei SI fossero
+          spunte sbagliate. Ritirata il 2026-08-06: ACEA quelle sostituzioni le accetta come
+          interventi e le liquida, quindi sono lavoro fatturabile a tutti gli effetti. Sono 13
+          ordini, e nasconderli voleva dire non chiederli mai.
+        */
         saracinesca:
-          dichiarati.has(r.odl) && saracinescaContemplata(r.attivita as string | null)
+          dichiarati.has(r.odl)
+            || (typeof r.intervento_id === 'string' && dichiaratiInterventi.has(r.intervento_id))
             ? 'SI'
             : null,
         odl_saracinesca: sost?.odl ?? null,
         stato_saracinesca: sost?.stato ?? null,
+        /*
+          Se l'ordine di sostituzione e` ancora APERTO, cioe` da esitare.
+
+          Booleano e non un confronto sul testo di `stato_saracinesca`: quello e` `stato_desc` di
+          ACEA — ci passano sia descrizioni («Intervento Richiesto») sia codici secchi («DAPI») —
+          e un `!== 'completato'` su quella colonna smetterebbe di funzionare il giorno che ACEA
+          cambia una dicitura, senza che nessuno se ne accorga. `aperto` e` una colonna del
+          registro e dice la stessa cosa. E` anche cio` che usa la card di Strumenti, quindi i due
+          conteggi restano lo stesso numero invece di divergere.
+        */
+        sostituzione_aperta: sost?.aperto === true,
         pianificato_il: mostrato?.data ?? null,
         pianificato_a: mostrato?.staff_id
           ? (nomi.get(mostrato.staff_id) ?? mostrato.staff_id)

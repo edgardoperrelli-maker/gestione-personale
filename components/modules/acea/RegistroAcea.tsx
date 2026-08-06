@@ -6,10 +6,12 @@ import { ClipboardList, Maximize2, Minimize2, RefreshCw, Upload } from 'lucide-r
 import Button from '@/components/Button';
 import { toast } from '@/components/ui/Toast';
 import {
-  COLONNE_ACQUALATINA, COLONNE_DUNNING, COLONNE_MASSIVE, colonnePerStato, dataIt,
+  COLONNE_ACQUALATINA, COLONNE_DUNNING, COLONNE_MASSIVE, colonnePerStato, colonneScheda, dataIt,
   type DefColonna, type RigaTabella,
 } from '@/lib/acea/colonneTabella';
-import { MAX_RIGHE_EXPORT, nomeFileExport, nomeFoglioExport } from '@/lib/acea/exportVista';
+import {
+  MAX_RIGHE_EXPORT, nomeFileExport, nomeFileRichiesta, nomeFoglioExport,
+} from '@/lib/acea/exportVista';
 import { gruppiPerRapportino } from '@/lib/acea/caricaSuRapportino';
 import { ATTIVITA_TABELLONE, type Famiglia } from '@/lib/acea/famiglia';
 import { contaFiltriColonna } from '@/lib/acea/filtriOrdini';
@@ -24,7 +26,7 @@ import BarraAzioni from './BarraAzioni';
 import GuidaTabella from './GuidaTabella';
 import ModaleRapportini from './ModaleRapportini';
 import MenuColonne from './MenuColonne';
-import { caricaTutteLeRighe, esportaVista } from './esportaVista';
+import { caricaTutteLeRighe, esportaRichiestaAcea, esportaVista } from './esportaVista';
 import { useOrdiniAcea } from './useOrdiniAcea';
 import { numeroIt } from '@/utils/numero-it';
 
@@ -80,9 +82,42 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
     sostituzione.
   */
   const colonneVista = useMemo(
-    () => colonnePerStato(colonne, filtri.stato === 'saracinesche'),
-    [colonne, filtri.stato],
+    () => colonnePerStato(colonne, filtri.stato === 'saracinesche', filtri.sara),
+    [colonne, filtri.stato, filtri.sara],
   );
+
+  /*
+    Le colonne della scheda si ACCENDONO entrando e si rispengono uscendo.
+
+    `visibili` è uno stato inizializzato una volta sola dalla definizione di base, dove le tre
+    della saracinesca sono `predefinita: false`. Il `predefinita: true` che `colonnePerStato`
+    mette entrando nella scheda non veniva quindi letto da nessuno: le colonne restavano spente, e
+    la tabella mostrava l'ODL della limitazione rinominato «ODL limitazione» ma non quello della
+    sostituzione — cioè proprio il numero per cui si apre quella scheda. Lo stesso valeva per
+    l'export, che si costruisce su `colonneVisibili`.
+
+    Si INNESTA e si RITIRA, invece di ricalcolare tutto: chi ha acceso una colonna a mano se la
+    ritrova cambiando scheda. Un reset completo sarebbe più semplice da scrivere e cancellerebbe
+    la personalizzazione a ogni click su una fila che si usa di continuo.
+
+    Su «Da esitare» non si innesta niente: là la riga È l'ordine di sostituzione, e le tre colonne
+    ripeterebbero il numero che si sta già leggendo nella prima.
+  */
+  const chiaviScheda = useMemo(() => colonneScheda(definizione), [definizione]);
+  const schedaSaracinesche = filtri.stato === 'saracinesche' && filtri.sara !== 'da_esitare';
+  useEffect(() => {
+    setVisibili((prima) => {
+      const dopo = new Set(prima);
+      for (const k of chiaviScheda) {
+        if (schedaSaracinesche) dopo.add(k);
+        else dopo.delete(k);
+      }
+      // Insieme identico: si restituisce QUELLO di prima. Un `Set` nuovo con lo stesso contenuto
+      // cambierebbe identità a ogni render e rifarebbe `colonneVisibili`, quindi la tabella.
+      if (dopo.size === prima.size) return prima;
+      return dopo;
+    });
+  }, [schedaSaracinesche, chiaviScheda]);
 
   const colonneVisibili = useMemo(
     () => colonneVista.filter((c) => visibili.has(c.chiave)),
@@ -365,6 +400,33 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
     }
   }, [righe, tutteCaricate, query, totale, colonneVisibili, famiglia, filtri, oggi]);
 
+  /*
+    La RICHIESTA ad ACEA: stesso caricamento, tracciato diverso.
+
+    Scarica anche questo tutte le righe che i filtri selezionano, non le 300 scese — è lo stesso
+    motivo dell'altro export, e qui pesa di più: le righe mancanti sarebbero saracinesche che non
+    vengono chieste, quindi non pagate. Il tracciato è fisso (`RICHIESTA_ACEA`) perché il file
+    esce dall'azienda: niente note dell'ufficio, niente nomi dei nostri operatori.
+  */
+  const esportaRichiesta = useCallback(async () => {
+    if (totale > MAX_RIGHE_EXPORT) {
+      toast.error(
+        `La vista ha ${numero(totale)} righe: l'export ne regge ${numero(MAX_RIGHE_EXPORT)}. Restringi i filtri.`,
+      );
+      return;
+    }
+    setEsportando(true);
+    setScaricate(tutteCaricate ? righe.length : 0);
+    try {
+      const tutte = tutteCaricate ? righe : await caricaTutteLeRighe(query, totale, setScaricate);
+      await esportaRichiestaAcea(tutte, nomeFileRichiesta(famiglia, oggi));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Export non riuscito.');
+    } finally {
+      setEsportando(false);
+    }
+  }, [righe, tutteCaricate, query, totale, famiglia, oggi]);
+
   if (errore) {
     /*
       Token di stato, non di superficie: `--brand-surface-muted` vale esattamente quanto
@@ -585,6 +647,31 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
                 : undefined
             }
           />
+
+          {/*
+            La richiesta ad ACEA sta FUORI dal menu Colonne, dove vive l'altro export.
+
+            Quello esporta «quello che si vede» ed è una funzione del menu che decide cosa si
+            vede. Questo è un passo del lavoro — il file che si allega alla mail per ACEA — e ha
+            un tracciato suo che col menu non c'entra. Nasconderlo là dentro lo renderebbe una
+            variante dell'altro, che è esattamente ciò che non è.
+
+            Compare solo su «Ordini per ACEA»: altrove esporterebbe righe che un ordine ce l'hanno
+            già, cioè chiederebbe ad ACEA di aprire ordini che esistono.
+          */}
+          {filtri.stato === 'saracinesche' && filtri.sara === 'per_acea' && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => void esportaRichiesta()}
+              loading={esportando}
+              disabled={totale === 0}
+            >
+              <ClipboardList size={14} aria-hidden="true" />
+              Richiesta ACEA
+              {totale > 0 && ` (${numero(totale)})`}
+            </Button>
+          )}
 
           {/*
             Il «?» resta del modo vista: la guida si legge prima, non con le righe spuntate.

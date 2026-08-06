@@ -76,6 +76,23 @@ export function useOrdiniAcea(
       iniziali.stato = 'tutti';
       iniziali.comuneScheda = null;
     }
+    /*
+      `?stato=saracinesche&sara=…` apre il registro già sul passo del ciclo che si vuole fare.
+
+      È il collegamento dalla card di Strumenti, che resta il cruscotto — i numeri e il valore a
+      rischio — e manda alla tabella per lavorarci. Senza questa lettura il link avrebbe portato
+      sulla scheda-comune di default, con un conteggio diverso da quello appena cliccato.
+
+      Solo `saracinesche` e non uno stato qualsiasi: è l'unica scheda a cui si arriva da fuori, e
+      accettare qualunque valore renderebbe la URL una seconda via per pilotare la vista, da
+      tenere allineata a mano con la fila delle schede.
+    */
+    if (params?.get('stato') === 'saracinesche') {
+      iniziali.stato = 'saracinesche';
+      iniziali.comuneScheda = null;
+      const sara = params.get('sara');
+      if (sara === 'per_acea' || sara === 'da_esitare') iniziali.sara = sara;
+    }
     return iniziali;
   });
   /*

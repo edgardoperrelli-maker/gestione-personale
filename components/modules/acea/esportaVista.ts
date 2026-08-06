@@ -1,7 +1,9 @@
 'use client';
 
-import { valoreCella, type DefColonna, type RigaTabella } from '@/lib/acea/colonneTabella';
-import { PER_PAGINA_EXPORT, pagineExport } from '@/lib/acea/exportVista';
+import {
+  valoreCella, type ChiaveColonna, type DefColonna, type RigaTabella,
+} from '@/lib/acea/colonneTabella';
+import { PER_PAGINA_EXPORT, RICHIESTA_ACEA, pagineExport } from '@/lib/acea/exportVista';
 
 /**
  * Scarica **tutte** le righe che la query dei filtri seleziona, non solo quelle già scese.
@@ -57,10 +59,37 @@ export async function esportaVista(
   nomeFile: string,
   nomeFoglio: string,
 ): Promise<void> {
+  await scriviXlsx(righe, colonne, nomeFile, nomeFoglio);
+}
+
+/**
+ * Esporta la RICHIESTA ad ACEA: tracciato fisso, solo i campi che servono ad aprire gli ordini.
+ *
+ * Deliberatamente NON «quello che si vede». Questo file esce dall'azienda e arriva al committente,
+ * quindi non porta le note dell'ufficio né i nomi dei nostri operatori, e ha la stessa forma a
+ * ogni giro invece di seguire il menu Colonne. Il tracciato sta in `RICHIESTA_ACEA`, dove si legge
+ * tutto insieme e si cambia in un posto solo.
+ */
+export async function esportaRichiestaAcea(
+  righe: readonly RigaTabella[],
+  nomeFile: string,
+): Promise<void> {
+  await scriviXlsx(righe, RICHIESTA_ACEA, nomeFile, 'Richiesta saracinesche');
+}
+
+/** Il pezzo comune ai due export: dalle righe al file scaricato. */
+async function scriviXlsx(
+  righe: readonly RigaTabella[],
+  colonne: ReadonlyArray<{ intestazione: string; larghezza: number; chiave: ChiaveColonna }>,
+  nomeFile: string,
+  nomeFoglio: string,
+): Promise<void> {
   const XLSX = await import('xlsx');
   const intestazione = colonne.map((c) => c.intestazione);
   const corpo = righe.map((r) => colonne.map((c) => {
     const v = valoreCella(r, c.chiave);
+    // Il trattino è il segnaposto della TABELLA, che deve mostrare una cella occupata. In un
+    // foglio è un valore: una cella vuota si filtra e si somma, «—» no.
     return v === '—' ? '' : v;
   }));
 

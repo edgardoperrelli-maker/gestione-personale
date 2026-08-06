@@ -18,7 +18,8 @@ const TESTI_VUOTI = {
 describe('leggiFiltri', () => {
   it('senza parametri applica i default', () => {
     expect(q('')).toEqual({
-      famiglia: null, stato: 'tutti', comuneScheda: null, elenchi: ELENCHI_VUOTI, testi: TESTI_VUOTI,
+      famiglia: null, stato: 'tutti', sara: 'tutte', comuneScheda: null,
+      elenchi: ELENCHI_VUOTI, testi: TESTI_VUOTI,
       scadenza: 'tutte', entroGiorni: 7, cerca: null, pagina: 1, perPagina: 100,
       pianificazione: {
         esecutori: [], senzaEsecutore: false, pianificazione: 'tutte', giorno: null,
@@ -40,6 +41,7 @@ describe('leggiFiltri', () => {
   it('un valore ignoto cade sul default invece di dare errore', () => {
     expect(q('famiglia=pippo').famiglia).toBeNull();
     expect(q('stato=boh').stato).toBe('tutti');
+    expect(q('sara=chissa').sara).toBe('tutte');
     expect(q('scadenza=domani').scadenza).toBe('tutte');
   });
 
@@ -683,5 +685,66 @@ describe('comuneScheda in query', () => {
     const riletti = leggiFiltri(parametriQuery(f, 'massive', 300));
     expect(riletti.comuneScheda).toBe('ZAGAROLO');
     expect(riletti.elenchi.comune).toEqual(['LABICO']);
+  });
+});
+
+/*
+  I due passi del ciclo saracinesche.
+
+  Non sono un filtro che si somma agli altri: ciascuno seleziona una POPOLAZIONE diversa —
+  «Ordini per ACEA» guarda le dichiarazioni senza ordine di sostituzione, «Da esitare» guarda gli
+  ordini di sostituzione aperti. Sbagliare qui non dà un errore: dà righe plausibili sotto il
+  tasto sbagliato, che è il modo in cui si manda ad ACEA una richiesta doppia o incompleta.
+*/
+describe('tasti rapidi della scheda saracinesche', () => {
+  it('viaggiano in URL solo dentro la loro scheda', () => {
+    // Fuori non selezionano niente, e in un link scambiato sarebbero solo rumore che confonde.
+    const f = { ...filtriVuoti(), stato: 'aperti' as const, sara: 'per_acea' as const };
+    expect(parametriQuery(f, 'massive', 300).get('sara')).toBeNull();
+    expect(parametriQuery({ ...f, stato: 'saracinesche' }, 'massive', 300).get('sara'))
+      .toBe('per_acea');
+  });
+
+  it('«Tutte» non compare in URL: è il default', () => {
+    const f = { ...filtriVuoti(), stato: 'saracinesche' as const };
+    expect(parametriQuery(f, 'massive', 300).get('sara')).toBeNull();
+  });
+
+  it('sopravvivono al giro query → server', () => {
+    for (const sara of ['per_acea', 'da_esitare'] as const) {
+      const f = { ...filtriVuoti(), stato: 'saracinesche' as const, sara };
+      expect(leggiFiltri(parametriQuery(f, 'massive', 300)).sara).toBe(sara);
+    }
+  });
+
+  it('cambiando scheda si riparte da «Tutte»', () => {
+    // Restando appeso, tornare sulle saracinesche dopo un giro altrove riaprirebbe la vista già
+    // ristretta a una delle due popolazioni, con un conteggio diverso da quello che si è lasciato.
+    const f = { ...filtriVuoti(), stato: 'saracinesche' as const, sara: 'da_esitare' as const };
+    expect(applicaScheda(f, 'chiusi').sara).toBe('tutte');
+    expect(applicaScheda(f, 'comune:ZAGAROLO').sara).toBe('tutte');
+  });
+
+  it('«Azzera» invece lo TIENE: è navigazione, non un criterio', () => {
+    // Dice quale popolazione si sta guardando, non come è ristretta. Azzerarlo cambierebbe le
+    // righe sotto le mani a chi voleva solo togliere un filtro di colonna.
+    const f = { ...filtriVuoti(), stato: 'saracinesche' as const, sara: 'per_acea' as const };
+    f.elenchi.comune = ['LABICO'];
+    const dopo = azzeraFiltri(f);
+    expect(dopo.sara).toBe('per_acea');
+    expect(dopo.elenchi.comune).toEqual([]);
+  });
+
+  it('«Da esitare» NON costa un incrocio, «Ordini per ACEA» sì', () => {
+    /*
+      È la differenza che rende quel tasto il più economico dei due pur mostrando la popolazione
+      che si assegna davvero: gli ordini di sostituzione sono righe del registro come le altre e
+      si selezionano per attività e `aperto`, due colonne che Postgres ha. Le dichiarazioni no —
+      l'aggancio è per impianto o matricola, e va incrociato.
+    */
+    const base = { ...q(''), stato: 'saracinesche' as const };
+    expect(serveIncrocio({ ...base, sara: 'da_esitare' })).toBe(false);
+    expect(serveIncrocio({ ...base, sara: 'per_acea' })).toBe(true);
+    expect(serveIncrocio({ ...base, sara: 'tutte' })).toBe(true);
   });
 });
