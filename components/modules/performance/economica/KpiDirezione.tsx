@@ -97,7 +97,13 @@ function CardsConsuntivo({
       <Card
         titolo={`Pre-SAL ${num(dati.preSal.n)}`}
         valore={eur(dati.preSal.totale.valore)}
-        nota={`${num(dati.preSal.totale.conteggio)} ODL nostri positivi, esitati sul portale, non in un SAL · vivo oggi`}
+        /*
+          Il numero grande segue il periodo — è il pre-SAL che ACEA ha in pancia per quelle date,
+          e accanto al SAL del mese si legge come lo scarto vero (ciò che il committente ha
+          consuntivato dopo il suo taglio). Lo stock complessivo resta qui in nota: è un'altra
+          domanda, «quanto ci devono in tutto», e non deve rubare il posto alla prima.
+        */
+        nota={`${num(dati.preSal.totale.conteggio)} ODL consuntivati nel periodo e non in un SAL · ${eur(dati.preSal.totaleVivo.valore)} in tutto a oggi`}
         accent={dati.preSal.totale.valore > 0 ? 'warn' : undefined}
       />
       {/* UN numero solo, mai scomposto con/senza ordine (correzione utente 2026-08-05). */}

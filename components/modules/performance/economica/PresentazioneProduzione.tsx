@@ -108,8 +108,8 @@ export default function PresentazioneProduzione({
               {dati.conContabilizzazione && (
                 <>
                   {' '}SAL = ordini pagati dal file ufficiale ACEA; Pre-SAL = ODL con riscontro nostro
-                  (rapportino positivo o ultimo tentativo ESEGUITO nel registro), esitati sul
-                  portale (COMPLETATO, qualunque causale) e non ancora in un SAL
+                  (rapportino positivo o ultimo tentativo ESEGUITO nel registro), consuntivati da
+                  ACEA (qualunque causale), non ancora in un SAL e completati nel periodo
                   {vista === 'tutti' ? ' — SAL e pre-SAL riguardano la sola quota ACEA' : ''}.
                 </>
               )}{' '}
