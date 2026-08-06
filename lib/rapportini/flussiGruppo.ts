@@ -21,7 +21,13 @@ export const GRUPPI_EXTRA: Record<CommittenteFlusso, readonly string[]> = {
   acqualatina: [],
 };
 
-export type TassonomiaGruppoRiga = { committente: string; gruppo: string; attivo: boolean };
+export type TassonomiaGruppoRiga = {
+  committente: string;
+  gruppo: string;
+  attivo: boolean;
+  /** Attività reale dentro il gruppo (es. PICARRO dentro «P.I.»): serve a farla TROVARE. */
+  descrizione?: string | null;
+};
 
 export type TemplateFlussoRow = {
   id: string;
@@ -31,7 +37,12 @@ export type TemplateFlussoRow = {
   gruppi_attivita?: string[] | null;
 };
 
-export type GruppoNodo<T> = { gruppo: string; flussi: T[] };
+export type GruppoNodo<T> = {
+  gruppo: string;
+  flussi: T[];
+  /** Le attività della tassonomia che ricadono nel gruppo, in ordine alfabetico. */
+  descrizioni: string[];
+};
 
 export type CommittenteNodo<T> = {
   committente: CommittenteFlusso;
@@ -121,6 +132,19 @@ export function buildAlberoFlussi<T extends TemplateFlussoRow>(
       for (const g of t.gruppi_attivita ?? []) aggiungi(g);
     }
 
+    // Attività per gruppo: un gruppo ne contiene più d'una (PICARRO e PRONTO INTERVENTO in
+    // «P.I.») e senza mostrarle il flusso è cercabile solo col nome del gruppo.
+    const descrizioniPerGruppo = new Map<string, Set<string>>();
+    for (const r of tassonomia) {
+      if (!r.attivo || committenteEquivalente(r.committente) !== committente) continue;
+      const k = chiaveTassonomia(r.gruppo);
+      const d = String(r.descrizione ?? '').trim();
+      if (!k || !d) continue;
+      const set = descrizioniPerGruppo.get(k) ?? new Set<string>();
+      set.add(d);
+      descrizioniPerGruppo.set(k, set);
+    }
+
     const gruppi: GruppoNodo<T>[] = [...visti.entries()]
       .map(([k, gruppo]) => ({
         gruppo,
@@ -128,6 +152,9 @@ export function buildAlberoFlussi<T extends TemplateFlussoRow>(
           (t) =>
             t.gruppo_committente === committente &&
             (t.gruppi_attivita ?? []).some((g) => chiaveTassonomia(g) === k),
+        ),
+        descrizioni: [...(descrizioniPerGruppo.get(k) ?? [])].sort((a, b) =>
+          a.localeCompare(b, 'it', { sensitivity: 'base' }),
         ),
       }))
       .sort((a, b) => a.gruppo.localeCompare(b.gruppo, 'it', { sensitivity: 'base' }));

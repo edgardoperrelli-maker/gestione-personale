@@ -1,12 +1,16 @@
 // CRUD RISTRETTO sulla tassonomia attività (spec fase 2 §4.1): niente rename (la
 // descrizione canonica è referenziata dallo storico: rinominare = nuova riga + disattiva
 // la vecchia); delete solo se mai usata su interventi.
+// Il GRUPPO invece si cambia (PATCH { id, gruppo }): è la classificazione, non un fatto
+// storico, ed è l'unità con cui «Azioni operatori» dà le azioni all'operatore.
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { resolveUserRole } from '@/lib/moduleAccess';
 import { validaTassonomiaInput } from '@/lib/attivita/validaTassonomiaInput';
+import { validaSpostamentoGruppo } from '@/lib/attivita/validaSpostamentoGruppo';
+import { chiaveTassonomia } from '@/lib/attivita/tassonomia';
 
 export const runtime = 'nodejs';
 
@@ -24,15 +28,19 @@ async function requireAdmin(): Promise<true | NextResponse> {
   return true;
 }
 
+/** Committenti che sullo storico valgono la riga (lim_massive è un canale di acea). */
+function committentiDiRiga(r: RigaDb): string[] {
+  return r.committente === 'acea' ? ['acea', 'lim_massive'] : [r.committente];
+}
+
 /** Utilizzo di una voce: quante righe interventi la referenziano (storico canonicalizzato →
  *  match esatto su intervento_tipo + committente equivalente, lim_massive conta come acea). */
 async function utilizzoVoce(r: RigaDb): Promise<number> {
-  const committenti = r.committente === 'acea' ? ['acea', 'lim_massive'] : [r.committente];
   const { count, error } = await supabaseAdmin
     .from('interventi')
     .select('id', { count: 'exact', head: true })
     .eq('intervento_tipo', r.descrizione)
-    .in('committente', committenti);
+    .in('committente', committentiDiRiga(r));
   if (error) throw new Error(error.message);
   return count ?? 0;
 }
@@ -76,13 +84,73 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ ok: true, riga: { ...(data as RigaDb), utilizzo: 0 } });
 }
 
+/**
+ * Sposta un'attività in un altro gruppo. Il gruppo è una CLASSIFICAZIONE, non un fatto
+ * storico: gli interventi già registrati portano una copia denormalizzata (scritta da
+ * `taskToIntervento` al momento della pianificazione) e vengono riallineati qui, altrimenti
+ * resterebbero appesi al gruppo vecchio — e con loro il flusso di azioni che i rapportini
+ * risolvono da `interventi.gruppo_attivita`. La descrizione non si tocca.
+ */
+async function spostaDiGruppo(riga: RigaDb, gruppo: string) {
+  const { data, error } = await supabaseAdmin
+    .from('attivita_tassonomia')
+    .update({ gruppo })
+    .eq('id', riga.id)
+    .select('id, committente, descrizione, descrizione_norm, gruppo, attivo')
+    .single();
+  if (error) throw new Error(error.message);
+  // Riallineamento dello storico: stesso criterio di `utilizzoVoce`, così il numero
+  // annunciato all'utente e quello toccato sono per costruzione lo stesso insieme.
+  const { data: tocc, error: eInt } = await supabaseAdmin
+    .from('interventi')
+    .update({ gruppo_attivita: gruppo })
+    .eq('intervento_tipo', riga.descrizione)
+    .in('committente', committentiDiRiga(riga))
+    .select('id');
+  if (eInt) throw new Error(`gruppo aggiornato, ma riallineamento interventi fallito: ${eInt.message}`);
+  return { riga: data as RigaDb, interventi: (tocc ?? []).length };
+}
+
 export async function PATCH(req: NextRequest) {
   const guard = await requireAdmin();
   if (guard instanceof NextResponse) return guard;
-  const body = (await req.json().catch(() => null)) as { id?: unknown; attivo?: unknown } | null;
+  const body = (await req.json().catch(() => null)) as { id?: unknown; attivo?: unknown; gruppo?: unknown } | null;
+
+  // Ramo «sposta di gruppo»: riconosciuto dalla presenza di `gruppo` nel body.
+  if (body != null && typeof body === 'object' && 'gruppo' in body) {
+    const esito = validaSpostamentoGruppo(body);
+    if (!esito.ok) return NextResponse.json({ error: esito.errore }, { status: 400 });
+    const { data: rigaData, error: eSel } = await supabaseAdmin
+      .from('attivita_tassonomia')
+      .select('id, committente, descrizione, descrizione_norm, gruppo, attivo')
+      .eq('id', esito.valore.id)
+      .maybeSingle();
+    if (eSel) return NextResponse.json({ error: eSel.message }, { status: 500 });
+    if (!rigaData) return NextResponse.json({ error: 'Voce non trovata.' }, { status: 404 });
+    const riga = rigaData as RigaDb;
+    // Stesso gruppo (a meno di maiuscole/accenti/spazi): niente scrittura, niente storico toccato.
+    if (chiaveTassonomia(riga.gruppo) === chiaveTassonomia(esito.valore.gruppo)) {
+      try {
+        return NextResponse.json({ ok: true, riga: { ...riga, utilizzo: await utilizzoVoce(riga) }, interventiRiallineati: 0 });
+      } catch (e) {
+        return NextResponse.json({ error: e instanceof Error ? e.message : 'Errore conteggio utilizzo.' }, { status: 500 });
+      }
+    }
+    try {
+      const { riga: aggiornata, interventi } = await spostaDiGruppo(riga, esito.valore.gruppo);
+      return NextResponse.json({
+        ok: true,
+        riga: { ...aggiornata, utilizzo: await utilizzoVoce(aggiornata) },
+        interventiRiallineati: interventi,
+      });
+    } catch (e) {
+      return NextResponse.json({ error: e instanceof Error ? e.message : 'Errore spostamento gruppo.' }, { status: 500 });
+    }
+  }
+
   const id = String(body?.id ?? '').trim();
   if (!id || typeof body?.attivo !== 'boolean') {
-    return NextResponse.json({ error: 'Servono id e attivo (boolean). Le descrizioni non si rinominano: crea una nuova voce e disattiva la vecchia.' }, { status: 400 });
+    return NextResponse.json({ error: 'Servono id e attivo (boolean) oppure id e gruppo (string). Le descrizioni non si rinominano: crea una nuova voce e disattiva la vecchia.' }, { status: 400 });
   }
   const { data, error } = await supabaseAdmin
     .from('attivita_tassonomia')
