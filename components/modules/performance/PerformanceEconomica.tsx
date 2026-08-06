@@ -256,7 +256,7 @@ export default function PerformanceEconomica() {
 
       {dati && (
         <>
-          <KpiDirezione dati={dati} operative />
+          <KpiDirezione dati={dati} />
 
           {/* Il confronto col SAL scelto sta SUBITO sotto i KPI: quando lo si chiede è la domanda
               della sessione, non un approfondimento da cercare in fondo alla pagina. */}

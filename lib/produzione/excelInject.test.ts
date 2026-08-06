@@ -31,7 +31,8 @@ const mockDati = {
   },
   scarto: { conteggio: 1, valore: 100 },
   salStorico: [{ n: 1, mese: '2026-06', ordini: 2, valoreAps: 200, valoreListino: 190, deltaListino: 10, odlSconosciuti: 0 }],
-  preSal: { n: 2, totale: { conteggio: 1, valore: 90 }, totaleVivo: { conteggio: 3, valore: 260 } },
+  preSal: { n: 2, totale: { conteggio: 1, valore: 90 }, totaleVivo: { conteggio: 3, valore: 260 },
+    acea: { conteggio: 2, valore: 80 }, nonRemunerato: 12 },
   fuoriSal: { conteggio: 1, valore: 80 },
   personale: {
     totaleGiornate: 1.5,
@@ -151,13 +152,17 @@ describe('aggiungiFogli', () => {
 });
 
 describe('fogliSal', () => {
-  it('un foglio "Dati - SAL" con storico + pre-SAL + fuori SAL + non remunerato', () => {
+  it('un foglio "Dati - SAL" con storico + pre-SAL (ACEA, nostro, delta) + fuori SAL', () => {
     const fogli = fogliSal(mockDati as Dati);
     expect(fogli).toHaveLength(1);
     expect(fogli[0].nome).toBe('Dati - SAL');
-    const [header, riga1, righeExtra] = fogli[0].righe;
+    const [header, riga1, preAcea, preNostro, preDelta, fuori] = fogli[0].righe;
     expect(header).toEqual(['SAL', 'Mese', 'ODL', 'Valore APS EUR', 'Valore listino EUR', 'Delta listino EUR', 'ODL sconosciuti']);
     expect(riga1).toEqual([1, '2026-06', 2, 200, 190, 10, 0]);
-    expect(righeExtra[0]).toBe('Pre-SAL 2');
+    // ACEA sta in colonna «Valore APS» (è quello che ci pagherà), il nostro in «Valore listino».
+    expect(preAcea).toEqual(['Pre-SAL 2 · ACEA', '', 2, 80, '', '', '']);
+    expect(preNostro).toEqual(['Pre-SAL 2 · nostro', '', 1, '', 90, '', '']);
+    expect(preDelta).toEqual(['Delta pre-SAL (nostro - ACEA)', '', '', '', '', 10, '']);
+    expect(fuori[0]).toBe('Fuori SAL');
   });
 });

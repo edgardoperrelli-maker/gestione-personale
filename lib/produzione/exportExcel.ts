@@ -181,8 +181,17 @@ export async function buildWorkbookProduzione(dati: ProduzioneEconomica): Promis
     r.getCell(5).numFmt = EUR;
     r.getCell(6).numFmt = EUR;
   }
-  const rPre = ds.addRow([`Pre-SAL ${dati.preSal.n}`, '', dati.preSal.totale.conteggio, dati.preSal.totale.valore, '', '', '']);
-  rPre.getCell(4).numFmt = EUR;
+  /*
+    Il pre-SAL in tre righe come nelle card: il libro di ACEA (Valore Netto, colonna «Valore APS»
+    perché è ciò che ci pagherà), il nostro a listino, e il delta. Chi apre il file a fine mese
+    cerca esattamente quel confronto.
+  */
+  const rPreAcea = ds.addRow([`Pre-SAL ${dati.preSal.n} · ACEA`, '', dati.preSal.acea.conteggio, dati.preSal.acea.valore, '', '', '']);
+  rPreAcea.getCell(4).numFmt = EUR;
+  const rPre = ds.addRow([`Pre-SAL ${dati.preSal.n} · nostro`, '', dati.preSal.totale.conteggio, '', dati.preSal.totale.valore, '', '']);
+  rPre.getCell(5).numFmt = EUR;
+  const rPreDelta = ds.addRow([`Δ pre-SAL (nostro − ACEA)`, '', '', '', '', dati.preSal.totale.valore - dati.preSal.acea.valore, '']);
+  rPreDelta.getCell(6).numFmt = EUR;
   const rFuori = ds.addRow(['Fuori SAL', '', dati.fuoriSal.conteggio, dati.fuoriSal.valore, '', '', '']);
   rFuori.getCell(4).numFmt = EUR;
 
