@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { resolveUserRole } from '@/lib/moduleAccess';
 import { patchInterventoLiveDaVoce } from '@/lib/interventi/esitoDaVoce';
+import { agganciaVoceOrfana } from '@/lib/interventi/agganciaVoceOrfana';
 import { sweepDopoPositivi } from '@/lib/interventi/sweepOdlPositivo';
 import { mergeRisposte } from '@/utils/rapportini/mergeRisposte';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
@@ -45,7 +46,7 @@ export async function POST(req: Request) {
 
   const { data: rap } = await supabaseAdmin
     .from('rapportini')
-    .select('id, campi_snapshot')
+    .select('id, campi_snapshot, staff_id, data')
     .eq('id', rapportinoId)
     .maybeSingle();
   if (!rap) return NextResponse.json({ error: 'Rapportino non trovato.' }, { status: 404 });
@@ -55,12 +56,26 @@ export async function POST(req: Request) {
   for (const item of voci) {
     const { data: voce } = await supabaseAdmin
       .from('rapportino_voci')
-      .select('id, intervento_id, risposte, campi_snapshot')
+      .select('id, intervento_id, risposte, campi_snapshot, raw_json, odl, matricola, pdr, via')
       .eq('id', item.voceId)
       .eq('rapportino_id', rapportinoId)
       .maybeSingle();
     if (!voce) continue;
-    const v = voce as { intervento_id: string | null; risposte: Record<string, unknown> | null; campi_snapshot?: unknown };
+    const v = voce as {
+      id: string; intervento_id: string | null; risposte: Record<string, unknown> | null;
+      campi_snapshot?: unknown; raw_json?: unknown;
+      odl: string | null; matricola: string | null; pdr: string | null; via: string | null;
+    };
+    /*
+      Voce scollegata: agganciala PRIMA di propagare, o la correzione d'ufficio finisce
+      nel nulla — risposte aggiornate, `{ok:true}` in faccia, intervento fermo dov'era.
+    */
+    if (!v.intervento_id) {
+      v.intervento_id = await agganciaVoceOrfana(supabaseAdmin, v, {
+        staffId: (rap as { staff_id?: string | null }).staff_id ?? null,
+        data: (rap as { data?: string | null }).data ?? null,
+      });
+    }
     // Esito/propagazione valutati sui campi DELLA voce (flusso del suo gruppo attività).
     const campiV = Array.isArray(v.campi_snapshot) && v.campi_snapshot.length > 0
       ? (v.campi_snapshot as TemplateCampo[])

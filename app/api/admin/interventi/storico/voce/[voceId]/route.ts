@@ -10,6 +10,7 @@ import { resolveAssignableRole, canManageUsers, canEditStorico } from '@/lib/mod
 import { mergeRisposte } from '@/utils/rapportini/mergeRisposte';
 import { patchInterventoLiveDaVoce } from '@/lib/interventi/esitoDaVoce';
 import { sweepDopoPositivi } from '@/lib/interventi/sweepOdlPositivo';
+import { agganciaVoceOrfana } from '@/lib/interventi/agganciaVoceOrfana';
 import { esitoDichiarato, matricoleObbligatorieCompilate } from '@/utils/rapportini/voceColore';
 import { valoreMatricolaNuova, propagaMatricolaNuovaARegistro } from '@/lib/acqualatina/matricolaNuova';
 import { propagaAnagraficaARegistro } from '@/lib/acqualatina/propagaAnagrafica';
@@ -213,12 +214,30 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ voceId
   }
 
   const { data: voce } = await supabaseAdmin
-    .from('rapportino_voci').select('id, intervento_id, rapportino_id, risposte, campi_snapshot').eq('id', voceId).maybeSingle();
+    .from('rapportino_voci')
+    .select('id, intervento_id, rapportino_id, risposte, campi_snapshot, raw_json, odl, matricola, pdr, via')
+    .eq('id', voceId)
+    .maybeSingle();
   if (!voce) return NextResponse.json({ error: 'Voce non trovata.' }, { status: 404 });
-  const v = voce as { intervento_id: string | null; rapportino_id: string; risposte: Record<string, unknown> | null; campi_snapshot?: unknown };
+  const v = voce as {
+    id: string; intervento_id: string | null; rapportino_id: string;
+    risposte: Record<string, unknown> | null; campi_snapshot?: unknown; raw_json?: unknown;
+    odl: string | null; matricola: string | null; pdr: string | null; via: string | null;
+  };
 
   const { data: rap } = await supabaseAdmin
-    .from('rapportini').select('campi_snapshot, data').eq('id', v.rapportino_id).maybeSingle();
+    .from('rapportini').select('campi_snapshot, data, staff_id').eq('id', v.rapportino_id).maybeSingle();
+  /*
+    Voce scollegata: si aggancia ORA, prima di propagare. Tutto il blocco che segue vive dentro
+    `if (v.intervento_id)`: su un'orfana la correzione dello Storico tornava `{ok:true}` senza
+    toccare niente — nemmeno l'`avviso` «salvato ma non chiuso», che è dentro lo stesso ramo.
+  */
+  if (!v.intervento_id) {
+    v.intervento_id = await agganciaVoceOrfana(supabaseAdmin, v, {
+      staffId: (rap as { staff_id?: string | null } | null)?.staff_id ?? null,
+      data: (rap as { data?: string | null } | null)?.data ?? null,
+    });
+  }
   // Le matricole obbligatorie (es. MATRICOLA NUOVO MISURATORE) non si pretendono sulle voci
   // di rapportini nati prima del gate che le ha introdotte — vedi `campiPerChiusuraStorico`.
   const campi = campiPerChiusuraStorico(

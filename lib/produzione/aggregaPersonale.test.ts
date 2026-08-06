@@ -26,11 +26,39 @@ describe('aggregaPersonale', () => {
   it('insieme vuoto → zero giornate, nessun operatore, sabato a zero', () => {
     const p = agg([]);
     expect(p.totaleGiornate).toBe(0);
+    expect(p.giorniLavorati).toBe(0);
     expect(p.operatoriAttivi).toBe(0);
     expect(p.perOperatore).toEqual([]);
     expect(p.perGiorno).toEqual([]);
     expect(p.sabato).toEqual({ giornate: 0, valore: 0 });
     expect(p.valoreFeriale).toBe(0);
+  });
+
+  it('giorniLavorati conta i GIORNI, le giornate-uomo li moltiplicano per gli operatori', () => {
+    /*
+      Quattro operatori su due giorni: 8 giornate-uomo ma 2 giorni. La card «N op × N gg» leggeva
+      le giornate-uomo come giorni (correzione utente 2026-08-06), e la media giornaliera divideva
+      per quelle: usciva la resa per uomo, non la produzione del giorno.
+    */
+    const righe = ['s1', 's2', 's3', 's4'].flatMap((staffId) => [
+      r({ staffId, data: '2026-06-01' }),
+      r({ staffId, data: '2026-06-02' }),
+    ]);
+    const p = agg(righe);
+    expect(p.totaleGiornate).toBe(8);
+    expect(p.giorniLavorati).toBe(2);
+    expect(p.operatoriAttivi).toBe(4);
+  });
+
+  it('giorniLavorati non dipende dall’ampiezza del periodo, ma dai giorni davvero toccati', () => {
+    // Periodo lungo, lavoro concentrato in due giornate: i giorni restano due.
+    const p = agg([r({ data: '2026-06-01' }), r({ data: '2026-06-05' })]);
+    expect(p.giorniLavorati).toBe(2);
+  });
+
+  it('sabato e domenica non entrano nei giorni lavorati (canali a parte)', () => {
+    const p = agg([r({ data: '2026-06-01' }), r({ data: '2026-06-06' }), r({ data: '2026-06-07' })]);
+    expect(p.giorniLavorati).toBe(1);
   });
 
   it('giornata piena ACEA feriale → frazione 1', () => {

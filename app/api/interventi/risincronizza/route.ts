@@ -46,7 +46,7 @@ export async function POST(req: Request) {
       const campi = (rap.campi_snapshot ?? []) as TemplateCampo[];
       const { data: voci } = await supabaseAdmin
         .from('rapportino_voci')
-        .select('id, intervento_id, raw_json, risposte, updated_at, campi_snapshot')
+        .select('id, intervento_id, raw_json, risposte, updated_at, campi_snapshot, odl, matricola, pdr')
         .eq('rapportino_id', rap.id);
 
       for (const v of (voci ?? []) as Array<{
@@ -56,15 +56,21 @@ export async function POST(req: Request) {
         risposte: Record<string, unknown> | null;
         updated_at: string;
         campi_snapshot?: unknown;
+        odl: string | null;
+        matricola: string | null;
+        pdr: string | null;
       }>) {
         let interventoId = v.intervento_id;
         if (!interventoId) {
           const raw = (v.raw_json ?? {}) as { odl?: unknown; odsin?: unknown; matricola?: unknown; pdr?: unknown };
+          // Fallback alle COLONNE della voce, come generazione/salvataggio/invio: senza, lo
+          // strumento di recupero non recuperava proprio le voci che lo motivano — quelle il cui
+          // `raw_json` non porta le chiavi (ODL 957327236) rispondevano «agganciate: 0».
           const found = resolve({
             staff_id: rap.staff_id,
-            odl: (raw.odl as string | null | undefined) ?? (raw.odsin as string | null | undefined),
-            matricola: raw.matricola as string | null | undefined,
-            pdr: raw.pdr as string | null | undefined,
+            odl: (raw.odl as string | null | undefined) ?? (raw.odsin as string | null | undefined) ?? v.odl,
+            matricola: (raw.matricola as string | null | undefined) ?? v.matricola,
+            pdr: (raw.pdr as string | null | undefined) ?? v.pdr,
           });
           if (found) {
             interventoId = found;

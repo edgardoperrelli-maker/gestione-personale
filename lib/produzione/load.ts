@@ -6,10 +6,11 @@ import { prezzoPerData, valoreRiga, type ListinoRiga } from './valorizza';
 import { attivitaCanonica } from './attivitaCanonica';
 import { interventiConSaracinescaDichiarata } from '@/lib/acea/caricaSaracinesche';
 import { scostamentoPagato } from './statoPortale';
+import { consuntivazioneAcea } from './consuntivazioneAcea';
 import { caricaAliasAttivita } from './aliasAttivita';
 import { caricaComuniMassive } from './comuniMassive';
 import { caricaOrdiniSostituzione } from '@/lib/acea/caricaSaracinesche';
-import { chiaviAggancio } from '@/lib/acea/saracinesche';
+import { chiaviAggancio, saracinescaContemplata } from '@/lib/acea/saracinesche';
 import { aggregaProduzione, deduplicaMassivePerMatricola, type Aggregato, type ProduzioneAggregata, type RigaProduzione } from './aggregaProduzione';
 import { aggregaPersonale, giornoSettimana, type ProduzionePersonale, type RigaLavoro } from './aggregaPersonale';
 import { aggregaEsiti, type EsitoOperatore, type RigaEsito } from './aggregaEsiti';
@@ -159,6 +160,10 @@ interface RegistroRow {
   numero_operazione: string | null;
   esito_positivo: boolean | null;
   data_completamento: string | null;
+  /** Stato SAP dell'operazione (`COMP` = chiusa) e sua causale: la seconda fonte di
+   *  consuntivazione, viva quando lo snapshot del portale è fermo (`consuntivazioneAcea`). */
+  stato: string | null;
+  causale: string | null;
 }
 interface PortaleRow {
   odl: string;
@@ -294,7 +299,7 @@ export async function caricaProduzioneEconomica(
     caricaInterventi(vista),
     caricaSnapshot<RegistroRow>(
       'acea_ordini',
-      'odl, attivita, comune, impianto, matricola, numero_operazione, esito_positivo, data_completamento',
+      'odl, attivita, comune, impianto, matricola, numero_operazione, esito_positivo, data_completamento, stato, causale',
       ['odl', 'numero_operazione'],
     ),
     caricaSnapshot<PortaleRow>('acea_portale_snapshot', 'odl, stato_norm, causa_scostamento', ['odl']),
@@ -473,7 +478,16 @@ export async function caricaProduzioneEconomica(
     // Fuori dall'`if (odl …)`: la dichiarazione vale anche sulle massive SENZA ordine — il
     // figlio si aggancia per matricola/impianto, e la matricola c'è anche quando l'ODL madre no.
     // TUTTI i figli agganciati, non uno: quale sia quello consuntivato lo dirà il portale.
-    if (commessa === 'acea' && esitoOk === true && saracinescaDichiarata.has(it.id)) {
+    /*
+      `saracinescaContemplata`: sulle RIMOZIONI una valvola non si sostituisce — se il misuratore
+      o l'allaccio se ne vanno, non resta niente su cui montarla. Il modulo ACEA filtra già così
+      (le «10 dichiarazioni SI su rimozione misuratore» che documenta `saracinesche.ts`); qui non
+      lo faceva, e le stesse dichiarazioni valevano 91,12 € l'una in Produzione economica ma zero
+      nella vista saracinesche: due numeri diversi per lo stesso lavoro, col nostro più alto.
+    */
+    const saracinescaValida = saracinescaDichiarata.has(it.id)
+      && saracinescaContemplata(attivitaKey || it.intervento_tipo);
+    if (commessa === 'acea' && esitoOk === true && saracinescaValida) {
       for (const f of figliDiIntervento((it.matricola_contatore ?? '').trim(), odl)) {
         figliSaracinescaPositivi.add(f);
       }
@@ -508,7 +522,7 @@ export async function caricaProduzioneEconomica(
         riga entrerebbe nei conti ACEA a tariffa ACEA, e in vista AcquaLatina renderebbe non-zero
         card che `conContabilizzazione=false` dichiara a zero.
       */
-      if (commessa === 'acea' && saracinescaDichiarata.has(it.id)) {
+      if (commessa === 'acea' && saracinescaValida) {
         produzioneRighe.push({
           odl, commessa: 'acea', voce: null, kpi: null, attivitaKey: SARA_KEY, attivitaLabel: SARA_LABEL,
           matricola: it.matricola_contatore ?? '',
@@ -540,24 +554,31 @@ export async function caricaProduzioneEconomica(
     un import che ne conservi la storia perché «l'ultima riga letta» torni a essere il PRIMO
     tentativo — l'errore esatto da cui nasce questa mappa.
   */
-  const registroUltimo = new Map<string, { op: number; positivo: boolean; data: string }>();
+  const registroUltimo = new Map<string, { op: number; positivo: boolean; data: string; stato: string; causale: string | null }>();
   // Senza la fetta ACEA il registro resta chiuso: `registroPopolato` deve dire «non pertinente»,
   // non «popolato», o la vista AcquaLatina si porterebbe dietro un audit di ordini altrui.
   for (const r of conAcea ? registroRows : []) {
     const odl = (r.odl ?? '').trim();
     if (!odl) continue;
-    registroAudit.set(odl, { voce: risolviVoce(null, r.attivita) });
-    // Attività CANONICA (via alias): la chiave GREZZA non aggancia il listino
-    // (es. "LIMITAZIONE FLUSSO IDRICO" ≠ tariffa "LIMITAZIONE EROGAZIONE") → altrimenti SAL a 0.
-    const canonR = attivitaCanonica('acea', r.attivita, r.comune, alias, comuniMassive);
-    if (canonR?.attivitaKey) registroAttivita.set(odl, canonR.attivitaKey);
     const op = parseInt((r.numero_operazione ?? '').trim(), 10) || 0;
     const prevU = registroUltimo.get(odl);
+    /*
+      Voce e attività seguono l'ULTIMO tentativo, come esito e data: prima erano last-wins
+      sull'ordine di lettura, così su un ordine multi-operazione il SAL poteva essere valorizzato
+      con la tariffa di un tentativo e datato con un altro.
+    */
     if (!prevU || op >= prevU.op) {
+      registroAudit.set(odl, { voce: risolviVoce(null, r.attivita) });
+      // Attività CANONICA (via alias): la chiave GREZZA non aggancia il listino
+      // (es. "LIMITAZIONE FLUSSO IDRICO" ≠ tariffa "LIMITAZIONE EROGAZIONE") → altrimenti SAL a 0.
+      const canonR = attivitaCanonica('acea', r.attivita, r.comune, alias, comuniMassive);
+      if (canonR?.attivitaKey) registroAttivita.set(odl, canonR.attivitaKey);
       registroUltimo.set(odl, {
         op,
         positivo: r.esito_positivo === true,
         data: (r.data_completamento ?? '').slice(0, 10),
+        stato: (r.stato ?? '').trim(),
+        causale: r.causale,
       });
     }
   }
@@ -615,43 +636,79 @@ export async function caricaProduzioneEconomica(
     };
   };
 
+  /*
+    CHE COSA ACEA HA CONSUNTIVATO — dalle DUE fonti, non dal solo portale.
+
+    Lo snapshot `acea_portale_snapshot` lo scriveva l'agente Playwright, ritirato il 04/08/2026:
+    da allora è fermo al 29/07 e ha solo lettori. Reggere il gate del SAL su quella foto voleva
+    dire non vedere più nulla di ciò che ACEA chiude da fine luglio in poi — al 06/08 erano 265
+    ordini pagabili spariti dai conti (76 di luglio, 189 di agosto), che è esattamente lo scarto
+    notato sul pre-SAL 2. Il registro del Cruscotto è la fonte viva; sui 5.828 ordini presenti in
+    entrambe è risultato avanti 320 volte e indietro mai, quindi l'unione aggiunge e non
+    contraddice. Logica e precedenze in `consuntivazioneAcea` (puro, con test).
+  */
+  const consuntivato = consuntivazioneAcea({
+    portale: (conAcea ? portaleRows : []).map((p) => ({
+      odl: p.odl ?? '', statoNorm: p.stato_norm, causa: p.causa_scostamento,
+    })),
+    registro: conAcea
+      ? [...registroUltimo].map(([odl, u]) => ({ odl, stato: u.stato, causale: u.causale }))
+      : [],
+    // il gas riclassificato (committente effettivo italgas) è fuori dalla vista ACEA
+    escludi: (odl) => effByOdl.get(odl) === 'italgas',
+  });
+
+  /*
+    La chiusura ACEA è un'ESECUZIONE se la causale è pagabile (E%) o se l'ultimo tentativo del
+    registro è ESEGUITO; altrimenti è un ordine archiviato negativo, che con un nostro esito
+    negativo CONCORDA (i 639 del 2026-08-05) e non deve accendere l'audit. `causaFallback` serve
+    alle righe di portale non consuntivate, che una causale ce l'hanno lo stesso.
+  */
+  const esitoPositivoAceaDi = (odl: string, causaFallback: string | null = null): boolean =>
+    scostamentoPagato(consuntivato.get(odl)?.causa ?? causaFallback)
+    || registroUltimo.get(odl)?.positivo === true;
+
   const portaleAudit = new Map<string, PortaleRiga>();
   const odlCompletatoAny = new Set<string>();
   const salRighe: RigaProduzione[] = [];
   const nonRemuneratoRighe: RigaProduzione[] = [];
+  /*
+    L'audit a tre vie legge la colonna «portale» come «che cosa ACEA ha consuntivato», e la
+    consuntivazione ora ha due fonti: un ordine chiuso nel solo registro deve risultare
+    COMPLETATO anche qui, altrimenti ogni nostro positivo delle ultime settimane uscirebbe
+    marcato POSITIVO_DB_NON_COMPLETATO_PORTALE — un muro di falsi generato dallo snapshot fermo.
+  */
   for (const p of conAcea ? portaleRows : []) {
     const odl = (p.odl ?? '').trim();
     if (!odl) continue;
-    // il gas riclassificato (committente effettivo italgas) è fuori dalla vista ACEA (audit + SAL)
     if (effByOdl.get(odl) === 'italgas') continue;
-    // Un ODL riletto (paginazione sotto upsert concorrente) non deve spingere due volte in
-    // salRighe: l'audit lo deduplicava già via Map, l'Esitato no.
+    // Un ODL riletto (paginazione sotto upsert concorrente) non deve entrare due volte.
     if (portaleAudit.has(odl)) continue;
-    const statoNorm = (p.stato_norm ?? '').trim();
-    portaleAudit.set(odl, {
-      statoNorm,
-      // La chiusura è un'esecuzione se la causale è pagabile (E%) o se l'ultimo tentativo del
-      // registro è ESEGUITO; altrimenti è un archiviato negativo, che con un nostro esito
-      // negativo CONCORDA (i 639 del 2026-08-05) e non deve accendere l'audit.
-      esitoPositivoAcea: scostamentoPagato(p.causa_scostamento) || registroUltimo.get(odl)?.positivo === true,
-    });
-    if (statoNorm !== 'COMPLETATO') continue;
+    const statoNorm = consuntivato.has(odl) ? 'COMPLETATO' : (p.stato_norm ?? '').trim();
+    portaleAudit.set(odl, { statoNorm, esitoPositivoAcea: esitoPositivoAceaDi(odl, p.causa_scostamento) });
+  }
+  for (const [odl] of consuntivato) {
+    if (portaleAudit.has(odl)) continue; // già visto dal giro portale qui sopra
+    portaleAudit.set(odl, { statoNorm: 'COMPLETATO', esitoPositivoAcea: esitoPositivoAceaDi(odl) });
+  }
+
+  for (const [odl, c] of consuntivato) {
     odlCompletatoAny.add(odl);
     /*
-      REGOLA D'IMPUTAZIONE (decisione utente 2026-08-05): oltre al COMPLETATO del portale serve
+      REGOLA D'IMPUTAZIONE (decisione utente 2026-08-05): oltre alla consuntivazione ACEA serve
       un riscontro NOSTRO — il positivo dei rapportini (sull'ODL, o sulla limitazione madre per
       i figli di saracinesca) oppure l'ultimo tentativo ESEGUITO nel registro Cruscotto, per i
-      giri conclusivi rimasti senza rapportino. Un completato del portale che nulla di nostro
-      sostiene non entra né nell'«Esitato ACEA» né nel pre-SAL: resta nell'audit a tre vie
+      giri conclusivi rimasti senza rapportino. Un consuntivato che nulla di nostro sostiene non
+      entra né nell'«Esitato ACEA» né nel pre-SAL: resta nell'audit a tre vie
       (SOLO_PORTALE / COMPLETATO_PORTALE_NON_POSITIVO_DB), che è il posto delle cose da chiarire.
     */
     if (!odlImputabileAlSal(odl, odlPositiviAcea, figliSaracinescaPositivi, odlEseguitiRegistro)) continue;
     // SAL = ciò che ACEA REMUNERA: solo causa scostamento pagata (inizia per E).
-    if (scostamentoPagato(p.causa_scostamento)) {
+    if (scostamentoPagato(c.causa)) {
       salRighe.push(rigaEsitataDa(odl));
     } else {
-      // consuntivato dal portale con causale a nostro carico: fuori da "Esitato ACEA" (E%),
-      // ma nel pre-SAL completo (decisione utente 10/07: un solo totale, niente distinzione).
+      // consuntivato con causale a nostro carico: fuori da "Esitato ACEA" (E%), ma nel pre-SAL
+      // completo (decisione utente 10/07: un solo totale, niente distinzione).
       nonRemuneratoRighe.push(rigaEsitataDa(odl));
     }
   }
@@ -661,7 +718,8 @@ export async function caricaProduzioneEconomica(
   const scarto = scartoProduzioneSal(produzioneAcea.totale, sal.totale);
 
   /*
-    «Fuori SAL» = prodotto ma non ancora consuntivato dal portale. Per una saracinesca la chiave
+    «Fuori SAL» = prodotto ma non ancora consuntivato da ACEA (portale o registro, vedi
+    `consuntivato` qui sopra). Per una saracinesca la chiave
     non è l'ODL della limitazione ma quello del suo ordine figlio. Tra più figli agganciati vince
     quello COMPLETATO (la riga è esitata), poi uno aperto (fuori SAL: c'è un ordine che aspetta
     l'esito), poi il primo: è lo stesso criterio «un ordine aperto batte uno chiuso» di

@@ -14,8 +14,18 @@ const GRIGLIA = 'grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6';
 export default function KpiDirezione({ dati, operative }: { dati: DatiProduzione; operative?: boolean }) {
   const prod = dati.produzione.totale.valore;
   const ultimoSal = dati.salStorico.length > 0 ? dati.salStorico[dati.salStorico.length - 1] : null;
+  /*
+    Due misure diverse, che la card confondeva (correzione utente 2026-08-06):
+    - `giornate` = GIORNATE-UOMO (somma delle frazioni: 4 operatori per 5 giorni ≈ 19);
+    - `giorniLavorati` = GIORNI di calendario in cui si è davvero lavorato (6, se il primo
+      intervento è del 29/07), che non dipende dall'ampiezza del periodo a schermo.
+    «4 op × 19 gg» moltiplicava le due cose (76 uomo-giorno) e la media giornaliera divideva la
+    produzione per le giornate-uomo: usciva la resa per uomo, non quella del giorno.
+  */
   const giornate = dati.personale.totaleGiornate;
-  const resa = giornate > 0 ? dati.personale.valoreFeriale / giornate : null;
+  const giorniLavorati = dati.personale.giorniLavorati;
+  const mediaGiornaliera = giorniLavorati > 0 ? dati.personale.valoreFeriale / giorniLavorati : null;
+  const resaUomo = giornate > 0 ? dati.personale.valoreFeriale / giornate : null;
 
   /*
     Le tre card del consuntivo — SAL, pre-SAL, fuori-SAL — e le discrepanze d'audit nascono TUTTE
@@ -36,10 +46,16 @@ export default function KpiDirezione({ dati, operative }: { dati: DatiProduzione
         <Card titolo="Produzione" valore={eur(prod)} nota={`${num(dati.produzione.totale.conteggio)} ordini · nel periodo`} accent="pos" />
         <Card
           titolo="Personale impiegato"
-          valore={`${num(dati.personale.operatoriAttivi)} op × ${num(Math.round(giornate))} gg`}
-          nota="giornate feriali lun–ven; giorni misti pro-quota"
+          valore={`${num(dati.personale.operatoriAttivi)} op × ${num(giorniLavorati)} gg`}
+          nota={`giorni feriali con lavoro in commessa · ${num(giornate)} giornate-uomo`}
         />
-        <Card titolo="Resa €/giornata" valore={resa == null ? '—' : eur(resa)} nota="produzione feriale / giornate feriali" />
+        <Card
+          titolo="Produzione media giornaliera"
+          valore={mediaGiornaliera == null ? '—' : eur(mediaGiornaliera)}
+          nota={resaUomo == null
+            ? 'produzione feriale / giorni lavorati'
+            : `produzione feriale / giorni lavorati · ${eur(resaUomo)} per uomo-giorno`}
+        />
         {operative && (
           <Card titolo="Voci non risolte" valore={num(dati.produzione.nonRisolte)} nota="da classificare" accent={dati.produzione.nonRisolte > 0 ? 'warn' : undefined} />
         )}

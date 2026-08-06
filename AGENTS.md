@@ -477,6 +477,17 @@ di una riga esitata da solo-registro è il `data_completamento` dell'ultimo tent
 data del passaggio fallito a rapportino. Helper puro: `odlImputabileAlSal`
 (`lib/produzione/salUfficiale.ts`); mappa `registroUltimo` in `lib/produzione/load.ts`.
 
+⚠️ **La consuntivazione ACEA ha DUE fonti** (`lib/produzione/consuntivazioneAcea.ts`, 2026-08-06):
+portale (`acea_portale_snapshot`, COMPLETATO) **∪** registro Cruscotto (`acea_ordini`, ultimo
+tentativo `stato='COMP'`). Lo snapshot lo scriveva l'agente ritirato il 04/08 ed è **fermo al
+29/07**: reggerci sopra il gate del SAL nascondeva tutto ciò che ACEA chiude da fine luglio in
+poi (al 06/08: 265 ordini pagabili, 76 di luglio + 189 di agosto — lo scarto notato sul pre-SAL
+2). Il registro è la fonte viva e non contraddice: sui 5.828 ordini comuni è avanti 320 volte,
+indietro mai. Il portale resta **primario sulla causale**; il registro parla solo per gli ordini
+che il portale non conosce. La stessa unione alimenta `odlCompletatoAny` (fuori-SAL) e la colonna
+«portale» dell'audit — se non lo facesse, ogni nostro positivo recente uscirebbe come
+`POSITIVO_DB_NON_COMPLETATO_PORTALE`.
+
 ⚠️ **Audit a tre vie: COMPLETATO ≠ eseguito** (correzione utente 2026-08-05, «i 639»):
 `PortaleRiga.esitoPositivoAcea` distingue la chiusura pagabile (causale E%, o ultimo tentativo
 ESEGUITO nel registro) dall'ordine **archiviato negativo** (causale non-E: NPRT, NMNT…). Un
@@ -498,6 +509,15 @@ L'aggancio madre→figlio delle saracinesche usa TUTTI i figli per chiave (impia
 via `chiaviAggancio`, anche dal misuratore dell'ordine madre nel registro), con preferenza
 completato > aperto > primo — mai una mappa first-wins, che sceglierebbe a caso tra un figlio
 chiuso già pagato e uno nuovo.
+
+### KPI personale: giornate-uomo ≠ giorni (correzione utente 2026-08-06)
+`personale.totaleGiornate` sono **giornate-uomo** (somma delle frazioni: 4 operatori per 5 giorni
+≈ 19); `personale.giorniLavorati` sono i **giorni di calendario** feriali in cui la commessa è
+stata davvero toccata (`perGiorno.length`), e non dipendono dall'ampiezza del periodo a schermo.
+La card «Personale impiegato» mostra `op × giorniLavorati` (mostrava le giornate-uomo come giorni:
+«4 op × 19 gg» = 76 uomo-giorno, il quadruplo) e la «Produzione media giornaliera» divide per i
+giorni lavorati; la resa per uomo-giorno resta nella nota. Se il lavoro parte il 29/07, i giorni
+sono quelli lavorati — non i feriali del mese.
 
 ### Spunta saracinesca su voci nate senza il campo
 La dichiarazione `risposte.sostituzione_valvola = 'SI'` è l'unica fonte del ciclo saracinesche:

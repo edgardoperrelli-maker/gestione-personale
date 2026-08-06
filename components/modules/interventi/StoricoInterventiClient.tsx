@@ -132,6 +132,9 @@ export default function StoricoInterventiClient({ staff, gruppi, territori, comm
       if (e instanceof DOMException && e.name === 'AbortError') return; // richiesta annullata: ignora
       setError(e instanceof Error ? e.message : 'Errore caricamento.');
       setRighe([]);
+      // Anche qui il drawer va chiuso: con la tabella svuotata resterebbe aperto su una riga che
+      // non c'è più, e «Modifica» punterebbe a quella voce.
+      setDettaglio(null);
       setTotal(0);
       setTroncato(false);
       setContatori(CONTATORI_ZERO);
