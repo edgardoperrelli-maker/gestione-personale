@@ -421,7 +421,13 @@ export default function MisuratoriClient({
     setStatoFiltro(prev => (s === '' ? '' : prev === s ? '' : s));
 
   return (
-    <div className="flex h-[calc(100dvh-6rem)] flex-col gap-4">
+    /*
+      L'altezza bloccata a schermo — testata ferma, solo il registro che scorre — è il gesto
+      giusto col mouse, ma sul TELEFONO KPI e filtri da soli riempiono la pagina e alla lista
+      restavano ~200px: un registro da 468 righe dentro una feritoia. Sotto md l'altezza si
+      libera e scorre la pagina intera, come si fa su un telefono.
+    */
+    <div className="flex flex-col gap-4 md:h-[calc(100dvh-6rem)]">
       {/*
         Rientro della vista-foglietta, quando c'è: dentro il riquadro full-screen (vedi la prop).
         `shrink-0` come ogni altro fratello fisso di questa colonna (KPI, filtri, conteggio):
@@ -655,7 +661,12 @@ export default function MisuratoriClient({
       <div
         ref={areaTabella}
         tabIndex={-1}
-        className="relative min-h-0 flex-1 overflow-auto rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-[var(--shadow-sm)] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--brand-primary)]">
+        /*
+          Sotto md la cornice sparisce: lì il registro è una pila di SCHEDE, e ogni scheda
+          porta già il suo bordo — la superficie bianca attorno le incorniciava due volte e
+          rubava 32px di larghezza a uno schermo che ne ha 428.
+        */
+        className="relative focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--brand-primary)] md:min-h-0 md:flex-1 md:overflow-auto md:rounded-[var(--radius-lg)] md:border md:border-[var(--brand-border)] md:bg-[var(--brand-surface)] md:shadow-[var(--shadow-sm)]">
         {loading && (
           <div className="absolute inset-0 z-20 flex items-center justify-center gap-3 bg-[var(--brand-surface)]/70 text-sm text-[var(--brand-text-muted)]">
             <Loader2 className="h-6 w-6 animate-spin text-[var(--brand-primary)]" aria-hidden />
