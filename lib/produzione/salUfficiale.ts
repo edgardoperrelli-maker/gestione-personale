@@ -1,6 +1,6 @@
 // PURA: SAL ufficiali ACEA (file "SAL N.xlsx" della cartella CONTABILITA'). Ingestione
 // (preparaRigheSal), riepilogo per SAL (riepilogoUnSal), e le chiavi di aggancio usate dal
-// loader per calcolare Pre-SAL/Fuori SAL (odlPagatiDaSal, chiaveSalEffettiva).
+// loader per calcolare Pre-SAL/Fuori SAL (odlPagatiDaSal, odlImputabileAlSal).
 import { dataDaRaw } from './dataDaRaw';
 
 export interface SalRigaGrezza {
@@ -149,15 +149,11 @@ export function odlImputabileAlSal(
   ordine o non ordine. La regola d'imputazione qui sopra riguarda solo SAL e pre-SAL.
 */
 
-/** Chiave "portale" effettiva di una riga di produzione, per il check pre-SAL/fuori-SAL: le
- *  saracinesche (attivitaKey === saracinescaKey) valgono per l'Odl FIGLIO (quello consuntivato sul
- *  portale), non per l'odl padre della limitazione scritto in riga. '' se non risolvibile
- *  (saracinesca "DA CHIEDERE", mai ordinata). */
-export function chiaveSalEffettiva(
-  riga: { odl: string; attivitaKey: string },
-  saracinescaKey: string,
-  saracinescaFiglioByParent: Map<string, string>,
-): string {
-  if (riga.attivitaKey === saracinescaKey) return saracinescaFiglioByParent.get(riga.odl) ?? '';
-  return riga.odl;
-}
+/*
+  Qui viveva `chiaveSalEffettiva(riga, saracinescaKey, saracinescaFiglioByParent)`: risolveva la
+  chiave portale di una riga passando da una `Map<padre, figlio>`, cioè UN figlio per limitazione,
+  il primo incontrato. È esattamente il first-wins che a luglio sceglieva a caso fra un ordine di
+  sostituzione già pagato e uno nuovo, e che `figlioDiRiga` in `load.ts` ha sostituito con
+  «tutti i figli, preferenza completato > aperto > primo». Non aveva più consumatori: rimossa il
+  2026-08-06 invece di lasciarla lì pronta da riusare.
+*/

@@ -36,7 +36,16 @@ export interface PersonaleGiorno {
 }
 
 export interface ProduzionePersonale {
-  totaleGiornate: number; // solo feriali
+  totaleGiornate: number; // GIORNATE-UOMO feriali (somma delle frazioni di tutti gli operatori)
+  /**
+   * GIORNI di calendario davvero lavorati: feriali con almeno un intervento in commessa.
+   *
+   * Non è `totaleGiornate` e non è la finestra del periodo. La card «Personale impiegato» leggeva
+   * le giornate-uomo come se fossero giorni («4 op × 19 gg» = 76 uomo-giorno, quadruplo del vero)
+   * e la resa divideva per lo stesso 19. Se il lavoro parte il 29/07 i giorni sono quelli in cui
+   * si è lavorato — 6 — e la produzione media giornaliera è quella: totale / 6.
+   */
+  giorniLavorati: number;
   operatoriAttivi: number; // operatori con giornate feriali > 0
   valoreFeriale: number; // € produzione feriale complessiva (numeratore della resa KPI)
   sabato: { giornate: number; valore: number }; // canale attivazioni, mostrato a parte
@@ -122,6 +131,9 @@ export function aggregaPersonale(
   const totaleGiornate = round2(perOperatore.reduce((s, o) => s + o.giornate, 0));
   return {
     totaleGiornate,
+    // `perGiorno` contiene un elemento per giorno feriale in cui la commessa è stata toccata:
+    // è già, per costruzione, l'elenco dei giorni davvero lavorati.
+    giorniLavorati: perGiorno.length,
     operatoriAttivi: perOperatore.length,
     valoreFeriale: round2(extra.valoreFeriale),
     sabato: { giornate: round2(sabatoGiornate), valore: round2(extra.sabatoValore) },

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  chiaveSalEffettiva, odlImputabileAlSal, odlPagatiDaSal, preparaRigheSal, riepilogoUnSal,
+  odlImputabileAlSal, odlPagatiDaSal, preparaRigheSal, riepilogoUnSal,
   type SalRigaArricchita,
 } from './salUfficiale';
 
@@ -121,15 +121,5 @@ describe('odlImputabileAlSal', () => {
   });
 });
 
-describe('chiaveSalEffettiva', () => {
-  const figli = new Map([['PADRE1', 'FIGLIO1']]);
-  it('riga normale -> il proprio odl', () => {
-    expect(chiaveSalEffettiva({ odl: '123', attivitaKey: 'LIMITAZIONE' }, 'SARACINESCA', figli)).toBe('123');
-  });
-  it("saracinesca -> l'odl figlio", () => {
-    expect(chiaveSalEffettiva({ odl: 'PADRE1', attivitaKey: 'SARACINESCA' }, 'SARACINESCA', figli)).toBe('FIGLIO1');
-  });
-  it('saracinesca senza figlio noto -> stringa vuota', () => {
-    expect(chiaveSalEffettiva({ odl: 'IGNOTO', attivitaKey: 'SARACINESCA' }, 'SARACINESCA', figli)).toBe('');
-  });
-});
+// I test di `chiaveSalEffettiva` sono spariti con la funzione (2026-08-06): mappa padre→figlio
+// first-wins, senza consumatori. Il comportamento vivo è `figlioDiRiga` in `load.ts`.

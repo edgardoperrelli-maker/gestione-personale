@@ -240,14 +240,28 @@ export async function caricaOrdiniSostituzione(db: SupabaseClient): Promise<Ordi
     aperto: boolean; stato: string; data_creazione: string | null; comune: string | null;
     impianto: string | null; matricola: string | null;
   };
+  /*
+    Paginata e ORDINATA sulla chiave primaria (odl, numero_operazione). PostgREST tronca a 1000
+    righe per richiesta, e in silenzio: senza `range` gli ordini di sostituzione oltre la soglia
+    sparirebbero: dalla vista saracinesche, dal gate del SAL (`figliSaracinescaPositivi`) e
+    dall'aggancio madre→figlio. Cioè lavoro nostro che smette di essere pagabile perché una
+    query ha smesso di leggerlo. Oggi sono 267, domani no.
+  */
   const viste = new Map<string, Riga>();
   for (const pattern of ['%saracinesc%', '%valvol%']) {
-    const { data, error } = await db
-      .from('acea_ordini')
-      .select('odl, numero_operazione, attivita, famiglia, aperto, stato, data_creazione, comune, impianto, matricola')
-      .ilike('attivita', pattern);
-    if (error) throw error;
-    for (const r of (data ?? []) as Riga[]) viste.set(`${r.odl}|${r.numero_operazione}`, r);
+    for (let offset = 0; ; offset += PAGE) {
+      const { data, error } = await db
+        .from('acea_ordini')
+        .select('odl, numero_operazione, attivita, famiglia, aperto, stato, data_creazione, comune, impianto, matricola')
+        .ilike('attivita', pattern)
+        .order('odl', { ascending: true })
+        .order('numero_operazione', { ascending: true })
+        .range(offset, offset + PAGE - 1);
+      if (error) throw error;
+      const righe = (data ?? []) as Riga[];
+      for (const r of righe) viste.set(`${r.odl}|${r.numero_operazione}`, r);
+      if (righe.length < PAGE) break;
+    }
   }
 
   return [...viste.values()]
