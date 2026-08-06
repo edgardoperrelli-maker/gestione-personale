@@ -17,6 +17,7 @@ import {
 import { indiceTassonomiaCached } from '@/lib/acea/indiceTassonomia';
 import { sincronizzaRegistro, COMMESSA_ACEA, type EsitoSync } from '@/lib/misuratori/sincronizzaRegistro';
 import { daPotare, type ImportArchiviato } from '@/lib/acea/retentionArchivio';
+import { aggiornaPortaleSnapshot, type EsitoPortaleSnapshot } from '@/lib/acea/aggiornaPortaleSnapshot';
 import { partiRoma } from '@/lib/orarioRoma';
 import type { RigaOrdineAcea } from '@/lib/acea/tipi';
 
@@ -352,6 +353,27 @@ export async function POST(req: Request) {
       console.warn('[acea/import] riallineamento attività non riuscito:', e);
     }
 
+    /*
+      5-quinquies) LO STATO PORTALE LO PORTA QUESTO FILE.
+
+      `acea_portale_snapshot` — terza colonna dell'audit e gate storico del SAL — la scriveva
+      l'agente Playwright, ritirato il 04/08/2026: da allora era ferma al 29/07 e il pre-SAL
+      smetteva di vedere ciò che ACEA chiudeva dopo (265 ordini pagabili al 06/08). Le stesse
+      informazioni sono in questo export, e questo giro l'ufficio lo fa comunque: da qui in poi
+      il modulo si aggiorna con l'import, senza dipendere da una macchina accesa.
+
+      Best-effort come gli altri passi post-import: gli ordini sono già scritti, e il motore
+      economico legge comunque anche il registro (`consuntivazioneAcea`). Si DICE quanti ODL
+      sono stati rinfrescati, come per ogni altra scrittura di questo giro.
+    */
+    let portale: EsitoPortaleSnapshot | null = null;
+    try {
+      portale = await aggiornaPortaleSnapshot(supabaseAdmin, parse.righe, importId);
+      console.info(`[acea/import] stato portale aggiornato: ${portale.odl} ODL`);
+    } catch (e) {
+      console.warn('[acea/import] aggiornamento stato portale non riuscito:', e);
+    }
+
     // 5-bis) Microaree: gli ordini nuovi arrivano senza coordinate, e geocodificarli richiede
     // minuti (un indirizzo al secondo). Il ricalcolo presta loro il gruppo del CAP — a Roma — o del
     // comune, così una riga appena importata ha già una zona invece di restare a «—» proprio nei
@@ -409,6 +431,7 @@ export async function POST(req: Request) {
       esitiCorretti,
       attivitaAllineate,
       registroMisuratori,
+      portale,
       microaree: gruppi,
     };
 

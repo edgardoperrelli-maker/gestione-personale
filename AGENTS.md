@@ -477,6 +477,14 @@ di una riga esitata da solo-registro è il `data_completamento` dell'ultimo tent
 data del passaggio fallito a rapportino. Helper puro: `odlImputabileAlSal`
 (`lib/produzione/salUfficiale.ts`); mappa `registroUltimo` in `lib/produzione/load.ts`.
 
+**Lo stato portale lo rinfresca l'IMPORT** (decisione utente 2026-08-06): `aggiornaPortaleSnapshot`
+(`lib/acea/aggiornaPortaleSnapshot.ts`) riscrive `acea_portale_snapshot` a ogni import del modulo
+ACEA, dall'ULTIMA operazione di ogni ordine, con `run_id` = id dell'import. Prende il posto
+dell'agente ritirato: niente più tabella ferma, e il giro lo fa l'ufficio comunque. Tocca **solo
+gli ODL presenti nel file** (l'export è finestrato: cancellare il resto perderebbe lo storico) ed
+è best-effort come gli altri passi post-import. La vista AcquaLatina non ha un equivalente: là non
+c'è portale né SAL (`conContabilizzazione: false`), la produzione nasce dagli interventi.
+
 ⚠️ **La consuntivazione ACEA ha DUE fonti** (`lib/produzione/consuntivazioneAcea.ts`, 2026-08-06):
 portale (`acea_portale_snapshot`, COMPLETATO) **∪** registro Cruscotto (`acea_ordini`, ultimo
 tentativo `stato='COMP'`). Lo snapshot lo scriveva l'agente ritirato il 04/08 ed è **fermo al
