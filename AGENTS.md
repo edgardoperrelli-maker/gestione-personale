@@ -518,6 +518,15 @@ via `chiaviAggancio`, anche dal misuratore dell'ordine madre nel registro), con 
 completato > aperto > primo — mai una mappa first-wins, che sceglierebbe a caso tra un figlio
 chiuso già pagato e uno nuovo.
 
+### Numeri: solo `utils/numero-it` (decisione utente 2026-08-06)
+`euroIt(n, decimali = 2)` e `numeroIt(n, decimali?)` sono l'unica strada per formattare NUMERI.
+Motivo: `toLocaleString('it-IT')` in ICU ha `minimumGroupingDigits = 2`, quindi raggruppa solo da
+cinque cifre in su — nella stessa fila di KPI convivevano «141.453,71 €» e «6115,73 €». I due
+helper forzano `useGrouping: 'always'`. Le **date** restano libere di usare `toLocaleString` con
+le loro opzioni. Guardia: `utils/numeroItGuardia.test.ts` fallisce se un sorgente di
+`app/components/lib/utils` formatta numeri a mano (`toLocaleString('it-IT')` senza opzioni
+temporali, o `new Intl.NumberFormat`).
+
 ### Pre-SAL affiancato: ACEA, nostro, delta (richiesta utente 2026-08-06)
 Tre card, stessa finestra e stesso asse (data di completamento ACEA):
 - **ACEA** (`preSal.acea`): ordini che ACEA ha consuntivato con causale PAGABILE e non ha ancora

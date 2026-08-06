@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { buildDettaglio, filterRows, formatItDate, type ClientRow, type PerfFilters } from '@/lib/performance/shape';
 import PerfFilterBar, { type FilterOptions } from './PerfFilterBar';
 import Button from '@/components/Button';
+import { numeroIt } from '@/utils/numero-it';
 
 const PAGE_SIZE = 50;
 
@@ -23,7 +24,7 @@ export default function PerformanceDettaglio({ allRows, options, initial }: { al
     <section className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-[var(--shadow-sm)]">
       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-base font-semibold text-[var(--brand-text-main)]">Dettaglio interventi</h2>
-        <span className="text-xs text-[var(--brand-text-muted)]">{rows.length.toLocaleString('it-IT')} interventi</span>
+        <span className="text-xs text-[var(--brand-text-muted)]">{numeroIt(rows.length)} interventi</span>
       </div>
       <PerfFilterBar value={f} onChange={onChange} options={options} />
       {rows.length === 0 ? (
@@ -66,7 +67,7 @@ export default function PerformanceDettaglio({ allRows, options, initial }: { al
           </div>
           {pages > 1 && (
             <div className="mt-3 flex items-center justify-between text-xs text-[var(--brand-text-muted)]">
-              <span>{(start + 1).toLocaleString('it-IT')}–{Math.min(start + PAGE_SIZE, rows.length).toLocaleString('it-IT')} di {rows.length.toLocaleString('it-IT')}</span>
+              <span>{numeroIt(start + 1)}–{numeroIt(Math.min(start + PAGE_SIZE, rows.length))} di {numeroIt(rows.length)}</span>
               <div className="flex items-center gap-2">
                 <Button
                   type="button"

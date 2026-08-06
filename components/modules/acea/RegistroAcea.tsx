@@ -26,8 +26,9 @@ import ModaleRapportini from './ModaleRapportini';
 import MenuColonne from './MenuColonne';
 import { caricaTutteLeRighe, esportaVista } from './esportaVista';
 import { useOrdiniAcea } from './useOrdiniAcea';
+import { numeroIt } from '@/utils/numero-it';
 
-const numero = (n: number) => n.toLocaleString('it-IT');
+const numero = (n: number) => numeroIt(n);
 
 const DEFINIZIONI: Record<Famiglia, DefColonna[]> = {
   dunning: COLONNE_DUNNING,

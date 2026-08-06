@@ -23,6 +23,7 @@ import ObjectHeader from '@/components/ui/ObjectHeader';
 import MisuratoriTabella from './MisuratoriTabella';
 import { STATO_ACCENT } from './StatoBadge';
 import { exportMisuratoriPdf, type PdfFilters } from './exportMisuratoriPdf';
+import { numeroIt } from '@/utils/numero-it';
 
 /** Filtri lato server (la data/comune/esecutore rifanno la fetch). Lo stato è un
  *  filtro rapido CLIENT-side, pilotato dalle card, così i contatori delle card
@@ -475,7 +476,7 @@ export default function MisuratoriClient({
           <span className="absolute inset-y-0 left-0 w-1 bg-[var(--brand-primary)]" aria-hidden />
           <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--brand-text-muted)]">Tutti</span>
           <span className="font-mono text-2xl font-semibold tabular-nums text-[var(--brand-primary)]">
-            {counts.total.toLocaleString('it-IT')}
+            {numeroIt(counts.total)}
           </span>
         </button>
 
@@ -498,7 +499,7 @@ export default function MisuratoriClient({
               <span className="absolute inset-y-0 left-0 w-1" style={{ backgroundColor: accent }} aria-hidden />
               <span className="truncate text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--brand-text-muted)]">{STATO_LABEL[s]}</span>
               <span className="font-mono text-2xl font-semibold tabular-nums" style={{ color: accent }}>
-                {counts.byStato[s].toLocaleString('it-IT')}
+                {numeroIt(counts.byStato[s])}
               </span>
             </button>
           );

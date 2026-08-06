@@ -20,6 +20,7 @@ import PersonaleImpegno from './economica/PersonaleImpegno';
 import EsitiOperatore from './economica/EsitiOperatore';
 import CandeleSettimanali from './economica/CandeleSettimanali';
 import { eur, num, type DatiProduzione } from './economica/tipi';
+import { euroIt, numeroIt } from '@/utils/numero-it';
 
 /*
   La colonna di mezzo dell'audit è il REGISTRO del modulo ACEA da luglio 2026 (il motore ha
@@ -445,8 +446,8 @@ function TabellaAgg({ titolo, righe, max = 12 }: { titolo: string; righe: Aggreg
               {top.map((r) => (
                 <tr key={r.chiave} className="border-t border-[var(--brand-border)] first:border-t-0">
                   <td className="py-1 pr-2 text-[var(--brand-text-main)]">{r.label}</td>
-                  <td className="py-1 pr-2 text-right font-mono tabular-nums text-[var(--brand-text-muted)]">{r.conteggio.toLocaleString('it-IT')}</td>
-                  <td className="py-1 pr-2 text-right font-mono font-medium tabular-nums">{r.valore.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}</td>
+                  <td className="py-1 pr-2 text-right font-mono tabular-nums text-[var(--brand-text-muted)]">{numeroIt(r.conteggio)}</td>
+                  <td className="py-1 pr-2 text-right font-mono font-medium tabular-nums">{euroIt(r.valore)}</td>
                 </tr>
               ))}
             </tbody>

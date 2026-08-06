@@ -2,6 +2,7 @@
 
 import { chiediConferma } from '@/components/ui/chiediConferma';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { numeroIt } from '@/utils/numero-it';
 
 /** Codice di runtime del committente: viene dal REGISTRO (`committenti`), non da un
  *  elenco cablato. Aggiungere un committente in Contratti lo rende selezionabile qui. */
@@ -37,7 +38,7 @@ function indiceDa(opzioni: OpzioneCommittente[], committente: string): number {
 
 function usageLabel(utilizzo: number): string {
   if (utilizzo === 0) return 'Non utilizzata';
-  return `${utilizzo.toLocaleString('it-IT')} interventi`;
+  return `${numeroIt(utilizzo)} interventi`;
 }
 
 function sortRows(rows: RigaTassonomia[], opzioni: OpzioneCommittente[]): RigaTassonomia[] {

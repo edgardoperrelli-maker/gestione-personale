@@ -4,6 +4,7 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { buildDistribuzioni, filterRows, type ClientRow, type DistribuzioneSlice, type PerfFilters } from '@/lib/performance/shape';
 import PerfFilterBar, { type FilterOptions } from './PerfFilterBar';
 import { useChartColors, makeColorForGruppo, chartTooltipContent, chartItemStyle, chartLabelStyle } from './palette';
+import { numeroIt } from '@/utils/numero-it';
 
 function Donut({ title, data, colorBy, palette, colorForGruppo, brandSurface }: {
   title: string;
@@ -46,7 +47,7 @@ function Donut({ title, data, colorBy, palette, colorForGruppo, brandSurface }: 
                 <Tooltip
                   formatter={(value, name) => {
                     const v = Number(value);
-                    return [`${v.toLocaleString('it-IT')} (${total ? Math.round((v / total) * 100) : 0}%)`, String(name)];
+                    return [`${numeroIt(v)} (${total ? Math.round((v / total) * 100) : 0}%)`, String(name)];
                   }}
                   contentStyle={chartTooltipContent}
                   itemStyle={chartItemStyle}
@@ -59,7 +60,7 @@ function Donut({ title, data, colorBy, palette, colorForGruppo, brandSurface }: 
             {data.map((d, i) => (
               <span key={d.chiave} className="inline-flex items-center gap-1">
                 <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: color(d.chiave, i) }} />
-                {d.chiave} <span className="font-mono tabular-nums">{d.n.toLocaleString('it-IT')}</span>
+                {d.chiave} <span className="font-mono tabular-nums">{numeroIt(d.n)}</span>
               </span>
             ))}
           </div>

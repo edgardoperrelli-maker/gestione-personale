@@ -4,6 +4,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGri
 import { buildGiornaliera, filterRows, totali, type ClientRow, type PerfFilters } from '@/lib/performance/shape';
 import PerfFilterBar, { type FilterOptions } from './PerfFilterBar';
 import { useChartColors, makeColorForGruppo, chartTooltipContent, chartItemStyle, chartLabelStyle, CHART_TICK_FILL } from './palette';
+import { numeroIt } from '@/utils/numero-it';
 
 export default function PerformanceGiornaliera({ allRows, options, initial }: { allRows: ClientRow[]; options: FilterOptions; initial: PerfFilters }) {
   const [f, setF] = useState<PerfFilters>(initial);
@@ -20,7 +21,7 @@ export default function PerformanceGiornaliera({ allRows, options, initial }: { 
       <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-base font-semibold text-[var(--brand-text-main)]">Produzione giornaliera</h2>
         <span className="text-xs text-[var(--brand-text-muted)]">
-          {t.totale.toLocaleString('it-IT')} interventi{t.valvole > 0 && <> · {t.valvole} con saracinesca</>}
+          {numeroIt(t.totale)} interventi{t.valvole > 0 && <> · {t.valvole} con saracinesca</>}
         </span>
       </div>
       <p className="mb-2 text-xs text-[var(--brand-text-muted)]">Interventi completati per giorno, colonne divise per gruppo attività</p>
@@ -47,7 +48,7 @@ export default function PerformanceGiornaliera({ allRows, options, initial }: { 
                 tickLine={false}
               />
               <Tooltip
-                formatter={(value, name) => [Number(value).toLocaleString('it-IT'), String(name)]}
+                formatter={(value, name) => [numeroIt(Number(value)), String(name)]}
                 labelFormatter={(l) => `Giorno ${l}`}
                 contentStyle={chartTooltipContent}
                 itemStyle={chartItemStyle}

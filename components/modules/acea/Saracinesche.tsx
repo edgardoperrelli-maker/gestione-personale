@@ -9,6 +9,7 @@ import StatTile from '@/components/ui/StatTile';
 import { useGrigliaCopiabile } from '@/components/ui/useGrigliaCopiabile';
 import { dataIt } from '@/lib/acea/colonneTabella';
 import type { DichiarazioneClassificata, Famiglia, OrdineAperto } from '@/lib/acea/saracinesche';
+import { euroIt, numeroIt } from '@/utils/numero-it';
 
 type Risposta = {
   fatte: number;
@@ -29,7 +30,7 @@ type Risposta = {
 type Vista = 'da_richiedere' | 'da_esitare' | 'fatte';
 
 const euro = (n: number) =>
-  n.toLocaleString('it-IT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
+  euroIt(n, 0);
 
 /**
  * Le due righe si distinguono per `numero_operazione`, non per `stato`: quello ce l'hanno
@@ -162,7 +163,7 @@ export default function Saracinesche({ famiglia }: { famiglia: Famiglia }) {
             <StatTile
               label="Valore a rischio"
               value={dati.attendibile ? euro(dati.valoreDaRichiedere) : '—'}
-              note={`${dati.tariffa.toLocaleString('it-IT', { minimumFractionDigits: 2 })} € l'una`}
+              note={`${numeroIt(dati.tariffa, 2)} € l'una`}
               tone={dati.attendibile && dati.daRichiedere > 0 ? 'danger' : 'neutral'}
             />
           </div>

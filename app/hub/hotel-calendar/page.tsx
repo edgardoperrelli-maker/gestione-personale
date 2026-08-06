@@ -26,6 +26,7 @@ import Textarea from '@/components/ui/Textarea';
 import MultiSelect from '@/components/ui/MultiSelect';
 import Dialog from '@/components/ui/Dialog';
 import type { Hotel, Territory } from '@/types';
+import { euroIt } from '@/utils/numero-it';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -188,7 +189,7 @@ function bookingFromRow(row: RawHotelBooking): HotelBooking {
 
 function money(value: number | undefined) {
   if (value == null) return '—';
-  return value.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' });
+  return euroIt(value);
 }
 
 function normalizeLookup(value: string) {

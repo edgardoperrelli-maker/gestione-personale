@@ -30,11 +30,12 @@ import { generaRapportinoManutenzionePdfBlob, nomeFileRapportinoPI } from '@/lib
 import { condividiOScarica } from '@/utils/rapportini/condividiFile';
 import { piTokenStato } from '@/lib/pi/tokenValidita';
 import type { PiTokenStato } from '@/lib/pi/types';
+import { euroIt } from '@/utils/numero-it';
 
 type Area = { codice: string; label: string; attiva: boolean; ordine: number; usa_contabilita: boolean; in_attesa?: number };
 
 /** Importi in euro (contabilità): formato it-IT con valuta. */
-const fmtEuro = (n: number) => n.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' });
+const fmtEuro = (n: number) => euroIt(n);
 
 /** Classe per un'ancora con voce da bottone outline (per i link download / apri pagina). */
 const outlineAnchor =

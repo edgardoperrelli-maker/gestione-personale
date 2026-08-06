@@ -12,6 +12,7 @@ import {
   metaCensimento,
   scaricaCensimento,
 } from '@/lib/offline/censimentoCache';
+import { numeroIt } from '@/utils/numero-it';
 
 /**
  * Scaricamento del censimento all'APERTURA DEL LINK.
@@ -31,7 +32,8 @@ type Stato =
   | { fase: 'errore'; versione: string; totale: number; scaricate: number; motivo: 'rete' | 'versione_cambiata' }
   | { fase: 'senzaRete'; scaricatoIl?: number };
 
-const nf = new Intl.NumberFormat('it-IT');
+// Stessa grafia del resto dell'app: il punto delle migliaia c'è anche a quattro cifre.
+const nf = { format: (n: number) => numeroIt(n) };
 
 export function CensimentoGate({
   token,

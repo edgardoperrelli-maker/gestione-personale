@@ -4,6 +4,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGri
 import { buildEsiti, buildEsitiOperatori, filterRows, type ClientRow, type PerfFilters } from '@/lib/performance/shape';
 import PerfFilterBar, { type FilterOptions } from './PerfFilterBar';
 import { useChartColors, chartTooltipContent, chartItemStyle, chartLabelStyle, CHART_TICK_FILL } from './palette';
+import { numeroIt } from '@/utils/numero-it';
 
 /** Grafico principale: esiti positivi/negativi per giorno + riepilogo per operatore. */
 export default function PerformanceEsiti({ allRows, options, initial }: { allRows: ClientRow[]; options: FilterOptions; initial: PerfFilters }) {
@@ -22,10 +23,10 @@ export default function PerformanceEsiti({ allRows, options, initial }: { allRow
         <h2 className="text-base font-semibold text-[var(--brand-text-main)]">Esiti operatori</h2>
         <div className="flex flex-wrap items-center gap-1.5 text-xs">
           <span className="rounded-full border border-[var(--brand-border)] bg-[var(--success-soft)] px-2.5 py-0.5 font-medium text-[var(--success)]">
-            <span className="font-mono tabular-nums">{tot.positivi.toLocaleString('it-IT')}</span> positivi
+            <span className="font-mono tabular-nums">{numeroIt(tot.positivi)}</span> positivi
           </span>
           <span className="rounded-full border border-[var(--brand-border)] bg-[var(--danger-soft)] px-2.5 py-0.5 font-medium text-[var(--danger)]">
-            <span className="font-mono tabular-nums">{tot.negativi.toLocaleString('it-IT')}</span> negativi
+            <span className="font-mono tabular-nums">{numeroIt(tot.negativi)}</span> negativi
           </span>
           <span className="rounded-full border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-2.5 py-0.5 font-medium text-[var(--brand-text-main)]">
             <span className="font-mono tabular-nums">{tot.pct}%</span> riuscita
@@ -57,7 +58,7 @@ export default function PerformanceEsiti({ allRows, options, initial }: { allRow
                   tickLine={false}
                 />
                 <Tooltip
-                  formatter={(value, name) => [Number(value).toLocaleString('it-IT'), String(name)]}
+                  formatter={(value, name) => [numeroIt(Number(value)), String(name)]}
                   labelFormatter={(l) => `Giorno ${l}`}
                   contentStyle={chartTooltipContent}
                   itemStyle={chartItemStyle}
@@ -80,9 +81,9 @@ export default function PerformanceEsiti({ allRows, options, initial }: { allRow
                   <div className="min-w-0">
                     <div className="truncate text-[13px] font-medium text-[var(--brand-text-main)]">{o.name}</div>
                     <div className="truncate text-xs text-[var(--brand-text-muted)]">
-                      <span className="text-[var(--success)]"><span className="font-mono tabular-nums">{o.positivi.toLocaleString('it-IT')}</span> pos</span>
+                      <span className="text-[var(--success)]"><span className="font-mono tabular-nums">{numeroIt(o.positivi)}</span> pos</span>
                       {' · '}
-                      <span className="text-[var(--danger)]"><span className="font-mono tabular-nums">{o.negativi.toLocaleString('it-IT')}</span> neg</span>
+                      <span className="text-[var(--danger)]"><span className="font-mono tabular-nums">{numeroIt(o.negativi)}</span> neg</span>
                     </div>
                   </div>
                   <div className="h-3.5 overflow-hidden rounded-[var(--radius-md)] bg-[var(--brand-border)]/40">

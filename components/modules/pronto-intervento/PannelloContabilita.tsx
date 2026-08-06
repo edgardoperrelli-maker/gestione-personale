@@ -5,13 +5,14 @@ import Dialog from '@/components/ui/Dialog';
 import Button from '@/components/Button';
 import Input from '@/components/Input';
 import { valoreRiga, totaleContabilita } from '@/lib/pi/contabilita';
+import { euroIt } from '@/utils/numero-it';
 
 type Articolo = { codice: string; descrizione: string | null; unita_misura: string | null; prezzo_unitario: number; attivo: boolean };
 type RigaSalvata = { articolo_codice: string; quantita: number };
 
 const num = (v: unknown) => (typeof v === 'number' ? v : Number(v) || 0);
 /** Importi in euro (contabilità): formato it-IT con valuta. */
-const fmtEuro = (n: number) => n.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' });
+const fmtEuro = (n: number) => euroIt(n);
 
 export default function PannelloContabilita({
   interventoId,
