@@ -15,6 +15,7 @@ import {
 import {
   interventiDichiarati, odlConSaracinescaDichiarata,
 } from '@/lib/acea/caricaSaracinesche';
+import { relazioneRegistro, selezioneRegistro } from '@/lib/acea/selezioneRegistro';
 import { comuniMassiveAperti } from '@/lib/acea/caricaComuniMassive';
 import { contaSenzaData, type InterventoDellOdl } from '@/lib/acea/codaRiaperture';
 import { PROFILO_COMMESSA } from '@/lib/acea/famiglia';
@@ -49,71 +50,9 @@ const chiaveAggancioIntervento = (
 const PAGINA_SCAN = 1000;
 
 /** Colonne del registro esposte alla tabella. Non `select('*')`: il payload viaggia a ogni pagina. */
-const COLONNE = [
-  'odl', 'numero_operazione', 'famiglia', 'tipo_ordine', 'attivita', 'denominazione',
-  'stato', 'stato_desc', 'aperto',
-  'data_creazione', 'cardine_al', 'scadenza', 'data_completamento',
-  'operatore_cognome', 'operatore_nome',
-  'causale', 'causale_desc', 'esito_positivo',
-  'via', 'civico', 'cap', 'comune', 'provincia', 'microarea', 'microarea_stimata',
-  'impianto', 'matricola', 'matricola_norm', 'sospetto_troncamento',
-  // L'anagrafica dell'utente: piena su acqualatina (dal master del committente), NULL su ACEA,
-  // che nel suo export non la manda. Le colonne esistono su entrambe le tabelle proprio perché
-  // questa select vale per tutt'e due — vedi la nota in 20260731170000_acqualatina_ordini.sql.
-  'nominativo', 'recapito',
-  'valore_netto', 'escludi_consuntivazione', 'codice_sla', 'priorita_testo',
-  'testo_ordine', 'centro_lavoro', 'note',
-  // Il TOP di ACEA. Sta nella select principale e non fra le opzionali perché la colonna esiste
-  // su ENTRAMBE le tabelle (migration 20260804110000): la lista è una sola per due registri.
-  'top',
-  // L'esecutore e la data di ACEA: sono nel registro dall'inizio, ma senza queste due qui non
-  // arrivavano in tabella — e le colonne «Esecutore»/«Data pianificata» sono le NOSTRE, quindi
-  // su un ordine chiuso da ACEA e mai pianificato da noi restavano vuote. Sembrava un import
-  // che non aveva caricato niente.
-  'operatore_nome', 'data_completamento',
-  /*
-    Gli appunti (`pianificato_*_bozza`) NON sono qui, ed è deliberato: si leggono a parte, con la
-    stessa degradazione delle saracinesche. Sono colonne di una migration che potrebbe non essere
-    ancora passata sul database che sta servendo questo codice, e una colonna sconosciuta in questo
-    elenco non fa fallire una decorazione — fa fallire la query del registro, cioè il motivo per
-    cui si apre la schermata. È già successo una volta — e di nuovo il 05/08 con `matricola_nuova`
-    (20260805110000_acqualatina_matricola_nuova_colonna.sql), messa qui per errore: il deploy del
-    codice è arrivato prima che la migration fosse applicata in produzione, «Errore lettura
-    registro ACEA» su TUTTE le famiglie per il tempo in cui è rimasta. Non torna qui: si legge
-    a parte, sotto, con la stessa degradazione.
-  */
-].join(', ');
 
 type OrdineRow = Record<string, unknown> & { odl: string; numero_operazione: string };
 
-/**
- * Da dove si LEGGE il registro di questa vista.
- *
- * Sulle massive è una vista che unisce `acea_ordini` e gli interventi completati senza ODL — le
- * limitazioni aperte a mano dal «+», che un ordine ACEA non ce l'hanno per costruzione. Sono
- * 1.317 righe di lavoro fatto che il registro non mostrava da nessuna parte.
- *
- * Vale solo in LETTURA, ed è il motivo per cui non è in `PROFILO_COMMESSA.tabellaOrdini`: quel
- * campo lo usano anche le scritture (pianificazione, appunti, celle), che devono continuare a
- * puntare alla tabella vera. Una vista con una UNION non è aggiornabile, e farcele passare sopra
- * avrebbe rotto il salvataggio su ogni riga del registro.
- */
-function relazioneRegistro(f: FiltriOrdini): string {
-  if (f.famiglia === 'massive') return 'acea_registro_massive';
-  return PROFILO_COMMESSA[f.famiglia ?? 'dunning'].tabellaOrdini;
-}
-
-/**
- * Le colonne da leggere: quelle di sempre, più le due che esistono solo nella vista massive.
- *
- * Aggiunte QUI e non nella `COLONNE` condivisa perché quella gira anche su `acea_ordini` e su
- * `acqualatina_ordini`, dove `intervento_id` e `sola_lettura` non esistono. Una colonna ignota in
- * quell'elenco non degrada una decorazione: fa fallire la query del registro, cioè la schermata.
- * È già successo due volte (vedi la nota dentro `COLONNE`), e non serve una terza.
- */
-function selezioneRegistro(f: FiltriOrdini): string {
-  return f.famiglia === 'massive' ? `${COLONNE}, intervento_id, sola_lettura` : COLONNE;
-}
 
 /**
  * GET /api/acea/ordini — registro filtrato e paginato.
@@ -742,14 +681,25 @@ export async function GET(req: Request) {
           della pagina — o nessuna, a seconda di come cade il filtro. L'`id` c'è su entrambi i
           rami della UNION ed è unico, quindi la lettura resta esatta e corta.
         */
-        const { data, error } = await supabaseAdmin
-          .from(relazioneRegistro(f))
-          .select(selezioneRegistro(f))
-          .in('id', [...new Set(pagina.map((k) => k.id).filter(Boolean))]);
-        if (error) throw error;
-        const perId = new Map<string, OrdineRow>(
-          ((data ?? []) as unknown as Array<OrdineRow & { id: string }>).map((r) => [r.id, r]),
-        );
+        /*
+          A blocchi di 200, e non tutta la pagina in una richiesta.
+
+          Un uuid sono ~37 caratteri contro i 9 di un ODL: la stessa lista che prima stava in 3 KB
+          ora ne occuperebbe 11, e sull'export — che chiede pagine da 500 — arriverebbe a 19 KB di
+          sola URL. È la cicatrice già documentata in `caricaSaracinesche.ts`: oltre la soglia
+          PostgREST rifiuta con un `Bad Request` nudo, prima ancora di leggere la query.
+        */
+        const ids = [...new Set(pagina.map((k) => k.id).filter((v): v is string => !!v))];
+        const lette: Array<OrdineRow & { id: string }> = [];
+        for (let i = 0; i < ids.length; i += 200) {
+          const { data, error } = await supabaseAdmin
+            .from(relazioneRegistro(f))
+            .select(selezioneRegistro(f))
+            .in('id', ids.slice(i, i + 200));
+          if (error) throw error;
+          lette.push(...((data ?? []) as unknown as Array<OrdineRow & { id: string }>));
+        }
+        const perId = new Map<string, OrdineRow>(lette.map((r) => [r.id, r]));
         // Riordinate come le chiavi: `in` non conserva l'ordine di richiesta.
         righe = pagina
           .map((k): OrdineRow | undefined => (k.id ? perId.get(k.id) : undefined))
