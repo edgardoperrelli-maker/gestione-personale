@@ -11,6 +11,7 @@ import { resolveUserRole } from '@/lib/moduleAccess';
 import { validaTassonomiaInput } from '@/lib/attivita/validaTassonomiaInput';
 import { validaSpostamentoGruppo } from '@/lib/attivita/validaSpostamentoGruppo';
 import { chiaveTassonomia } from '@/lib/attivita/tassonomia';
+import { riagganciaVociAperte } from '@/lib/rapportini/riagganciaVoci';
 
 export const runtime = 'nodejs';
 
@@ -108,7 +109,20 @@ async function spostaDiGruppo(riga: RigaDb, gruppo: string) {
     .in('committente', committentiDiRiga(riga))
     .select('id');
   if (eInt) throw new Error(`gruppo aggiornato, ma riallineamento interventi fallito: ${eInt.message}`);
-  return { riga: data as RigaDb, interventi: (tocc ?? []).length };
+  const interventiIds = ((tocc ?? []) as Array<{ id: string }>).map((r) => r.id);
+
+  // I rapportini ancora in mano agli operatori portano il flusso congelato del gruppo
+  // VECCHIO: se il gruppo nuovo ha già un flusso, le voci ci vengono riagganciate subito,
+  // senza dover rigenerare il rapportino. Se il flusso non c'è ancora (il caso normale:
+  // prima si sposta, poi si creano le azioni), ci pensa il salvataggio del flusso.
+  // Best-effort: lo spostamento è già scritto, un errore qui non lo annulla.
+  let vociRiagganciate = 0;
+  try {
+    vociRiagganciate = (await riagganciaVociAperte(supabaseAdmin, new Date().toISOString(), { interventiIds })).voci;
+  } catch (e) {
+    console.error('[attivita-tassonomia] riaggancio voci dopo spostamento gruppo fallito:', e);
+  }
+  return { riga: data as RigaDb, interventi: interventiIds.length, vociRiagganciate };
 }
 
 export async function PATCH(req: NextRequest) {
@@ -137,11 +151,12 @@ export async function PATCH(req: NextRequest) {
       }
     }
     try {
-      const { riga: aggiornata, interventi } = await spostaDiGruppo(riga, esito.valore.gruppo);
+      const { riga: aggiornata, interventi, vociRiagganciate } = await spostaDiGruppo(riga, esito.valore.gruppo);
       return NextResponse.json({
         ok: true,
         riga: { ...aggiornata, utilizzo: await utilizzoVoce(aggiornata) },
         interventiRiallineati: interventi,
+        vociRiagganciate,
       });
     } catch (e) {
       return NextResponse.json({ error: e instanceof Error ? e.message : 'Errore spostamento gruppo.' }, { status: 500 });

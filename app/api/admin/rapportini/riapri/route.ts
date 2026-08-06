@@ -4,6 +4,7 @@ import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { z } from 'zod';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { resolveUserRole } from '@/lib/moduleAccess';
+import { riagganciaVociAperte } from '@/lib/rapportini/riagganciaVoci';
 
 export const runtime = 'nodejs';
 
@@ -31,5 +32,18 @@ export async function POST(req: Request) {
     .update({ stato: 'in_corso', submitted_at: null, riaperto_at: new Date().toISOString() })
     .eq('id', parsed.data.rapportinoId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true });
+
+  // Torna in mano all'operatore ADESSO: le voci prendono le azioni di oggi del loro gruppo,
+  // non quelle congelate alla generazione. È l'unica via per un rapportino già scaduto —
+  // riaprirlo — quando il flusso è cambiato dopo che il giro era partito.
+  // Best-effort: la riapertura è già scritta, un errore qui non la annulla.
+  let riagganciate = 0;
+  try {
+    riagganciate = (await riagganciaVociAperte(supabaseAdmin, new Date().toISOString(), {
+      rapportiniIds: [parsed.data.rapportinoId],
+    })).voci;
+  } catch (e) {
+    console.error('[rapportini/riapri] riaggancio voci al flusso corrente fallito:', e);
+  }
+  return NextResponse.json({ ok: true, ...(riagganciate ? { riagganciate } : {}) });
 }

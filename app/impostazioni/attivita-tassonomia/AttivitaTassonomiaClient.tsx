@@ -293,15 +293,21 @@ export default function AttivitaTassonomiaClient({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: row.id, gruppo }),
       });
-      const json = (await response.json()) as { error?: string; riga?: RigaTassonomia; interventiRiallineati?: number };
+      const json = (await response.json()) as {
+        error?: string; riga?: RigaTassonomia; interventiRiallineati?: number; vociRiagganciate?: number;
+      };
       if (!response.ok) throw new Error(json.error ?? 'Errore spostamento gruppo.');
       if (json.riga) {
         const aggiornata = json.riga;
         setRows((prev) => prev.map((r) => (r.id === row.id ? aggiornata : r)));
         const n = json.interventiRiallineati ?? 0;
+        const v = json.vociRiagganciate ?? 0;
         showFeedback(
           'success',
-          `${aggiornata.descrizione} spostata in ${aggiornata.gruppo}${n > 0 ? ` · ${n.toLocaleString('it-IT')} interventi riallineati` : ''}.`,
+          `${aggiornata.descrizione} spostata in ${aggiornata.gruppo}` +
+            (n > 0 ? ` · ${n.toLocaleString('it-IT')} interventi riallineati` : '') +
+            (v > 0 ? ` · ${v.toLocaleString('it-IT')} voci di rapportini aperti già sulle nuove azioni` : '') +
+            '.',
         );
       }
       chiudiSpostamento();

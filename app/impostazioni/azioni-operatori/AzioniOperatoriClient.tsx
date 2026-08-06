@@ -724,7 +724,16 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
       });
       const json = await res.json();
       if (!res.ok) { showFeedback('error', json.error ?? 'Errore durante la creazione'); return; }
-      showFeedback('success', 'Flusso creato');
+      // Il riaggancio è la parte che non si vede: le voci già in mano agli operatori sono
+      // passate a queste azioni senza rigenerare niente. Va detto, altrimenti si rigenera «per
+      // sicurezza» un rapportino che era già a posto.
+      const agganciate = typeof json.riagganciate === 'number' ? json.riagganciate : 0;
+      showFeedback(
+        'success',
+        agganciate > 0
+          ? `Flusso creato · ${agganciate.toLocaleString('it-IT')} voci di rapportini già aperti ora usano queste azioni`
+          : 'Flusso creato',
+      );
       await reloadTemplates();
       if (json.id) {
         skipAutosave.current = true;
@@ -794,8 +803,13 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
           showFeedback('error', (json as { error?: string }).error ?? 'Salvataggio rifiutato');
           return;
         }
-        const json = await res.json().catch(() => ({} as { updated_at?: string }));
+        const json = await res.json().catch(() => ({} as { updated_at?: string; riagganciate?: number }));
         if (res.ok && typeof json.updated_at === 'string') baseUpdatedAt.current = json.updated_at;
+        // Solo quando è successo davvero qualcosa di invisibile: delle voci già generate sono
+        // passate a questo flusso. Il salvataggio normale resta silenzioso (basta la pill).
+        if (res.ok && typeof json.riagganciate === 'number' && json.riagganciate > 0) {
+          showFeedback('success', `${json.riagganciate.toLocaleString('it-IT')} voci di rapportini già aperti ora usano queste azioni`);
+        }
         setAutoState(res.ok ? 'saved' : 'error');
         if (res.ok) await reloadTemplates(); // il rail e la panoramica seguono le modifiche
       } catch {
