@@ -27,8 +27,19 @@ type Campo = keyof RigaMasterUpload;
 
 /** Pattern sull'intestazione normalizzata (minuscolo, senza accenti né non-alfanumerici). */
 const PATTERN: Record<Campo, RegExp> = {
-  // `^ordine$` ancorato (come parseImportMisuratori): /ordin/ nudo prenderebbe "Coordinate".
-  odl: /^ordine$|ods|odl|ordinativo/,
+  /*
+    Ancorato a INIZIO o FINE header, mai in mezzo. Due trappole vere, tutt'e due in file che
+    passano davvero per l'ufficio:
+     - `^ordine$` chiuso: /ordin/ nudo prenderebbe "Coordinate";
+     - «SER_CODLIBRO» normalizza in «ser*codl*ibro», che CONTIENE «odl» e nell'estrazione forniture
+       del committente sta a SINISTRA di CODODL. Col pattern libero vinceva lui — e siccome
+       `trovaHeaderMaster` cerca proprio la colonna ODL, quel file sarebbe entrato con 4.194
+       «ordini» che sono numeri di libretto: righe fantasma a registro, come le 359 del file
+       ESECUZIONI il 04/08.
+    `od[sl]$` copre le forme lunghe («CODODL», «Numero ODL», «ODS/ODL»), l'alternativa ancorata a
+    `^` quelle che iniziano col nome («ODL padre», «N. ODS»).
+  */
+  odl: /od[sl]$|^(n|cod|codice)?od[sl]|^ordinativo$|^ordine$/,
   matricola: /matricola|matr/,
   // L'IMPIANTO è la chiave stabile del punto (sopravvive alla sostituzione del contatore,
   // la matricola no) e su AcquaLatina è il numero d'ordine del committente: da noi finisce

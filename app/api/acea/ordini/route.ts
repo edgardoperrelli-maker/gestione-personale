@@ -827,6 +827,30 @@ export async function GET(req: Request) {
       }
     }
 
+    /*
+      Le COORDINATE del punto (`acqualatina_ordini.coordinate`), dal file del committente.
+
+      Stessa medicina, e per la stessa cicatrice: fuori dalla `COLONNE` principale, che gira anche
+      su `acea_ordini` — dove la colonna non esiste — e letta solo sulla vista che la disegna. La
+      colonna in tabella è attivabile e serve a una domanda sola («l'import le ha prese?»); il
+      posto dove le coordinate lavorano davvero è il rapportino dell'operatore.
+    */
+    const coordinateColonna = new Map<string, string>();
+    if (acqua && righe.length > 0) {
+      const { data: righeCoord, error: eCoord } = await supabaseAdmin
+        .from(PROFILO_COMMESSA[f.famiglia ?? 'dunning'].tabellaOrdini)
+        .select('odl, numero_operazione, coordinate')
+        .in('odl', odlPagina);
+      if (eCoord) {
+        console.error('[acea/ordini] colonna coordinate non letta:', eCoord);
+      } else {
+        for (const r of (righeCoord ?? []) as Array<Record<string, unknown>>) {
+          const v = (r.coordinate as string | null) ?? null;
+          if (v) coordinateColonna.set(`${String(r.odl)}|${String(r.numero_operazione)}`, v);
+        }
+      }
+    }
+
     // Nomi operatore: staff_id → display_name, per non mostrare uuid in tabella. Anche quelli
     // degli APPUNTI: una riga a metà mostra il nome scelto, non l'uuid con cui è memorizzato.
     const staffIds = [...new Set([
@@ -882,6 +906,7 @@ export async function GET(req: Request) {
         // scende su interventi/voci. La scansione dei rapportini resta un fallback per le righe
         // non ancora propagate (storico pre-colonna, o un aggancio non ancora avvenuto).
         matricola_nuova: matricolaNuovaColonna.get(chiaveRiga) ?? matricolaNuovaPerChiave.get(chiaveRiga) ?? null,
+        coordinate: coordinateColonna.get(chiaveRiga) ?? null,
       };
     });
 

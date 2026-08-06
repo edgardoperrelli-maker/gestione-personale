@@ -528,9 +528,55 @@ export async function sincronizzaRapportiniAcea(
       }
     }
 
+    /*
+      Le COORDINATE del punto (solo AcquaLatina), dal file del committente.
+
+      Viaggiano nel `raw_json` come la nota qui sopra, e con la stessa chiave che il resto
+      dell'app già legge — `coordinate`, quella di `coordinateFromRaw` e del «Punto esatto»
+      di VoceCard. Nessun motore nuovo: mancava chi ci scrivesse dentro sul percorso registro,
+      esattamente com'era per la nota.
+
+      Lettura A PARTE e in try/catch, MAI dentro la select del passo precedente: la colonna
+      esiste solo su `acqualatina_ordini`, e una colonna sconosciuta non fa degradare una
+      query — la fa fallire, cioè spegnerebbe la generazione dei rapportini di tutte le
+      famiglie finché la migration non è passata in produzione. È lo stesso motivo per cui
+      `matricola_nuova` si legge da sola nel registro.
+
+      La chiave è ODL+matricola e non il solo ODL: un ordine AcquaLatina copre fino a cinque
+      contatori, e ognuno ha la sua fornitura — quindi il suo punto. Il ripiego sull'ODL serve
+      alle righe che la coordinata l'hanno presa dal portone (il file senza CODODL le aggancia
+      per fornitura, ma un file più povero può portare solo l'ordine).
+    */
+    const coordinatePerChiave = new Map<string, string>();
+    if (profilo.tabellaOrdini === 'acqualatina_ordini' && odlDaAggiungere.length > 0) {
+      try {
+        for (let i = 0; i < odlDaAggiungere.length; i += 200) {
+          const { data, error } = await db
+            .from(profilo.tabellaOrdini)
+            .select('odl, matricola_norm, coordinate')
+            .in('odl', odlDaAggiungere.slice(i, i + 200));
+          if (error) throw error;
+          for (const r of (data ?? []) as Array<{ odl: string; matricola_norm: string | null; coordinate: string | null }>) {
+            const c = String(r.coordinate ?? '').trim();
+            if (c === '') continue;
+            coordinatePerChiave.set(`${r.odl}#${String(r.matricola_norm ?? '')}`, c);
+            if (!coordinatePerChiave.has(r.odl)) coordinatePerChiave.set(r.odl, c);
+          }
+        }
+      } catch (e) {
+        console.error('[acea/rapportini] coordinate non lette:', e);
+      }
+    }
+    const normMatr = (m: string | null | undefined): string =>
+      String(m ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
     const righe = daAggiungere.map((i, k) => {
       const f = flussoPerIntervento(i);
       const nota = i.odl ? notePerOdl.get(i.odl) : undefined;
+      const coordinate = i.odl
+        ? (coordinatePerChiave.get(`${i.odl}#${normMatr(i.matricola_contatore)}`)
+          ?? coordinatePerChiave.get(i.odl))
+        : undefined;
       return {
         rapportino_id: rapportinoId,
         intervento_id: i.id,
@@ -560,6 +606,9 @@ export async function sincronizzaRapportiniAcea(
           // `note` e non un nome nostro: e` la chiave che `notaUfficioFromRaw` legge, la stessa
           // che usano gli altri committenti. Cambiarla avrebbe voluto dire un secondo motore.
           ...(nota ? { note: nota } : {}),
+          // Idem per `coordinate`: è la chiave di `coordinateFromRaw`, quella che accende il
+          // «Punto esatto» sulla card dell'operatore quando il flusso ha il campo COORDINATE.
+          ...(coordinate ? { coordinate } : {}),
         },
         ...(flussi.length > 0
           ? { template_id: f?.id ?? null, campi_snapshot: (f?.campi as TemplateCampo[] | undefined) ?? null }

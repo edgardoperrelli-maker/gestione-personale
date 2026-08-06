@@ -24,6 +24,14 @@ describe('trovaHeaderMaster', () => {
   it('"Coordinate" NON è la colonna ordine', () => {
     expect(trovaHeaderMaster([['Coordinate', 'Matricola']])).toBe(-1);
   });
+  /*
+    «SER_CODLIBRO» normalizza in «sercodlibro», che CONTIENE «odl». Nell'estrazione forniture del
+    committente sta a sinistra di CODODL: con un pattern non ancorato sarebbe stato lui la colonna
+    ODL, e il master avrebbe assorbito migliaia di numeri di libretto come se fossero ordini.
+  */
+  it('"SER_CODLIBRO" NON è la colonna ordine', () => {
+    expect(trovaHeaderMaster([['SER_CODLIBRO', 'Matricola']])).toBe(-1);
+  });
 });
 
 describe('parseMasterUpload', () => {
@@ -145,6 +153,27 @@ describe('parseMasterUpload', () => {
   });
   it('senza colonna ODL lancia', () => {
     expect(() => parseMasterUpload([['Matricola'], ['M1']])).toThrow(/ODL\/ORDINE/);
+  });
+});
+
+describe('parseMasterUpload — l’estrazione forniture non porta ordini fantasma', () => {
+  /*
+    Il file delle coordinate (Strumenti → Coordinate dei punti) ha la stessa forma di un master e
+    può finire caricato qui per sbaglio. Deve prendere CODODL — l'ordine vero, presente su poche
+    righe — e non SER_CODLIBRO, che ce l'hanno tutte: è la differenza fra 489 righe utili e 4.194
+    ordini inventati.
+  */
+  it('prende CODODL e non SER_CODLIBRO', () => {
+    const rows = [
+      ['COD_FORNITURA', 'RAGSOC', 'SER_CODLIBRO', 'MATRICOLA', 'VIAINDIRIZZOFORN', 'CODODL'],
+      ['77942025', 'ROSSI MARIO', '9291', '64313', 'VIA BADINO 257', '912350788'],
+      ['64098307', 'VENTRE ANNA', '9302', '610161', 'VIA TUCCIA 3', ''],
+    ];
+    const res = parseMasterUpload(rows);
+    expect(res.righe).toHaveLength(1);
+    expect(res.righe[0]).toMatchObject({ odl: '912350788', impianto: '77942025', matricola: '64313' });
+    // La riga senza ordine si scarta, come ogni riga senza ODL: il master è fatto di ordini.
+    expect(res.scartate).toBe(1);
   });
 });
 

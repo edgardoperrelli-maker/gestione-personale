@@ -6,6 +6,7 @@ import AuthGate from '@/components/AuthGate';
 import Breadcrumb from '@/components/ui/Breadcrumb';
 import ObjectHeader from '@/components/ui/ObjectHeader';
 import ImportMasterCard from '@/components/modules/acqualatina/ImportMasterCard';
+import ImportCoordinateCard from '@/components/modules/acqualatina/ImportCoordinateCard';
 import ConfrontoEsitiCard from '@/components/modules/acqualatina/ConfrontoEsitiCard';
 import CesteCard from '@/components/modules/acqualatina/CesteCard';
 
@@ -35,12 +36,15 @@ export default async function AcqualatinaStrumentiPage() {
         <Breadcrumb items={[{ label: 'AcquaLatina', href: '/hub/acqualatina' }, { label: 'Strumenti' }]} />
         <ObjectHeader
           title="Strumenti"
-          sub="Il master del committente, il confronto esiti col sito e i numeri del magazzino."
+          sub="Il master del committente, le coordinate dei punti, il confronto esiti col sito e i numeri del magazzino."
         />
         {/* L'ancora di «Importa export» dalla tabella del registro, come su ACEA. */}
         <div id="import" className="scroll-mt-24">
           <ImportMasterCard />
         </div>
+        {/* Subito sotto il master: è l'altro file dello stesso committente, e si carica nello
+            stesso momento — quando arriva l'estrazione del mese. */}
+        <ImportCoordinateCard />
         <ConfrontoEsitiCard />
         <CesteCard />
       </div>
