@@ -4,6 +4,8 @@
 .DS_Store
 .vercel
 .env*.local
+# eccezione: il template e' senza valori veri e deve stare su git
+!.env.example
 .worktrees
 .claude/worktrees/
 .claude/goal/
