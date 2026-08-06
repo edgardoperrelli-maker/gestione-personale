@@ -13,6 +13,7 @@ import { chiediConferma } from '@/components/ui/chiediConferma';
 import { toast } from '@/components/ui/Toast';
 import ContrattiNav from '../ContrattiNav';
 import type { RigaListino } from '@/lib/contratti/tipi';
+import { euroIt } from '@/utils/numero-it';
 
 const API = '/api/admin/contratti';
 
@@ -29,7 +30,7 @@ async function chiama(method: string, body?: object, qs = ''): Promise<Record<st
   return json;
 }
 
-const euro = (n: number) => n.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' });
+const euro = (n: number) => euroIt(n);
 const giorno = (iso: string | null) =>
   iso ? new Date(`${iso}T00:00:00`).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
 

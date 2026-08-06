@@ -23,6 +23,7 @@ import StoricoTabella, { COLS } from './StoricoTabella';
 import ModaleFotoVoce from './ModaleFotoVoce';
 import ModaleModificaVoce from './ModaleModificaVoce';
 import type { RigaStorico, ContatoriStorico } from '@/lib/interventi/storico/types';
+import { numeroIt } from '@/utils/numero-it';
 
 type Staff = { id: string; display_name: string };
 
@@ -253,7 +254,7 @@ export default function StoricoInterventiClient({ staff, gruppi, territori, comm
                   c.tone === 'ok' ? 'text-[var(--status-ok)]' : c.tone === 'no' ? 'text-[var(--status-ko)]' : 'text-[var(--brand-text-main)]'
                 }`}
               >
-                {contatori[c.key].toLocaleString('it-IT')}
+                {numeroIt(contatori[c.key])}
               </span>
             </button>
           );
@@ -365,7 +366,7 @@ export default function StoricoInterventiClient({ staff, gruppi, territori, comm
       </div>
 
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 text-sm text-[var(--brand-text-muted)]">
-        <span>{total.toLocaleString('it-IT')} righe</span>
+        <span>{numeroIt(total)} righe</span>
         {totPagine > 1 && (
           <div className="flex items-center gap-2">
             <button

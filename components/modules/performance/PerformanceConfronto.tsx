@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { buildConfronto, filterRows, totali, type ClientRow, type PerfFilters } from '@/lib/performance/shape';
 import PerfFilterBar, { type FilterOptions } from './PerfFilterBar';
 import { PALETTE, makeColorForGruppo } from './palette';
+import { numeroIt } from '@/utils/numero-it';
 
 export default function PerformanceConfronto({ allRows, options, initial }: { allRows: ClientRow[]; options: FilterOptions; initial: PerfFilters }) {
   const [f, setF] = useState<PerfFilters>(initial);
@@ -18,7 +19,7 @@ export default function PerformanceConfronto({ allRows, options, initial }: { al
       <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-base font-semibold text-[var(--brand-text-main)]">Confronto operatori</h2>
         <span className="text-xs text-[var(--brand-text-muted)]">
-          {t.totale.toLocaleString('it-IT')} interventi{t.valvole > 0 && <> · {t.valvole} con saracinesca</>}
+          {numeroIt(t.totale)} interventi{t.valvole > 0 && <> · {t.valvole} con saracinesca</>}
         </span>
       </div>
       <p className="mb-2 text-xs text-[var(--brand-text-muted)]">Interventi completati per operatore · barra divisa per gruppo attività</p>
@@ -45,7 +46,7 @@ export default function PerformanceConfronto({ allRows, options, initial }: { al
                     ))}
                   </div>
                 </div>
-                <div className="text-right text-[13px] font-semibold font-mono tabular-nums text-[var(--brand-text-main)]">{o.total.toLocaleString('it-IT')}</div>
+                <div className="text-right text-[13px] font-semibold font-mono tabular-nums text-[var(--brand-text-main)]">{numeroIt(o.total)}</div>
               </div>
             );
           })}

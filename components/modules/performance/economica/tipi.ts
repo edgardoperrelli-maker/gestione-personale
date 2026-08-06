@@ -8,6 +8,7 @@ import type { ClasseDiscrepanza, Discrepanza, Totale } from '@/lib/produzione/ri
 import type { SalStorico } from '@/lib/produzione/salUfficiale';
 import type { ConfrontoSal } from '@/lib/produzione/confrontoSal';
 import type { VistaCommittente } from '@/lib/produzione/committente';
+import { euroIt, numeroIt } from '@/utils/numero-it';
 
 export interface DatiProduzione {
   from: string;
@@ -44,7 +45,7 @@ export interface DatiProduzione {
   portalePopolato: boolean;
 }
 
-export const eur = (n: number) => n.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' });
-export const num = (n: number) => n.toLocaleString('it-IT');
+export const eur = (n: number) => euroIt(n);
+export const num = (n: number) => numeroIt(n);
 /** 'YYYY-MM-DD' → 'dd/MM' (assi dei grafici). */
 export const giornoIT = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;

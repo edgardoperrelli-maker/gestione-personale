@@ -2,6 +2,7 @@
 
 import { chiediConferma } from '@/components/ui/chiediConferma';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { numeroIt } from '@/utils/numero-it';
 
 type ActivityUsage = {
   assignments: number;
@@ -30,7 +31,7 @@ function activityStatus(row: ActivityRow) {
 
 function usageLabel(usage: ActivityUsage) {
   if (usage.total === 0) return 'Non utilizzata';
-  return `${usage.total.toLocaleString('it-IT')} collegamenti`;
+  return `${numeroIt(usage.total)} collegamenti`;
 }
 
 export default function GruppoAttivitaClient() {
@@ -366,13 +367,13 @@ export default function GruppoAttivitaClient() {
                   {usageLabel(row.usage)}
                 </span>
                 <span className="rounded-full border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-0.5 text-[var(--brand-text-muted)]">
-                  Cronoprogramma: {row.usage.assignments.toLocaleString('it-IT')}
+                  Cronoprogramma: {numeroIt(row.usage.assignments)}
                 </span>
                 <span className="rounded-full border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-0.5 text-[var(--brand-text-muted)]">
-                  Sopralluoghi dati: {row.usage.sopralluoghiDataset.toLocaleString('it-IT')}
+                  Sopralluoghi dati: {numeroIt(row.usage.sopralluoghiDataset)}
                 </span>
                 <span className="rounded-full border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-0.5 text-[var(--brand-text-muted)]">
-                  PDF: {row.usage.sopralluoghiPdf.toLocaleString('it-IT')}
+                  PDF: {numeroIt(row.usage.sopralluoghiPdf)}
                 </span>
               </div>
             </div>

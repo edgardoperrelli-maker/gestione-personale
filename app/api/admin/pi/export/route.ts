@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import ExcelJS from 'exceljs';
 import { requireAdmin } from '@/lib/apiAuth';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { euroIt } from '@/utils/numero-it';
 
 export const runtime = 'nodejs';
 
@@ -85,7 +86,7 @@ export async function GET(req: Request) {
   ];
   const artCols: Partial<ExcelJS.Column>[] = articoli.map((a) => ({
     key: `art_${a.codice}`,
-    header: `${a.codice}\n${a.unita_misura ?? ''} · ${Number(a.prezzo_unitario).toFixed(2)}€`,
+    header: `${a.codice}\n${a.unita_misura ?? ''} · ${euroIt(Number(a.prezzo_unitario))}`,
     width: 12,
   }));
   const valCol: Partial<ExcelJS.Column> = { key: 'valore', header: 'VALORE €', width: 12 };
