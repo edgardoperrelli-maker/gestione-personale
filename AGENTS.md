@@ -499,6 +499,18 @@ via `chiaviAggancio`, anche dal misuratore dell'ordine madre nel registro), con 
 completato > aperto > primo — mai una mappa first-wins, che sceglierebbe a caso tra un figlio
 chiuso già pagato e uno nuovo.
 
+### Spunta saracinesca su voci nate senza il campo
+La dichiarazione `risposte.sostituzione_valvola = 'SI'` è l'unica fonte del ciclo saracinesche:
+la leggono KPI «Sost. valvola» dello Storico, filtro `soloValvola` di Performance, tabella
+saracinesche del modulo ACEA (`caricaDichiarazioni`), riga di produzione da 91,12 €
+(`SARA_KEY`) e aggancio madre→figlio del SAL (`figliSaracinescaPositivi`). Sulle voci ANTICHE
+il campo non esisteva nel template e gli operatori scrivevano nelle note («INSERIMENTO
+VALVOLA»): per recuperarle si scrive in DUE punti — la risposta **e** il campo select nel
+`campi_snapshot` della voce, altrimenti la modale dello Storico (che costruisce i campi dallo
+snapshot) non la mostra né la lascia correggere. Precedente: migration `20260805170000`
+(3 massive Zagarolo del 03/06). Nessun campo foto va aggiunto: creerebbe un obbligo
+fotografico su rapportini già chiusi.
+
 ### Voci di rapportino: MAI orfane (caso 957327236, 2026-08-05)
 Una voce con `intervento_id NULL` è un esito che non arriva da nessuna parte: lo Storico
 (che legge la voce) dice SI, l'intervento resta `assegnato`, il motore economico lo conta
