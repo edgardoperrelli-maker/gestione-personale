@@ -518,6 +518,19 @@ via `chiaviAggancio`, anche dal misuratore dell'ordine madre nel registro), con 
 completato > aperto > primo — mai una mappa first-wins, che sceglierebbe a caso tra un figlio
 chiuso già pagato e uno nuovo.
 
+### Pre-SAL affiancato: ACEA, nostro, delta (richiesta utente 2026-08-06)
+Tre card, stessa finestra e stesso asse (data di completamento ACEA):
+- **ACEA** (`preSal.acea`): ordini che ACEA ha consuntivato con causale PAGABILE e non ha ancora
+  messo in un SAL, al suo **Valore Netto** (`acea_ordini.valore_netto`), senza chiedersi se un
+  rapportino nostro li sostenga. È quello che il committente si prepara a emettere.
+- **nostro** (`preSal.totale`): solo ciò che un riscontro nostro sostiene, alle nostre tariffe,
+  causali non-E incluse (decisione 10/07: un solo totale).
+- **Δ = nostro − ACEA**, con in nota `preSal.nonRemunerato` (la quota a nostro carico). Il delta
+  somma tre cose: riscontri mancanti (negativo), lavoro non-E che ACEA non paga, tariffe diverse.
+A luglio 2026: ACEA 610,37 € su 14 ordini, nostro 731,64 € su 20, Δ +121,27 € = esattamente i 6
+non pagabili. Le card «Voci non risolte» e «Discrepanze audit» sono state tolte dalla fila KPI —
+erano igiene dei dati fra numeri di denaro; l'audit resta nel suo elenco più in basso.
+
 ### Il pre-SAL segue il PERIODO (correzione utente 2026-08-06)
 `preSal.totale` è il consuntivato-non-ancora-pagato **del periodo a schermo** — «il pre-SAL in
 pancia ad ACEA a quel giorno»; `preSal.totaleVivo` è lo stock complessivo a qualunque data e vive

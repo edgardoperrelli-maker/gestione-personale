@@ -105,10 +105,12 @@ export interface ProduzioneEconomica {
    */
   confrontoSal: ConfrontoSal | null;
   /**
-   * `totale` = pre-SAL del PERIODO a schermo (quello che ACEA ha in pancia per quelle date);
-   * `totaleVivo` = stock complessivo non ancora pagato, a qualunque data.
+   * `totale` = pre-SAL NOSTRO del periodo a schermo; `totaleVivo` = stock complessivo non ancora
+   * pagato, a qualunque data; `acea` = lo stesso periodo visto dal libro del committente (ordini
+   * consuntivati e pagabili, non ancora in un SAL, al suo Valore Netto); `nonRemunerato` = quanta
+   * parte del nostro è a nostro carico e ACEA non pagherà mai.
    */
-  preSal: { n: number; totale: Totale; totaleVivo: Totale };
+  preSal: { n: number; totale: Totale; totaleVivo: Totale; acea: Totale; nonRemunerato: number };
   /**
    * TUTTO il prodotto non ancora consuntivato dal portale, con o senza un ordine ACEA dietro.
    * ⚠️ NON scomporlo in «con ordine» / «senza ordine» (correzione utente 2026-08-05): la card
@@ -168,6 +170,8 @@ interface RegistroRow {
    *  consuntivazione, viva quando lo snapshot del portale è fermo (`consuntivazioneAcea`). */
   stato: string | null;
   causale: string | null;
+  /** Quanto vale l'operazione per ACEA: è il «Valore Netto» che finirà nel loro SAL. */
+  valore_netto: number | null;
 }
 interface PortaleRow {
   odl: string;
@@ -303,7 +307,7 @@ export async function caricaProduzioneEconomica(
     caricaInterventi(vista),
     caricaSnapshot<RegistroRow>(
       'acea_ordini',
-      'odl, attivita, comune, impianto, matricola, numero_operazione, esito_positivo, data_completamento, stato, causale',
+      'odl, attivita, comune, impianto, matricola, numero_operazione, esito_positivo, data_completamento, stato, causale, valore_netto',
       ['odl', 'numero_operazione'],
     ),
     caricaSnapshot<PortaleRow>('acea_portale_snapshot', 'odl, stato_norm, causa_scostamento', ['odl']),
@@ -558,7 +562,10 @@ export async function caricaProduzioneEconomica(
     un import che ne conservi la storia perché «l'ultima riga letta» torni a essere il PRIMO
     tentativo — l'errore esatto da cui nasce questa mappa.
   */
-  const registroUltimo = new Map<string, { op: number; positivo: boolean; data: string; stato: string; causale: string | null }>();
+  const registroUltimo = new Map<
+    string,
+    { op: number; positivo: boolean; data: string; stato: string; causale: string | null; valoreNetto: number }
+  >();
   // Senza la fetta ACEA il registro resta chiuso: `registroPopolato` deve dire «non pertinente»,
   // non «popolato», o la vista AcquaLatina si porterebbe dietro un audit di ordini altrui.
   for (const r of conAcea ? registroRows : []) {
@@ -583,6 +590,7 @@ export async function caricaProduzioneEconomica(
         data: (r.data_completamento ?? '').slice(0, 10),
         stato: (r.stato ?? '').trim(),
         causale: r.causale,
+        valoreNetto: Number(r.valore_netto ?? 0) || 0,
       });
     }
   }
@@ -842,14 +850,45 @@ export async function caricaProduzioneEconomica(
   */
   const dataConsuntivazione = (odl: string): string =>
     registroUltimo.get(odl)?.data || dbDataByOdl.get(odl) || to;
-  const preSalRighe = preSalTutte.filter((r) => {
-    const d = dataConsuntivazione(r.odl);
+  const nelPeriodoAcea = (odl: string): boolean => {
+    const d = dataConsuntivazione(odl);
     return d >= from && d <= to;
-  });
+  };
+  const preSalRighe = preSalTutte.filter((r) => nelPeriodoAcea(r.odl));
+  /*
+    IL PRE-SAL VISTO DA ACEA, accanto al nostro (richiesta utente 2026-08-06).
+
+    Stessa finestra e stessa domanda — «che cosa deve ancora entrare in un SAL» — ma dal libro
+    del committente: tutti gli ordini che ACEA ha consuntivato con causale PAGABILE e non ha
+    ancora messo in un SAL, valorizzati col suo «Valore Netto», senza chiedersi se un rapportino
+    nostro li sostenga. È il numero che ACEA si aspetta di emettere.
+
+    Il nostro parte dalle stesse date ma conta solo ciò che un riscontro nostro sostiene, alle
+    NOSTRE tariffe, e include anche il non pagabile (decisione utente 10/07: un solo totale).
+    Il delta fra i due è quindi la somma di tre cose diverse, e la card lo dice: ordini che ACEA
+    pagherà e a cui manca il nostro riscontro, lavoro nostro a causale non-E che ACEA non paga, e
+    differenze di tariffa. Guardarli affiancati è l'unico modo per sapere, prima che arrivi il
+    SAL, se il conto tornerà.
+  */
+  let aceaConteggio = 0;
+  let aceaValore = 0;
+  for (const [odl, c] of consuntivato) {
+    if (odlGiaPagati.has(odl)) continue;
+    if (!scostamentoPagato(c.causa)) continue; // ACEA in un SAL mette solo ciò che remunera
+    if (!nelPeriodoAcea(odl)) continue;
+    aceaConteggio += 1;
+    aceaValore += registroUltimo.get(odl)?.valoreNetto ?? 0;
+  }
+  const arrotonda = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
   const preSal = {
     n: (salStorico.length > 0 ? Math.max(...salStorico.map((s) => s.n)) : 0) + 1,
     totale: aggregaProduzione(preSalRighe).totale,
     totaleVivo: aggregaProduzione(preSalTutte).totale,
+    acea: { conteggio: aceaConteggio, valore: arrotonda(aceaValore) },
+    /** Quanto del NOSTRO pre-SAL è a nostro carico (causale non-E): ACEA non lo metterà mai in un SAL. */
+    nonRemunerato: arrotonda(
+      aggregaProduzione(nonRemuneratoRighe.filter((r) => !odlGiaPagati.has(r.odl) && nelPeriodoAcea(r.odl))).totale.valore,
+    ),
   };
 
   /*

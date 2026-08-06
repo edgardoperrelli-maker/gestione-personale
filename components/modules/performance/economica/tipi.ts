@@ -27,8 +27,11 @@ export interface DatiProduzione {
   salStorico: SalStorico[];
   /** Presente solo quando la barra periodo ha un SAL selezionato nella tendina. */
   confrontoSal: ConfrontoSal | null;
-  /** `totale` = pre-SAL del periodo a schermo; `totaleVivo` = stock non pagato a qualunque data. */
-  preSal: { n: number; totale: Totale; totaleVivo: Totale };
+  /**
+   * `totale` = pre-SAL nostro del periodo; `totaleVivo` = stock non pagato a qualunque data;
+   * `acea` = stesso periodo dal libro del committente; `nonRemunerato` = quota a nostro carico.
+   */
+  preSal: { n: number; totale: Totale; totaleVivo: Totale; acea: Totale; nonRemunerato: number };
   /** UN numero solo, MAI scomposto con/senza ordine (correzione utente 2026-08-05). */
   fuoriSal: Totale;
   personale: ProduzionePersonale;

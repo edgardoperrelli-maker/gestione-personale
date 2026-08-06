@@ -248,7 +248,10 @@ export function fogliSal(dati: ProduzioneEconomica): FoglioSemplice[] {
       righe: [
         ['SAL', 'Mese', 'ODL', 'Valore APS EUR', 'Valore listino EUR', 'Delta listino EUR', 'ODL sconosciuti'],
         ...dati.salStorico.map((s): Array<string | number> => [s.n, s.mese, s.ordini, s.valoreAps, s.valoreListino, s.deltaListino, s.odlSconosciuti]),
-        [`Pre-SAL ${dati.preSal.n}`, '', dati.preSal.totale.conteggio, dati.preSal.totale.valore, '', '', ''],
+        // Le stesse tre righe delle card: ACEA (Valore Netto), noi (listino), delta.
+        [`Pre-SAL ${dati.preSal.n} · ACEA`, '', dati.preSal.acea.conteggio, dati.preSal.acea.valore, '', '', ''],
+        [`Pre-SAL ${dati.preSal.n} · nostro`, '', dati.preSal.totale.conteggio, '', dati.preSal.totale.valore, '', ''],
+        ['Delta pre-SAL (nostro - ACEA)', '', '', '', '', dati.preSal.totale.valore - dati.preSal.acea.valore, ''],
         ['Fuori SAL', '', dati.fuoriSal.conteggio, dati.fuoriSal.valore, '', '', ''],
       ],
     },

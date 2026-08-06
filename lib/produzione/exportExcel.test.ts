@@ -27,7 +27,8 @@ const dati = {
   },
   scarto: { conteggio: 1, valore: 100 },
   salStorico: [{ n: 1, mese: '2026-06', ordini: 2, valoreAps: 200, valoreListino: 190, deltaListino: 10, odlSconosciuti: 0 }],
-  preSal: { n: 2, totale: { conteggio: 1, valore: 90 }, totaleVivo: { conteggio: 3, valore: 260 } },
+  preSal: { n: 2, totale: { conteggio: 1, valore: 90 }, totaleVivo: { conteggio: 3, valore: 260 },
+    acea: { conteggio: 2, valore: 80 }, nonRemunerato: 12 },
   fuoriSal: { conteggio: 1, valore: 80 },
   personale: {
     totaleGiornate: 1.5,
