@@ -172,6 +172,31 @@ function queryRegistro(selezione: string, f: FiltriOrdini, oggi: string) {
     // «Chiusi»): l'unico criterio che serve è l'urgenza — prima chi scade prima.
     q = q.order('scadenza', { ascending: true, nullsFirst: false })
       .order('data_creazione', { ascending: true });
+  } else if (f.stato === 'chiusi' && f.famiglia === 'massive') {
+    /*
+      «Chiusi» delle massive: il lavoro finito di RECENTE in cima.
+
+      Il ramo `else` qui sotto ordina per scadenza crescente, e su questa popolazione non ordina
+      niente: la scadenza è NULL su tutte e 3.395 le righe — per gli ordini ACEA perché l'import
+      non la calcola sulle massive (`lib/acea/scadenza.ts`), per le righe senza ODL perché la
+      vista la dichiara `null::date`. Restava a decidere lo spareggio `data_creazione` CRESCENTE,
+      cioè il più vecchio in cima, su una scheda che si apre per vedere cosa si è chiuso.
+
+      Le 1.317 righe aperte a mano dal «+» sono le più recenti del registro, quindi erano quelle
+      che quell'ordine sepolliva meglio: la prima cadeva alla posizione 1.402, cioè alla quinta
+      pagina da 300. Erano nel conteggio e non le trovava nessuno — e da qui non c'era rimedio a
+      portata di utente, perché «Esecuzione ACEA» non è fra gli ORDINAMENTI e «Creazione» è una
+      colonna spenta di default.
+
+      `concluso_il` è la data di conclusione delle DUE metà della vista, che la scrivono in
+      colonne diverse (migration 20260806190000). Ordinare per lei le intreccia invece di
+      impilarle: prima pagina 206 righe con ordine e 94 dal «+», dal 4 agosto a ritroso.
+
+      Solo massive: `concluso_il` esiste sulla vista, non su `acea_ordini` né su
+      `acqualatina_ordini`. Il dunning tiene il ramo di sempre, dove la scadenza c'è davvero
+      (1.943 righe chiuse su 1.943) e quindi ordina per davvero.
+    */
+    q = q.order('concluso_il', { ascending: false, nullsFirst: false });
   } else {
     /*
       Le RIAPERTURE in cima — dove ha senso.
