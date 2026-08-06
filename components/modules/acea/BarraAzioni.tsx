@@ -1,7 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { CalendarCheck, ClipboardCopy, Star, StarOff, TriangleAlert, Undo2, X } from 'lucide-react';
+import {
+  CalendarCheck, ClipboardCopy, Download, Star, StarOff, TriangleAlert, Undo2, X,
+} from 'lucide-react';
 import Button from '@/components/Button';
 import Select from '@/components/ui/Select';
 import { toast } from '@/components/ui/Toast';
@@ -57,15 +59,26 @@ type Props = {
   /** Copia negli appunti le righe spuntate. Torna `false` se non c'era niente da copiare. */
   onCopiaRighe: () => Promise<boolean>;
   /**
-   * `true` sulle schede da cui si ESTRAE: via i comandi che mandano qualcuno sul posto.
+   * `true` dove NON si manda nessuno sul posto: via i comandi che lo farebbero.
    *
    * Restano la copia e la deselezione, che servono a portare fuori un elenco. Spariscono giorno,
-   * operatore, «Pianifica» e «compila il tabellone»: nella scheda saracinesche non si assegna —
-   * gli ordini di sostituzione si danno agli operatori dalle schede-comune, dove compaiono come
-   * massive aperte. Sparisce anche «Segna TOP», che è una priorità di lavorazione e appartiene
-   * allo stesso gesto.
+   * operatore, «Pianifica» e «compila il tabellone», e con loro «Segna TOP» — che è una priorità
+   * di lavorazione, cioè lo stesso gesto. Due schede, due motivi diversi:
+   *
+   * - **saracinesche**: si guarda cosa chiedere ad ACEA e cosa c'è da esitare, e si estrae. Gli
+   *   ordini di sostituzione si assegnano dalle schede-comune, dove compaiono come massive aperte
+   *   col loro contorno; qui la pianificazione sarebbe una seconda via alla stessa cosa.
+   * - **chiusi**: non c'è più niente da fare. Il server salta quelle righe con `ordine_chiuso`
+   *   (vedi `lib/acea/pianificazione.ts`), quindi «Pianifica» era un bottone che poteva soltanto
+   *   fallire — e questa barra ha per regola di non far premere un rifiuto prevedibile.
    */
   soloEstrazione?: boolean;
+  /**
+   * L'export delle righe spuntate: c'è solo dove è LUI l'azione, e allora prende il posto della
+   * pianificazione (oggi la scheda «Chiusi»). Assente altrove, dove il gesto è un altro.
+   */
+  onEsporta?: () => void;
+  esportando?: boolean;
 };
 
 /**
@@ -80,7 +93,7 @@ type Props = {
  */
 export default function BarraAzioni({
   famiglia, chiavi, onAnnullaSelezione, onPianificato, operatori, oggi, giorno, onGiorno,
-  caricandoOperatori = false, onCopiaRighe, soloEstrazione = false,
+  caricandoOperatori = false, onCopiaRighe, soloEstrazione = false, onEsporta, esportando = false,
 }: Props) {
   const { etichetta: etichettaAttivita } = ATTIVITA_TABELLONE[famiglia];
   const [staffId, setStaffId] = useState('');
@@ -357,6 +370,21 @@ export default function BarraAzioni({
           )}
 
           {/*
+            L'AZIONE AL POSTO DELL'AZIONE, non un comando in più.
+
+            Sta dov'era «Pianifica» ed è primaria come lui, perché sulla sua scheda è quello che si
+            fa con delle righe spuntate. Esporta LE RIGHE SPUNTATE — non la vista, che ha già il
+            suo «Esporta vista» nei comandi qui accanto: in questa barra tutto agisce sulla
+            selezione, e un bottone che ne uscisse per esportare altro sarebbe una trappola.
+          */}
+          {onEsporta && (
+            <Button variant="primary" size="sm" onClick={onEsporta} loading={esportando}>
+              <Download size={14} aria-hidden="true" />
+              Esporta
+            </Button>
+          )}
+
+          {/*
             LE SECONDARIE SONO A SOLA ICONA, la primaria no.
 
             Questa barra vive dentro la riga dei comandi, che è `flex-wrap`, ed è il gruppo più
@@ -428,7 +456,9 @@ export default function BarraAzioni({
             riga e schiacciava tutti i comandi a sinistra. Il fatto lo dice già la select
             («Nessuno in tabellone», col nome per esteso nel suo title): qui resta solo l'AZIONE.
           */}
-          {operatori.length === 0 && !caricandoOperatori && !fuoriFinestra && giorno !== '' && (
+          {/* `!soloEstrazione` come il resto della pianificazione: dove non si assegna, invitare a
+              compilare il tabellone manda a riempire un cronoprogramma che qui non serve a niente. */}
+          {!soloEstrazione && operatori.length === 0 && !caricandoOperatori && !fuoriFinestra && giorno !== '' && (
             <a
               href="/dashboard"
               className="whitespace-nowrap rounded-[var(--radius-sm)] text-xs text-[var(--brand-text-muted)] underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
@@ -448,7 +478,7 @@ export default function BarraAzioni({
             esenti (dec. 38) — venerdì e sabato lì si pianifica normalmente, e un avviso su una
             regola che non morde sarebbe un falso allarme che insegna a ignorare quello vero.
           */}
-          {soloAttivazioni(giorno) && famiglia !== 'massive' && operatori.length > 0 && (
+          {!soloEstrazione && soloAttivazioni(giorno) && famiglia !== 'massive' && operatori.length > 0 && (
             <span
               className="inline-flex items-center gap-1 whitespace-nowrap text-xs text-[var(--status-warn)]"
               title={`${giornoEsteso(giorno)}: passano solo le attivazioni (riaperture). Le altre righe vengono saltate.`}

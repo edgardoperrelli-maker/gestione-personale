@@ -117,6 +117,14 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
     via alla stessa cosa, in una vista che serve a un'altra domanda.
   */
   const schedaEstrazione = filtri.stato === 'saracinesche';
+  /*
+    «Chiusi» è l'altra scheda in cui non si assegna, per un motivo più semplice: quelle righe non
+    hanno più niente da fare. Il server le salta già con `ordine_chiuso` (`lib/acea/pianificazione`),
+    quindi «Pianifica» era un bottone che poteva soltanto fallire — si sceglieva un operatore, si
+    premeva, e tornavano N righe saltate. Quello che si fa davvero con dello storico spuntato è
+    portarlo fuori: un consuntivo, un controllo, un allegato. È quello il gesto che prende il posto.
+  */
+  const schedaChiusi = filtri.stato === 'chiusi';
   useEffect(() => {
     setVisibili((prima) => {
       const dopo = new Set(prima);
@@ -413,6 +421,40 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
     }
   }, [righe, tutteCaricate, query, totale, colonneVisibili, famiglia, filtri, oggi]);
 
+  /**
+   * Export delle righe SPUNTATE, che sulla scheda «Chiusi» prende il posto della pianificazione.
+   *
+   * Non ripercorre la query come gli altri due, e non è una dimenticanza: le righe spuntate sono
+   * per forza fra quelle già scese, quindi il file si costruisce con quello che c'è in memoria e
+   * non c'è nessun troncamento invisibile da temere — è l'utente ad aver deciso il perimetro.
+   *
+   * Per lo stesso motivo il nome porta `selezione`: dentro non c'è la vista, ci sono le righe
+   * scelte a mano, e un file di quindici righe chiamato come l'export dei chiusi di un comune
+   * direbbe che quelli SONO i chiusi di quel comune.
+   */
+  const esportaSelezione = useCallback(async () => {
+    setEsportando(true);
+    try {
+      await esportaVista(
+        selezionate,
+        colonneVisibili,
+        nomeFileExport({
+          famiglia,
+          stato: filtri.stato,
+          comune: filtri.comuneScheda,
+          oggi,
+          filtrato: contaFiltriColonna(filtri) > 0 || filtri.cerca.trim() !== '',
+          selezione: true,
+        }),
+        nomeFoglioExport(famiglia),
+      );
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Export non riuscito.');
+    } finally {
+      setEsportando(false);
+    }
+  }, [selezionate, colonneVisibili, famiglia, filtri, oggi]);
+
   /*
     La RICHIESTA ad ACEA: stesso caricamento, tracciato diverso.
 
@@ -535,16 +577,15 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
         servono MENTRE si seleziona — il primo lavora proprio sulle righe spuntate (vedi il suo
         commento); gli altri servono prima o dopo, e tornano alla deselezione.
       */}
-      <div className="flex min-h-9 flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          {selezionate.length === 0 && (
-            <span className="text-xs text-[var(--brand-text-muted)]">
-              {schedaEstrazione
-                ? 'Seleziona le righe cliccandole (shift-click per un intervallo): da lì si copia'
-                : 'Seleziona le righe cliccandole (shift-click per un intervallo): da lì si pianifica e si copia'}
-            </span>
-          )}
-        </div>
+      {/*
+        `justify-end` e non `justify-between`: il gruppo di comandi e` rimasto solo. A sinistra
+        c'era il suggerimento su come si selezionano le righe («cliccandole, shift-click per un
+        intervallo»), tolto su richiesta dell'ufficio — chi usa il registro tutti i giorni non
+        lo rilegge, e la guida col «?» lo dice comunque. Con `justify-between` un figlio solo
+        finisce a SINISTRA, cioe` la barra attraverserebbe la riga: qui serve `end`.
+        `min-h-9` resta: e` il pavimento dell'altezza della riga (vedi qui sotto).
+      */}
+      <div className="flex min-h-9 flex-wrap items-center justify-end gap-2">
         {/*
           `[&>*]:shrink-0`: NESSUN comando si lascia schiacciare. Quando la barra azioni compare
           con la selezione, il flex provava a far stare tutto su una riga comprimendo i bottoni —
@@ -710,7 +751,12 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
             onGiorno={setGiorno}
             caricandoOperatori={caricandoOperatori}
             onCopiaRighe={editing.copiaRigheSpuntate}
-            soloEstrazione={schedaEstrazione}
+            soloEstrazione={schedaEstrazione || schedaChiusi}
+            /* L'export c'è solo dove è l'azione: sulle saracinesche l'estrazione ha già il suo
+               comando col tracciato per ACEA, e due export diversi nella stessa barra sarebbero
+               due file che si somigliano e non sono la stessa cosa. */
+            onEsporta={schedaChiusi ? () => void esportaSelezione() : undefined}
+            esportando={esportando}
           />
         </div>
       </div>

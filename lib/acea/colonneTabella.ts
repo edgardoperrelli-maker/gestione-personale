@@ -497,6 +497,35 @@ export function dataIt(iso: string | null | undefined): string {
   return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
 }
 
+/**
+ * Le colonne che portano una DATA, non un testo che assomiglia a una data.
+ *
+ * A schermo la differenza non si vede — `dataIt` scrive 'dd/MM/yyyy' e va benissimo — ma in un
+ * foglio di calcolo quel testo resta testo, e ordinarlo confronta i CARATTERI: '02/01/2027' finisce
+ * prima di '10/12/2026' perché '0' viene prima di '1'. Sono per giunta le colonne su cui si ordina
+ * di più (scadenza, data intervento), cioè quelle in cui l'ordinamento sbagliato si nota meno e
+ * costa di più. Da qui l'export ricava la cella data vera: vedi `serialeExcel` in `exportVista`.
+ */
+export const COLONNE_DATA = [
+  'data_creazione', 'scadenza', 'cardine_al', 'pianificato_il', 'data_completamento',
+] as const;
+
+export type ColonnaData = (typeof COLONNE_DATA)[number];
+
+export function eColonnaData(c: ChiaveColonna): c is ColonnaData {
+  return (COLONNE_DATA as readonly ChiaveColonna[]).includes(c);
+}
+
+/**
+ * La data ISO dietro una cella, quando la colonna ne porta una; `null` per tutte le altre.
+ *
+ * È il grezzo che `valoreCella` formatta: lì la data esce già 'dd/MM/yyyy' perché quella funzione
+ * serve a chi legge, qui serve a chi scrive un foglio.
+ */
+export function dataIsoCella(r: RigaTabella, c: ChiaveColonna): string | null {
+  return eColonnaData(c) ? r[c] : null;
+}
+
 /** Valore di una cella come testo, per rendering ed export. */
 export function valoreCella(r: RigaTabella, c: ChiaveColonna): string {
   switch (c) {

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   MAX_RIGHE_EXPORT, PER_PAGINA_EXPORT, nomeFileExport, nomeFoglioExport, pagineExport,
+  serialeExcel, tracciatoRichiesta,
 } from './exportVista';
 
 describe('pagineExport', () => {
@@ -79,6 +80,87 @@ describe('nomeFileExport', () => {
     // «acea-acqualatina-…» direbbe il committente sbagliato a chi ritrova il file fra mesi.
     expect(nomeFileExport({ ...base, famiglia: 'acqualatina' }))
       .toBe('acqualatina-aperti-20260727.xlsx');
+  });
+});
+
+describe('nomeFileExport — la selezione', () => {
+  const base = { famiglia: 'massive', stato: 'chiusi', oggi: '2026-08-06', filtrato: false } as const;
+
+  it('dice che dentro ci sono le righe spuntate, non la vista', () => {
+    // Quindici righe in un file chiamato `acea-massive-chiusi-20260806.xlsx` dicono che quelli
+    // SONO i chiusi: chi lo riapre fra un mese non ha modo di sapere che erano una selezione.
+    expect(nomeFileExport({ ...base, selezione: true }))
+      .toBe('acea-massive-chiusi-20260806-selezione.xlsx');
+  });
+
+  it('«selezione» copre «filtrato»: è la restrizione più stretta, e si dice una volta sola', () => {
+    expect(nomeFileExport({ ...base, filtrato: true, selezione: true }))
+      .toBe('acea-massive-chiusi-20260806-selezione.xlsx');
+  });
+
+  it('senza selezione il nome resta quello di sempre', () => {
+    expect(nomeFileExport({ ...base, selezione: false }))
+      .toBe('acea-massive-chiusi-20260806.xlsx');
+    expect(nomeFileExport({ ...base, filtrato: true }))
+      .toBe('acea-massive-chiusi-20260806-filtrato.xlsx');
+  });
+});
+
+describe('serialeExcel', () => {
+  it('dà il numero con cui Excel rappresenta il giorno', () => {
+    // 25569 = 01/01/1970, il valore di controllo classico dell'epoca Excel; 45292 = 01/01/2024.
+    expect(serialeExcel('1970-01-01')).toBe(25569);
+    expect(serialeExcel('2024-01-01')).toBe(45292);
+  });
+
+  it('ordina come ordina il calendario — che è tutto il punto', () => {
+    // Da testo, '02/01/2027' finisce PRIMA di '10/12/2026': confronta i caratteri, e '0' < '1'.
+    const dicembre = serialeExcel('2026-12-10')!;
+    const gennaio = serialeExcel('2027-01-02')!;
+    expect(gennaio).toBeGreaterThan(dicembre);
+  });
+
+  it('giorni consecutivi distano uno', () => {
+    expect(serialeExcel('2026-08-07')! - serialeExcel('2026-08-06')!).toBe(1);
+    // A cavallo del mese e dell'anno, dove un calcolo a mano sbaglia.
+    expect(serialeExcel('2026-03-01')! - serialeExcel('2026-02-28')!).toBe(1);
+    expect(serialeExcel('2027-01-01')! - serialeExcel('2026-12-31')!).toBe(1);
+  });
+
+  it('è un intero: una data di calendario non ha un’ora', () => {
+    // Il fuso non entra nel calcolo (tutto in UTC): entrandoci, ogni export a ovest di Greenwich
+    // scalerebbe di un giorno.
+    for (const iso of ['2026-01-01', '2026-06-15', '2026-12-31']) {
+      expect(Number.isInteger(serialeExcel(iso))).toBe(true);
+    }
+  });
+
+  it('quello che non è una data resta fuori', () => {
+    for (const v of [null, undefined, '', '—', '06/08/2026', '2026-8-6', 'domani']) {
+      expect(serialeExcel(v)).toBeNull();
+    }
+  });
+});
+
+describe('tracciatoRichiesta', () => {
+  it('la richiesta ad ACEA porta l’esecutore accanto alla data intervento', () => {
+    // Un file che dice quando ci siamo stati ma non chi costringe a ricostruirlo da noi ogni
+    // volta che ACEA contesta una saracinesca.
+    const chiavi = tracciatoRichiesta('per_acea').map((c) => c.chiave);
+    expect(chiavi).toContain('pianificato_a');
+    expect(chiavi.indexOf('pianificato_a')).toBe(chiavi.indexOf('pianificato_il') + 1);
+  });
+
+  it('«Da esitare» no: là il lavoro non è ancora stato fatto, un esecutore non c’è', () => {
+    expect(tracciatoRichiesta('da_esitare').map((c) => c.chiave)).not.toContain('pianificato_a');
+  });
+
+  it('niente note né gruppo di giro: il file esce dall’azienda', () => {
+    for (const sara of ['per_acea', 'da_esitare'] as const) {
+      const chiavi = tracciatoRichiesta(sara).map((c) => c.chiave);
+      expect(chiavi).not.toContain('note');
+      expect(chiavi).not.toContain('gruppo');
+    }
   });
 });
 

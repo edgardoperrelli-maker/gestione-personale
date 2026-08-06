@@ -32,6 +32,37 @@ export function pagineExport(totale: number, perPagina: number = PER_PAGINA_EXPO
   return Array.from({ length: quante }, (_, i) => i + 1);
 }
 
+// ---------------------------------------------------------------------------
+// Le date: numeri, non testo.
+// ---------------------------------------------------------------------------
+
+/**
+ * Il formato con cui Excel MOSTRA le celle data che scriviamo.
+ *
+ * Dentro il file la data è un numero (vedi `serialeExcel`), quindi senza un formato si leggerebbe
+ * `46240`. Questo lo rimette a 'dd/mm/yyyy', cioè come si legge in tabella: chi apre il foglio non
+ * deve accorgersi di niente — deve solo poter ordinare la colonna e ottenere l'ordine giusto.
+ */
+export const FORMATO_DATA_EXCEL = 'dd/mm/yyyy';
+
+/** Epoca del calendario di Excel: giorno 0. (Il 30/12/1899 e non il 31, per il finto 1900 bisestile.) */
+const EPOCA_EXCEL = Date.UTC(1899, 11, 30);
+
+/**
+ * 'YYYY-MM-DD' → il numero con cui Excel rappresenta quel giorno; `null` se non è una data.
+ *
+ * Tutto in UTC di proposito: il fuso qui non c'entra e farlo entrare è il modo classico di
+ * sbagliare di un giorno. Una data di calendario non ha un'ora, e passando da `new Date(iso)` —
+ * che è mezzanotte UTC — a un seriale calcolato sull'ora locale, ogni fuso a ovest di Greenwich
+ * scala l'intero export al giorno prima.
+ */
+export function serialeExcel(iso: string | null | undefined): number | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso ?? ''));
+  if (!m) return null;
+  const giorni = (Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])) - EPOCA_EXCEL) / 86_400_000;
+  return Number.isFinite(giorni) ? giorni : null;
+}
+
 export type NomeExport = {
   famiglia: Famiglia;
   /** Stato del segmented: è parte di cosa c'è dentro il file, non un dettaglio della vista. */
@@ -42,6 +73,15 @@ export type NomeExport = {
   oggi: string;
   /** Almeno un filtro di colonna o una ricerca libera attiva. */
   filtrato: boolean;
+  /**
+   * Dentro ci sono le righe SPUNTATE A MANO, non la vista.
+   *
+   * È la stessa preoccupazione del resto del file — un xlsx sopravvive alla schermata da cui è
+   * uscito — spinta un passo più in là: un file di quindici righe chiamato come l'export dei
+   * «Chiusi» di ZAGAROLO dice che quelli SONO i chiusi di ZAGAROLO. Chi lo riapre fra un mese non
+   * ha modo di sapere che qualcuno, quel giorno, ne aveva spuntate quindici.
+   */
+  selezione?: boolean;
 };
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
@@ -66,7 +106,9 @@ function fettaComune(comune: string | null | undefined): string | null {
  * `filtrato` non elenca i filtri (diventerebbe illeggibile e non entrerebbe in un nome di file):
  * dice che ce n'erano, cioè che quel totale non è il totale della famiglia.
  */
-export function nomeFileExport({ famiglia, stato, comune, oggi, filtrato }: NomeExport): string {
+export function nomeFileExport({
+  famiglia, stato, comune, oggi, filtrato, selezione,
+}: NomeExport): string {
   // Le famiglie ACEA stanno sotto il prefisso della commessa; acqualatina È la commessa, e
   // «acea-acqualatina-…» direbbe il committente sbagliato a chi ritrova il file fra mesi.
   const parti: string[] = famiglia === 'acqualatina' ? ['acqualatina'] : ['acea', famiglia];
@@ -74,7 +116,13 @@ export function nomeFileExport({ famiglia, stato, comune, oggi, filtrato }: Nome
   if (c) parti.push(c);
   parti.push(stato);
   if (ISO.test(oggi)) parti.push(oggi.replaceAll('-', ''));
-  if (filtrato) parti.push('filtrato');
+  /*
+    `selezione` COPRE `filtrato`, non gli si somma: chi ha spuntato le righe a mano ha ristretto il
+    contenuto più di qualunque filtro, e «filtrato-selezione» allungherebbe il nome per dire due
+    volte la stessa cosa — che dentro non c'è tutto.
+  */
+  if (selezione) parti.push('selezione');
+  else if (filtrato) parti.push('filtrato');
   return `${parti.join('-')}.xlsx`;
 }
 
@@ -103,9 +151,11 @@ export function nomeFoglioExport(famiglia: Famiglia): string {
  *
  * Da lì discendono le due scelte che contano:
  *
- * - **niente dati interni.** L'export della vista porterebbe le Note (testo libero che l'ufficio
- *   scrive per l'operatore: «citofonare», «cane in giardino»), il nome del nostro esecutore, il
- *   gruppo di giro. Non riguardano ACEA e non c'è motivo di mandarglieli.
+ * - **niente dati di lavorazione interna.** L'export della vista porterebbe le Note (testo libero
+ *   che l'ufficio scrive per l'operatore: «citofonare», «cane in giardino») e il gruppo di giro.
+ *   Non riguardano ACEA e non c'è motivo di mandarglieli. L'ESECUTORE invece sì, dal 06/08/2026:
+ *   è chi ha fatto il lavoro che stiamo dichiarando, non un appunto di reparto (vedi il commento
+ *   sulla sua riga in `tracciatoRichiesta`).
  * - **forma stabile.** Costruito sulle colonne visibili, il file cambierebbe tracciato ogni volta
  *   che qualcuno tocca il menu Colonne, e ACEA riceverebbe un file diverso a ogni giro.
  *
@@ -153,6 +203,16 @@ export function tracciatoRichiesta(sara: SaraFiltro): CampoRichiesta[] {
     ...BASE_RICHIESTA,
     { intestazione: 'ODL intervento', larghezza: 120, chiave: 'odl' },
     { intestazione: 'Data intervento', larghezza: 120, chiave: 'pianificato_il' },
+    /*
+      CHI c'è stato, accanto a quando (richiesta dell'ufficio, 06/08/2026).
+
+      È l'unica riga di questo tracciato che porta un dato nostro, e il commento qui sopra dice
+      che i nomi dei nostri operatori non ci vanno. La regola non è caduta, si è ristretta: vale
+      per le Note — testo libero che l'ufficio scrive per l'operatore — mentre l'esecutore è
+      l'altra metà di «Data intervento», che nel file c'era già. Un file che dice quando ci siamo
+      stati ma non chi, se ACEA contesta la saracinesca costringe a ricostruirlo da noi.
+    */
+    { intestazione: 'Esecutore', larghezza: 160, chiave: 'pianificato_a' },
     { intestazione: 'Attività', larghezza: 210, chiave: 'attivita' },
   ];
 }
