@@ -106,6 +106,12 @@ export type RigaTabella = {
    * dentro il rapportino, una voce alla volta. Opzionale, come `eseguito`.
    */
   matricola_nuova?: string | null;
+  /**
+   * Le coordinate GPS del punto, «lat, lng», dal file del committente (AcquaLatina).
+   * Opzionale come `matricola_nuova`, e per lo stesso motivo: la colonna esiste solo sul registro
+   * acqualatina e si legge a parte, quindi può non arrivare.
+   */
+  coordinate?: string | null;
 };
 
 export type ChiaveColonna =
@@ -114,7 +120,7 @@ export type ChiaveColonna =
   | 'impianto' | 'famiglia' | 'tipo_ordine' | 'operatore_cognome' | 'data_completamento' | 'esito'
   | 'valore_netto' | 'codice_sla' | 'priorita_testo' | 'centro_lavoro' | 'cardine_al'
   | 'saracinesca' | 'odl_saracinesca' | 'stato_saracinesca' | 'note'
-  | 'nominativo' | 'recapito' | 'matricola_nuova';
+  | 'nominativo' | 'recapito' | 'matricola_nuova' | 'coordinate';
 
 /**
  * Filtro disponibile nell'intestazione della colonna, come l'AutoFiltro di Excel.
@@ -289,6 +295,15 @@ export const COLONNE_ACQUALATINA: DefColonna[] = [
   { chiave: 'data_completamento', intestazione: 'Chiusa il', predefinita: false, mono: true, larghezza: 110 },
   { chiave: 'comune', intestazione: 'Comune', predefinita: false, larghezza: 130, filtro: F.comune },
   { chiave: 'data_creazione', intestazione: 'Caricata il', predefinita: false, mono: true, larghezza: 100 },
+  /*
+    Le coordinate del punto, dal file del committente (Strumenti → Coordinate dei punti).
+
+    Attivabile e non predefinita: chi pianifica guarda strada e civico, non una coppia di decimali
+    — il posto dove le coordinate servono davvero è il telefono dell'operatore, dove diventano il
+    «Punto esatto». Qui servono a rispondere a una domanda sola, ma importante: «l'import le ha
+    prese?». Senza imbuto, come le altre colonne che non si filtrano per contenuto.
+  */
+  { chiave: 'coordinate', intestazione: 'Coordinate', predefinita: false, mono: true, larghezza: 170 },
 ];
 
 /** Colonne della vista Limitazioni massive: nessuna scadenza, questi ordini non scadono. */
@@ -495,6 +510,10 @@ export function valoreCella(r: RigaTabella, c: ChiaveColonna): string {
     // decide se l'ordine va ripianificato o discusso col committente.
     case 'eseguito':
       return r.eseguito || '—';
+    // «lat, lng» com'è a registro: è già la forma che si incolla in Maps, e che l'operatore ha
+    // sotto il dito nel «Punto esatto». Il trattino dice «questo punto non ce le ha».
+    case 'coordinate':
+      return r.coordinate || '—';
     case 'gruppo':
       // Un trattino e non uno zero: «non ancora geocodificato» non e` un gruppo, e uno zero
       // finirebbe ordinato insieme ai gruppi veri come se fosse una zona.
