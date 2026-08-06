@@ -1,6 +1,9 @@
 name: Android Release
 
-# APK firmata della shell Gestilab Plenzich (pattern app-gelateria, adattato):
+# APK + AAB firmati della shell Gestilab Plenzich (pattern app-gelateria, adattato):
+# - APK -> installazione diretta sui telefoni (link/QR delle Releases)
+# - AAB -> Play Store (la Console rifiuta le APK); stesso keystore di upload,
+#   la firma di distribuzione la gestisce Google con Play App Signing.
 # - la shell carica la web app da produzione (server.url) -> NIENTE build Next,
 #   niente Firebase/google-services: la APK cambia solo quando cambia la shell.
 # - il repo e' gia' pubblico -> la release vive QUI (GITHUB_TOKEN), senza
@@ -121,13 +124,15 @@ jobs:
       - name: Sync Capacitor Android
         run: npx cap sync android
 
-      - name: Build signed release APK
+      - name: Build signed release APK and AAB
         run: |
           set -euo pipefail
 
           chmod +x android/gradlew
           cd android
-          ./gradlew assembleRelease
+          # APK: installazione diretta (link/QR agli operatori).
+          # AAB: formato OBBLIGATORIO per il Play Store (Play Console rifiuta le APK).
+          ./gradlew assembleRelease bundleRelease
 
       - name: Verify signed APK output
         run: |
@@ -146,24 +151,38 @@ jobs:
             exit 1
           fi
 
+          SIGNED_AAB_PATH="android/app/build/outputs/bundle/release/app-release.aab"
+          if [[ ! -f "$SIGNED_AAB_PATH" ]]; then
+            echo "AAB release non trovato (serve al Play Store)." >&2
+            exit 1
+          fi
+
           RELEASE_APK_NAME="gestilab-personale-android-v${VERSION_NAME}-${VERSION_CODE}.apk"
           RELEASE_APK_PATH="${RUNNER_TEMP}/${RELEASE_APK_NAME}"
           cp "$SIGNED_APK_PATH" "$RELEASE_APK_PATH"
 
+          RELEASE_AAB_NAME="gestilab-personale-android-v${VERSION_NAME}-${VERSION_CODE}.aab"
+          RELEASE_AAB_PATH="${RUNNER_TEMP}/${RELEASE_AAB_NAME}"
+          cp "$SIGNED_AAB_PATH" "$RELEASE_AAB_PATH"
+
           {
             echo "RELEASE_APK_NAME=${RELEASE_APK_NAME}"
             echo "RELEASE_APK_PATH=${RELEASE_APK_PATH}"
+            echo "RELEASE_AAB_NAME=${RELEASE_AAB_NAME}"
+            echo "RELEASE_AAB_PATH=${RELEASE_AAB_PATH}"
             echo "RELEASE_TAG=android-v${VERSION_NAME}-${VERSION_CODE}"
             echo "RELEASE_TITLE=Gestilab Plenzich Android v${VERSION_NAME} (${VERSION_CODE})"
           } >> "$GITHUB_ENV"
 
-          ls -lah "$RELEASE_APK_PATH"
+          ls -lah "$RELEASE_APK_PATH" "$RELEASE_AAB_PATH"
 
       - name: Upload private workflow artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.RELEASE_APK_NAME }}
-          path: ${{ env.RELEASE_APK_PATH }}
+          path: |
+            ${{ env.RELEASE_APK_PATH }}
+            ${{ env.RELEASE_AAB_PATH }}
           if-no-files-found: error
           retention-days: 14
 
@@ -180,11 +199,11 @@ jobs:
               --title "$RELEASE_TITLE" \
               --notes "$RELEASE_NOTES"
 
-            gh release upload "$RELEASE_TAG" "$RELEASE_APK_PATH" \
+            gh release upload "$RELEASE_TAG" "$RELEASE_APK_PATH" "$RELEASE_AAB_PATH" \
               --repo "$GITHUB_REPOSITORY" \
               --clobber
           else
-            gh release create "$RELEASE_TAG" "$RELEASE_APK_PATH" \
+            gh release create "$RELEASE_TAG" "$RELEASE_APK_PATH" "$RELEASE_AAB_PATH" \
               --repo "$GITHUB_REPOSITORY" \
               --title "$RELEASE_TITLE" \
               --notes "$RELEASE_NOTES"
