@@ -9,7 +9,9 @@ import {
   COLONNE_ACQUALATINA, COLONNE_DUNNING, COLONNE_MASSIVE, colonnePerStato, colonneScheda, dataIt,
   type DefColonna, type RigaTabella,
 } from '@/lib/acea/colonneTabella';
-import { MAX_RIGHE_EXPORT, nomeFileExport, nomeFoglioExport } from '@/lib/acea/exportVista';
+import {
+  MAX_RIGHE_EXPORT, nomeFileExport, nomeFileRichiesta, nomeFoglioExport,
+} from '@/lib/acea/exportVista';
 import { gruppiPerRapportino } from '@/lib/acea/caricaSuRapportino';
 import { ATTIVITA_TABELLONE, type Famiglia } from '@/lib/acea/famiglia';
 import { contaFiltriColonna } from '@/lib/acea/filtriOrdini';
@@ -24,7 +26,7 @@ import BarraAzioni from './BarraAzioni';
 import GuidaTabella from './GuidaTabella';
 import ModaleRapportini from './ModaleRapportini';
 import MenuColonne from './MenuColonne';
-import { caricaTutteLeRighe, esportaVista } from './esportaVista';
+import { caricaTutteLeRighe, esportaRichiestaAcea, esportaVista } from './esportaVista';
 import { useOrdiniAcea } from './useOrdiniAcea';
 import { numeroIt } from '@/utils/numero-it';
 
@@ -398,6 +400,33 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
     }
   }, [righe, tutteCaricate, query, totale, colonneVisibili, famiglia, filtri, oggi]);
 
+  /*
+    La RICHIESTA ad ACEA: stesso caricamento, tracciato diverso.
+
+    Scarica anche questo tutte le righe che i filtri selezionano, non le 300 scese — è lo stesso
+    motivo dell'altro export, e qui pesa di più: le righe mancanti sarebbero saracinesche che non
+    vengono chieste, quindi non pagate. Il tracciato è fisso (`RICHIESTA_ACEA`) perché il file
+    esce dall'azienda: niente note dell'ufficio, niente nomi dei nostri operatori.
+  */
+  const esportaRichiesta = useCallback(async () => {
+    if (totale > MAX_RIGHE_EXPORT) {
+      toast.error(
+        `La vista ha ${numero(totale)} righe: l'export ne regge ${numero(MAX_RIGHE_EXPORT)}. Restringi i filtri.`,
+      );
+      return;
+    }
+    setEsportando(true);
+    setScaricate(tutteCaricate ? righe.length : 0);
+    try {
+      const tutte = tutteCaricate ? righe : await caricaTutteLeRighe(query, totale, setScaricate);
+      await esportaRichiestaAcea(tutte, nomeFileRichiesta(famiglia, oggi));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Export non riuscito.');
+    } finally {
+      setEsportando(false);
+    }
+  }, [righe, tutteCaricate, query, totale, famiglia, oggi]);
+
   if (errore) {
     /*
       Token di stato, non di superficie: `--brand-surface-muted` vale esattamente quanto
@@ -618,6 +647,31 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
                 : undefined
             }
           />
+
+          {/*
+            La richiesta ad ACEA sta FUORI dal menu Colonne, dove vive l'altro export.
+
+            Quello esporta «quello che si vede» ed è una funzione del menu che decide cosa si
+            vede. Questo è un passo del lavoro — il file che si allega alla mail per ACEA — e ha
+            un tracciato suo che col menu non c'entra. Nasconderlo là dentro lo renderebbe una
+            variante dell'altro, che è esattamente ciò che non è.
+
+            Compare solo su «Ordini per ACEA»: altrove esporterebbe righe che un ordine ce l'hanno
+            già, cioè chiederebbe ad ACEA di aprire ordini che esistono.
+          */}
+          {filtri.stato === 'saracinesche' && filtri.sara === 'per_acea' && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => void esportaRichiesta()}
+              loading={esportando}
+              disabled={totale === 0}
+            >
+              <ClipboardList size={14} aria-hidden="true" />
+              Richiesta ACEA
+              {totale > 0 && ` (${numero(totale)})`}
+            </Button>
+          )}
 
           {/*
             Il «?» resta del modo vista: la guida si legge prima, non con le righe spuntate.

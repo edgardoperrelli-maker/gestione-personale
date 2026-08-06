@@ -9,6 +9,7 @@
 // Quindi l'export ripercorre la query dei filtri fino in fondo. Le due decisioni che vale la pena
 // tenere pure e testabili sono queste: quante pagine servono, e come si chiama il file.
 
+import type { ChiaveColonna } from './colonneTabella';
 import type { StatoFiltro } from './filtriOrdini';
 import type { Famiglia } from './famiglia';
 
@@ -87,4 +88,53 @@ export function nomeFileExport({ famiglia, stato, comune, oggi, filtrato }: Nome
  */
 export function nomeFoglioExport(famiglia: Famiglia): string {
   return famiglia === 'acqualatina' ? 'AcquaLatina' : 'ACEA';
+}
+
+// ---------------------------------------------------------------------------
+// La richiesta ad ACEA: il foglio che esce dall'azienda.
+// ---------------------------------------------------------------------------
+
+/**
+ * Il tracciato della richiesta di apertura ordini di sostituzione saracinesca.
+ *
+ * FISSO, e non «le colonne visibili» come l'export della vista. Sono due cose diverse: l'export
+ * della vista è uno strumento interno — si esporta quello che si sta guardando, per farci una
+ * pivot — mentre questo è un documento che esce dall'azienda e arriva al committente.
+ *
+ * Da lì discendono le due scelte che contano:
+ *
+ * - **niente dati interni.** L'export della vista porterebbe le Note (testo libero che l'ufficio
+ *   scrive per l'operatore: «citofonare», «cane in giardino»), il nome del nostro esecutore, il
+ *   gruppo di giro. Non riguardano ACEA e non c'è motivo di mandarglieli.
+ * - **forma stabile.** Costruito sulle colonne visibili, il file cambierebbe tracciato ogni volta
+ *   che qualcuno tocca il menu Colonne, e ACEA riceverebbe un file diverso a ogni giro.
+ *
+ * L'IMPIANTO viene dall'ordine su cui la saracinesca è stata comunicata: è quello a tramandarlo.
+ * Sulle limitazioni massive aperte a mano dal «+» un ordine non c'è, e la cella resta vuota —
+ * quelle righe si identificano con matricola e indirizzo.
+ */
+export const RICHIESTA_ACEA: ReadonlyArray<{
+  intestazione: string;
+  larghezza: number;
+  chiave: ChiaveColonna;
+}> = [
+  { intestazione: 'Impianto', larghezza: 120, chiave: 'impianto' },
+  { intestazione: 'Matricola', larghezza: 140, chiave: 'matricola' },
+  { intestazione: 'Indirizzo', larghezza: 220, chiave: 'indirizzo' },
+  { intestazione: 'CAP', larghezza: 80, chiave: 'cap' },
+  { intestazione: 'Località', larghezza: 140, chiave: 'comune' },
+  // L'ODL su cui la saracinesca è stata dichiarata: è il riferimento con cui ACEA ritrova il
+  // lavoro a cui la sostituzione si aggancia. Senza, la richiesta è un indirizzo nudo.
+  { intestazione: 'ODL intervento', larghezza: 120, chiave: 'odl' },
+  // Quando ci siamo stati: è la data da cui quel lavoro è a credito.
+  { intestazione: 'Data intervento', larghezza: 120, chiave: 'pianificato_il' },
+  // L'attività dell'ordine su cui si è intervenuti: dà ad ACEA il contesto della richiesta.
+  { intestazione: 'Attività', larghezza: 210, chiave: 'attivita' },
+];
+
+/** Nome del file della richiesta: dice cos'è e di quando, senza aprirlo. */
+export function nomeFileRichiesta(famiglia: Famiglia, oggi: string): string {
+  const parti = ['acea', famiglia, 'richiesta-saracinesche'];
+  if (ISO.test(oggi)) parti.push(oggi.replaceAll('-', ''));
+  return `${parti.join('-')}.xlsx`;
 }

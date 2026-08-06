@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { RefreshCw, Waves } from 'lucide-react';
+import { ArrowUpRight, RefreshCw, Waves } from 'lucide-react';
 import Button from '@/components/Button';
 import { Card } from '@/components/Card';
 import Tabs from '@/components/Tabs';
@@ -38,6 +38,20 @@ const euro = (n: number) =>
  */
 const isOrdine = (r: DichiarazioneClassificata | OrdineAperto): r is OrdineAperto =>
   'numero_operazione' in r;
+
+/**
+ * Dove porta «Apri nel registro», per la vista che si sta guardando.
+ *
+ * «Da esitare» va SEMPRE su massive, qualunque sia la famiglia della card: gli ordini di
+ * sostituzione sono tutti massive perché è ACEA a classificarli così (sono manutenzioni
+ * straordinarie), anche quando nascono da un lavoro di dunning. Mandare la card dunning sulla
+ * pagina dunning darebbe una tabella vuota accanto a un numero che non è zero.
+ */
+function hrefRegistro(vista: Vista, famiglia: Famiglia): string {
+  if (vista === 'da_esitare') return '/hub/acea/massive?stato=saracinesche&sara=da_esitare';
+  const sara = vista === 'da_richiedere' ? '&sara=per_acea' : '';
+  return `/hub/acea/${famiglia}?stato=saracinesche${sara}`;
+}
 
 /**
  * Ciclo saracinesche: fatte · da esitare · da richiedere.
@@ -170,7 +184,7 @@ export default function Saracinesche({ famiglia }: { famiglia: Famiglia }) {
 
           {/* `Tabs` del sistema e non tre bottoni disegnati a mano: e` un filtro sullo stesso
               dataset, esattamente il caso di DESIGN.md §7bis. */}
-          <div className="mt-3">
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             <Tabs
               value={vista}
               onValueChange={(v) => setVista(v as Vista)}
@@ -185,6 +199,22 @@ export default function Saracinesche({ famiglia }: { famiglia: Famiglia }) {
                 { value: 'fatte', label: `Tutte le fatte ${dati.fatte}` },
               ]}
             />
+
+            {/*
+              Il collegamento alla TABELLA, sulla stessa vista che si sta guardando qui.
+
+              Questa card resta un cruscotto: dice quanto vale il non richiesto e basta. Il lavoro
+              — filtrare, selezionare, esportare, assegnare — si fa nel registro, dove quelle
+              funzioni esistono già e sono le stesse di tutte le altre tabelle. Duplicarle qui
+              avrebbe voluto dire una seconda tabella da tenere allineata alla prima.
+            */}
+            <a
+              href={hrefRegistro(vista, famiglia)}
+              className="ml-auto flex items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--brand-border)] px-2.5 py-1.5 text-xs text-[var(--brand-text-main)] transition-colors hover:border-[var(--brand-border-strong)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+            >
+              Apri nel registro
+              <ArrowUpRight size={13} aria-hidden="true" />
+            </a>
           </div>
 
           <div className="mt-2 max-h-80 overflow-auto rounded-[var(--radius-md)] border border-[var(--brand-border)]">
