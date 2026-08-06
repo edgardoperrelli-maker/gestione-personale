@@ -7,7 +7,7 @@
 
 import {
   ETICHETTE_PIANIFICAZIONE, ETICHETTE_SCADENZA,
-  type ChiaveOpzioni, type ColonnaElenco, type ColonnaTesto, type FiltriUI,
+  type ChiaveOpzioni, type ColonnaElenco, type ColonnaTesto, type FiltriUI, type SaraFiltro,
 } from './filtriOrdini';
 import { eRevoca } from './scadenza';
 
@@ -71,6 +71,14 @@ export type RigaTabella = {
   odl_saracinesca: string | null;
   /** Lo stato di QUELL'ordine, non della limitazione: dice se la sostituzione e` gia` esitata. */
   stato_saracinesca: string | null;
+  /**
+   * `true` se quell'ordine e` ancora aperto, cioe` da esitare.
+   *
+   * Booleano accanto al testo perche` `stato_saracinesca` e` la dicitura di ACEA, non un enum
+   * nostro: ci passano sia descrizioni sia codici, e deciderci sopra con un confronto di stringhe
+   * significa rompersi alla prima dicitura nuova. Questo viene dalla colonna `aperto` del registro.
+   */
+  sostituzione_aperta: boolean;
   /**
    * Nota dell'ufficio. Si scrive qui in tabella e arriva all'operatore dentro il rapportino, nel
    * banner «Nota dall'ufficio» — non e` un promemoria interno, e` un messaggio a chi va sul posto.
@@ -348,6 +356,19 @@ export const COLONNE_MASSIVE: DefColonna[] = [
   { chiave: 'attivita', intestazione: 'Attività', predefinita: false, larghezza: 210, filtro: F.attivita },
   { chiave: 'valore_netto', intestazione: 'Valore', predefinita: false, mono: true, larghezza: 90 },
   { chiave: 'data_creazione', intestazione: 'Creazione', predefinita: false, mono: true, larghezza: 100 },
+  /*
+    Le tre della saracinesca, come nel dunning. MANCAVANO, e non erano spente: non esistevano.
+
+    È qui che stanno 1.400 delle 1.541 saracinesche da chiedere ad ACEA — le massive sono la
+    campagna, il dunning è la coda — quindi la scheda «Sostituzione saracinesca» su questa vista
+    non poteva mostrare l'ordine di sostituzione nemmeno accendendo tutto a mano: `colonnePerStato`
+    cercava `odl_saracinesca`, non lo trovava e restituiva le colonne intatte. Un test lo dava
+    addirittura per corretto («su una vista senza la colonna sostituzione non inventa nulla»): la
+    funzione faceva la cosa giusta, era la definizione a essere incompleta.
+  */
+  { chiave: 'saracinesca', intestazione: 'Saracinesca', predefinita: false, larghezza: 100 },
+  { chiave: 'odl_saracinesca', intestazione: 'ODL sostituzione', predefinita: false, mono: true, larghezza: 130 },
+  { chiave: 'stato_saracinesca', intestazione: 'Stato sostituzione', predefinita: false, larghezza: 140 },
 ];
 
 export type PillFiltro = {
@@ -619,8 +640,20 @@ export function tonoScadenza(r: RigaTabella, oggi: string): TonoScadenza {
  * Cambiano SOLO ordine ed etichette: le chiavi restano quelle: le larghezze e l'ordine salvati
  * dall'utente continuano a corrispondere invece di azzerarsi cambiando scheda.
  */
-export function colonnePerStato(colonne: DefColonna[], saracinesche: boolean): DefColonna[] {
-  if (!saracinesche) return colonne;
+export function colonnePerStato(
+  colonne: DefColonna[],
+  saracinesche: boolean,
+  sara: SaraFiltro = 'tutte',
+): DefColonna[] {
+  /*
+    Su «Da esitare» le colonne restano quelle NORMALI del registro, ed è una scelta, non una svista.
+
+    Lì la riga non è più la limitazione su cui la saracinesca è stata dichiarata: è l'ordine di
+    sostituzione stesso. «ODL sostituzione» accanto a un ODL che È la sostituzione mostrerebbe due
+    volte lo stesso numero, e «ODL limitazione» starebbe sopra un numero che una limitazione non è.
+    Le due popolazioni della scheda hanno forme diverse perché sono cose diverse.
+  */
+  if (!saracinesche || sara === 'da_esitare') return colonne;
 
   const sostituzione = colonne.find((c) => c.chiave === 'odl_saracinesca');
   if (!sostituzione) return colonne;
@@ -637,4 +670,22 @@ export function colonnePerStato(colonne: DefColonna[], saracinesche: boolean): D
       ? { ...c, predefinita: true }
       : c)),
   ];
+}
+
+/**
+ * Le chiavi che la scheda «Sostituzione saracinesca» accende e che la vista normale tiene spente.
+ *
+ * DERIVATA da `colonnePerStato` invece che elencata a mano, e per un motivo preciso: quella
+ * funzione è l'unico posto che decide cosa serve in quella scheda, e un elenco ricopiato qui
+ * sarebbe divergente al primo cambiamento — una quarta colonna aggiunta là e mai accesa qui.
+ *
+ * Serve perché le colonne visibili sono uno STATO del componente, non una derivazione: senza
+ * questo elenco nessuno sa quali chiavi accendere entrando nella scheda e quali rispegnere
+ * uscendone. È il difetto per cui il `predefinita: true` qui sopra non si è mai visto a schermo.
+ */
+export function colonneScheda(definizione: DefColonna[]): string[] {
+  const base = new Set(definizione.filter((c) => c.predefinita).map((c) => c.chiave));
+  return colonnePerStato(definizione, true)
+    .filter((c) => c.predefinita && !base.has(c.chiave))
+    .map((c) => c.chiave);
 }

@@ -176,14 +176,23 @@ export async function caricaDichiarazioni(db: SupabaseClient): Promise<Dichiaraz
   type InterventoRow = {
     id: string; odl: string | null; data: string | null; comune: string | null;
     matricola_contatore: string | null; gruppo_attivita: string | null; staff_id: string | null;
+    indirizzo: string | null; cap: string | null;
   };
   const interventi: InterventoRow[] = [];
   for (let i = 0; i < ids.length; i += CHUNK) {
+    /*
+      NIENTE `.not('odl','is',null)`.
+
+      C'era, e rendeva irraggiungibile il ramo di ripiego qui sotto — quello che il commento della
+      funzione descrive come il comportamento voluto («se l'ODL non c'è la riga resta, con la
+      matricola dell'intervento»). La funzione contraddiceva il proprio commento, e il risultato è
+      che 803 saracinesche dichiarate su limitazioni massive aperte a mano dal «+» non le vedeva
+      nessuno: né la card, né la scheda del registro. Sono 797 da chiedere ad ACEA, 72.622 €.
+    */
     const { data, error } = await db
       .from('interventi')
-      .select('id, odl, data, comune, matricola_contatore, gruppo_attivita, staff_id')
+      .select('id, odl, data, comune, matricola_contatore, gruppo_attivita, staff_id, indirizzo, cap')
       .eq('stato', 'completato')
-      .not('odl', 'is', null)
       .in('committente', [...COMMITTENTI_ACEA])
       .in('id', ids.slice(i, i + CHUNK));
     if (error) throw error;
@@ -201,29 +210,46 @@ export async function caricaDichiarazioni(db: SupabaseClient): Promise<Dichiaraz
     }
   }
 
-  // Impianto e famiglia dal registro, per ODL.
-  const odlUnici = [...new Set(interventi.map((i) => String(i.odl)).filter(Boolean))];
-  type OrdineRow = { odl: string; impianto: string | null; matricola: string | null; famiglia: string | null };
+  // Impianto, indirizzo e famiglia dal registro, per ODL. È il passo che «tramanda l'impianto»:
+  // l'ordine su cui la saracinesca è stata comunicata è l'unico posto in cui quell'impianto esiste.
+  const odlUnici = [...new Set(interventi.map((i) => i.odl).filter((o): o is string => !!o))];
+  type OrdineRow = {
+    odl: string; impianto: string | null; matricola: string | null; famiglia: string | null;
+    via: string | null; civico: string | null; cap: string | null;
+  };
   const registro = new Map<string, OrdineRow>();
   for (let i = 0; i < odlUnici.length; i += CHUNK) {
     const { data, error } = await db
       .from('acea_ordini')
-      .select('odl, impianto, matricola, famiglia')
+      .select('odl, impianto, matricola, famiglia, via, civico, cap')
       .in('odl', odlUnici.slice(i, i + CHUNK));
     if (error) throw error;
     for (const r of (data ?? []) as OrdineRow[]) if (!registro.has(r.odl)) registro.set(r.odl, r);
   }
 
+  /** Via e civico come una riga sola, che è la forma in cui l'indirizzo si legge e si manda. */
+  const indirizzoRegistro = (r: OrdineRow | undefined): string | null => {
+    const via = String(r?.via ?? '').trim();
+    if (via === '') return null;
+    const civico = String(r?.civico ?? '').trim();
+    return civico === '' ? via : `${via} ${civico}`;
+  };
+
   return interventi.map((i) => {
-    const reg = registro.get(String(i.odl));
+    const reg = i.odl ? registro.get(i.odl) : undefined;
     return {
-      odl: String(i.odl),
+      // Senza ordine ACEA l'ODL non c'è, e non si inventa: è la riga che va chiesta.
+      odl: i.odl ?? null,
+      intervento_id: i.id,
       impianto: reg?.impianto ?? null,
       matricola: reg?.matricola ?? i.matricola_contatore ?? null,
       famiglia: (reg?.famiglia as Famiglia | undefined) ?? famigliaDaGruppo(i.gruppo_attivita),
       data: i.data ?? null,
       operatore: i.staff_id ? (nomi.get(i.staff_id) ?? null) : null,
       comune: i.comune ?? null,
+      // Il registro prima dell'intervento: è l'indirizzo che ACEA riconosce come suo.
+      indirizzo: indirizzoRegistro(reg) ?? i.indirizzo ?? null,
+      cap: reg?.cap ?? i.cap ?? null,
     };
   });
 }

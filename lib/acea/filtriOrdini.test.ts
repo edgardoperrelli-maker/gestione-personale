@@ -18,7 +18,8 @@ const TESTI_VUOTI = {
 describe('leggiFiltri', () => {
   it('senza parametri applica i default', () => {
     expect(q('')).toEqual({
-      famiglia: null, stato: 'tutti', comuneScheda: null, elenchi: ELENCHI_VUOTI, testi: TESTI_VUOTI,
+      famiglia: null, stato: 'tutti', sara: 'tutte', comuneScheda: null,
+      elenchi: ELENCHI_VUOTI, testi: TESTI_VUOTI,
       scadenza: 'tutte', entroGiorni: 7, cerca: null, pagina: 1, perPagina: 100,
       pianificazione: {
         esecutori: [], senzaEsecutore: false, pianificazione: 'tutte', giorno: null,
@@ -40,6 +41,7 @@ describe('leggiFiltri', () => {
   it('un valore ignoto cade sul default invece di dare errore', () => {
     expect(q('famiglia=pippo').famiglia).toBeNull();
     expect(q('stato=boh').stato).toBe('tutti');
+    expect(q('sara=chissa').sara).toBe('tutte');
     expect(q('scadenza=domani').scadenza).toBe('tutte');
   });
 

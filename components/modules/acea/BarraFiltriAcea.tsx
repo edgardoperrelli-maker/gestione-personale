@@ -7,7 +7,8 @@ import {
   pillFiltri, senzaFiltroColonna, type ChiaveColonna, type DefColonna,
 } from '@/lib/acea/colonneTabella';
 import {
-  applicaScheda, azzeraFiltri, haFiltriAttivi, schedeVista, valoreScheda, type FiltriUI,
+  ETICHETTE_SARA, applicaScheda, azzeraFiltri, haFiltriAttivi, schedeVista, valoreScheda,
+  type FiltriUI, type SaraFiltro,
 } from '@/lib/acea/filtriOrdini';
 import type { Famiglia } from '@/lib/acea/famiglia';
 
@@ -123,6 +124,29 @@ export default function BarraFiltriAcea({
           {caricate < totale ? `${caricate} di ${totale}` : `${totale}`} righe
         </span>
       </div>
+
+      {/*
+        I due passi del ciclo saracinesche, dentro la loro scheda e solo lì.
+
+        `Tabs` e non due bottoni disegnati a mano perché non sono un filtro che si somma agli
+        altri: ciascuno seleziona una popolazione DIVERSA — «Ordini per ACEA» guarda le
+        dichiarazioni senza ordine, «Da esitare» guarda gli ordini di sostituzione aperti — e fra
+        loro sono alternativi, che è esattamente il caso di DESIGN.md §7bis.
+
+        Su una fila propria e non accanto alle schede: la fila sopra dice DOVE si sta guardando,
+        questa dice COSA si sta facendo. Mescolarle darebbe cinque tasti di cui due che cambiano
+        la natura delle righe e tre no.
+      */}
+      {filtri.stato === 'saracinesche' && (
+        <Tabs
+          value={filtri.sara}
+          onValueChange={(v) => onChange({ ...filtri, sara: v as SaraFiltro })}
+          items={(['tutte', 'per_acea', 'da_esitare'] as SaraFiltro[]).map((s) => ({
+            value: s,
+            label: ETICHETTE_SARA[s],
+          }))}
+        />
+      )}
 
       {pill.length > 0 && (
         <ul className="flex flex-wrap items-center gap-1.5">

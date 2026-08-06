@@ -42,6 +42,31 @@ import type { Famiglia } from './famiglia';
  * scheda serve a chi le cerca, l'ordinamento a chi non sa di doverle cercare.
  */
 export type StatoFiltro = 'tutti' | 'aperti' | 'chiusi' | 'saracinesche' | 'riaperture';
+
+/**
+ * I due tasti rapidi DENTRO la scheda «Sostituzione saracinesca».
+ *
+ * Non sono filtri di colonna e non sono schede: sono i due passi del ciclo, e ciascuno seleziona
+ * una popolazione DIVERSA. Tenerli qui — e non fra i `testi` — è deliberato: `odl_saracinesca` non
+ * è una colonna di Postgres ma un aggancio derivato per impianto o matricola, quindi un «contiene»
+ * sull'intestazione non potrebbe applicarlo al registro intero.
+ *
+ * - `per_acea`: le dichiarazioni SENZA ordine di sostituzione. È ciò che si chiede ad ACEA.
+ * - `da_esitare`: gli ORDINI di sostituzione ancora aperti. È ciò che si dà agli operatori.
+ *
+ * Le due popolazioni non si sommano e non si sovrappongono, ed è il motivo per cui sono due tasti
+ * e non due valori dello stesso filtro: `per_acea` guarda le righe su cui una saracinesca è stata
+ * dichiarata, `da_esitare` guarda gli ordini che ACEA ha aperto per sostituirla. Un ordine aperto
+ * può stare su un impianto senza dichiarazione, e viceversa (vedi `lib/acea/saracinesche.ts`).
+ */
+export type SaraFiltro = 'tutte' | 'per_acea' | 'da_esitare';
+
+export const ETICHETTE_SARA: Record<SaraFiltro, string> = {
+  tutte: 'Tutte',
+  per_acea: 'Ordini per ACEA',
+  da_esitare: 'Da esitare',
+};
+
 export type ScadenzaFiltro = 'tutte' | 'scaduti' | 'in_scadenza' | 'senza_scadenza';
 
 /** Etichette del filtro scadenza. Una sola fonte: le usano il menu, le pill e i test. */
@@ -128,6 +153,8 @@ export type FiltriPianificazione = {
 export type FiltriOrdini = {
   famiglia: Famiglia | null;
   stato: StatoFiltro;
+  /** Il tasto rapido della scheda saracinesche. Ignorato fuori da quella scheda. */
+  sara: SaraFiltro;
   /**
    * Il comune della SCHEDA attiva, nella vista massive. Non è un filtro di colonna: è la scheda —
    * le limitazioni massive si lavorano per comune (una campagna per paese), e la fila delle
@@ -179,7 +206,10 @@ export function filtriPianificazioneAttivi(p: FiltriPianificazione): boolean {
 export function serveIncrocio(f: FiltriOrdini): boolean {
   return (
     filtriPianificazioneAttivi(f.pianificazione)
-    || f.stato === 'saracinesche'
+    // `da_esitare` NON incrocia: gli ordini di sostituzione sono righe del registro come le altre,
+    // e si selezionano per attività e `aperto` — due colonne che Postgres ha. È il motivo per cui
+    // quel tasto costa meno dell'altro pur mostrando la popolazione che si assegna davvero.
+    || (f.stato === 'saracinesche' && f.sara !== 'da_esitare')
     || f.stato === 'riaperture'
     || ordinamentoDaIncrociare(f)
   );
@@ -330,6 +360,7 @@ const giornoIso = (v: string | null | undefined): string | null => {
 export function leggiFiltri(params: URLSearchParams): FiltriOrdini {
   const famiglia = params.get('famiglia');
   const stato = params.get('stato');
+  const sara = params.get('sara');
   const scadenza = params.get('scadenza');
   const pian = params.get('pianificazione');
 
@@ -347,6 +378,7 @@ export function leggiFiltri(params: URLSearchParams): FiltriOrdini {
       stato === 'aperti' || stato === 'chiusi' || stato === 'saracinesche' || stato === 'riaperture'
         ? stato
         : 'tutti',
+    sara: sara === 'per_acea' || sara === 'da_esitare' ? sara : 'tutte',
     comuneScheda: testo(params.get('comuneScheda')),
     elenchi,
     testi,
@@ -413,6 +445,8 @@ export function intervalloPagina(f: FiltriOrdini): { da: number; a: number } {
 export type FiltriUI = {
   /** Segmented sopra la tabella: si lavora sull'aperto, lo storico è a un click. */
   stato: StatoFiltro;
+  /** Tasto rapido della scheda saracinesche: quale dei due passi del ciclo si sta guardando. */
+  sara: SaraFiltro;
   /** Scheda-comune attiva (solo massive): `stato` resta 'aperti', questo dice QUALE paese. */
   comuneScheda: string | null;
   /** Filtro dell'intestazione «Scadenza» (semantico, non un intervallo di date). */
@@ -438,6 +472,7 @@ export function filtriVuoti(): FiltriUI {
   for (const c of COLONNE_TESTO) testi[c] = '';
   return {
     stato: 'aperti', // si lavora sull'aperto: lo storico è a un click, ma non è la vista di default
+    sara: 'tutte',
     comuneScheda: null,
     scadenza: 'tutte',
     cerca: '',
@@ -457,6 +492,9 @@ export function parametriQuery(
 ): URLSearchParams {
   const p = new URLSearchParams({ famiglia, perPagina: String(perPagina) });
   if (f.stato !== 'tutti') p.set('stato', f.stato);
+  // Solo dentro la sua scheda: fuori non seleziona niente, e in URL sarebbe rumore che confonde
+  // chi si scambia un link («perché c'è scritto da_esitare su una vista di dunning aperti?»).
+  if (f.stato === 'saracinesche' && f.sara !== 'tutte') p.set('sara', f.sara);
   if (f.comuneScheda) p.set('comuneScheda', f.comuneScheda);
   if (f.scadenza !== 'tutte') p.set('scadenza', f.scadenza);
   if (f.cerca.trim()) p.set('cerca', f.cerca.trim());
@@ -508,7 +546,10 @@ export function haFiltriAttivi(f: FiltriUI): boolean {
 
 /** Filtri ripuliti, scheda com'era: è il gesto del pulsante «Azzera». */
 export function azzeraFiltri(f: FiltriUI): FiltriUI {
-  return { ...filtriVuoti(), stato: f.stato, comuneScheda: f.comuneScheda };
+  // Il tasto rapido segue la scheda e non i filtri: dice QUALE popolazione si sta guardando, non
+  // come è ristretta. «Azzera» che riportasse la scheda saracinesche su «Tutte» cambierebbe le
+  // righe sotto le mani a chi voleva solo togliere un comune.
+  return { ...filtriVuoti(), stato: f.stato, sara: f.sara, comuneScheda: f.comuneScheda };
 }
 
 // ---------------------------------------------------------------------------
@@ -579,9 +620,14 @@ export function valoreScheda(f: Pick<FiltriUI, 'stato' | 'comuneScheda'>): strin
  */
 export function applicaScheda(f: FiltriUI, value: string): FiltriUI {
   if (value.startsWith(PREFISSO_SCHEDA_COMUNE)) {
-    return { ...f, stato: 'aperti', comuneScheda: value.slice(PREFISSO_SCHEDA_COMUNE.length) };
+    return {
+      ...f, stato: 'aperti', sara: 'tutte', comuneScheda: value.slice(PREFISSO_SCHEDA_COMUNE.length),
+    };
   }
-  return { ...f, stato: value as StatoFiltro, comuneScheda: null };
+  // Il tasto rapido riparte da «Tutte» a ogni cambio di scheda. Restando appeso, tornare sulle
+  // saracinesche dopo un giro altrove riaprirebbe la vista già ristretta a una delle due
+  // popolazioni — con un conteggio che non torna con quello che si era lasciato.
+  return { ...f, stato: value as StatoFiltro, sara: 'tutte', comuneScheda: null };
 }
 
 /** Espressione `or` di PostgREST per la ricerca libera. `null` se non c'è nulla da cercare. */

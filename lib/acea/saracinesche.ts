@@ -23,23 +23,21 @@ import { normalizzaMatricola } from './parseTestoOrdine';
  * massive, e il marcatore nel testo dell'ordine non aiuta — 173 delle 267 saracinesche usano
  * `LIM_MAS_MATR_`, il marcatore delle massive.
  */
-/**
- * `true` se su quell'attività una saracinesca si può davvero sostituire.
- *
- * Sulle RIMOZIONI no, e il motivo è fisico: se il misuratore o l'allaccio vengono portati via, non
- * resta niente su cui montare una valvola. Nel registro sono «Rimozione misuratore per morosità»
- * (108 ordini), «Rimozione impianto abusivo» (31) e una «Rimozione ctr». Su tutte le altre —
- * limitazioni, sospensioni, regolarizzazioni, riattivazioni — la sostituzione è contemplata.
- *
- * Serve perché la dichiarazione arriva dal rapportino, e il rapportino la chiede anche dove non ha
- * senso: sui dati reali ci sono 10 ODL di rimozione misuratore con un SI esplicito. Non sono
- * booleani sbandati, sono risposte date — quindi o il template mostra la domanda dove non
- * dovrebbe, o sono spunte per errore. In entrambi i casi non sono lavoro fatturabile, e lasciarle
- * in un elenco «da fatturare» significa portarle a un tavolo con ACEA.
- */
-export function saracinescaContemplata(attivita: string | null | undefined): boolean {
-  return !String(attivita ?? '').toUpperCase().includes('RIMOZ');
-}
+/*
+  Qui viveva `saracinescaContemplata`, che escludeva dal ciclo le dichiarazioni sulle RIMOZIONI.
+
+  L'argomento era fisico e sembrava chiuderla: su una rimozione — misuratore per morosità, allaccio
+  abusivo — il misuratore viene portato via, quindi non resta niente su cui montare una valvola, e
+  i SI dichiarati là dovevano essere spunte sbagliate. Ritirata il 2026-08-06, verificato con
+  l'ufficio: ACEA quelle sostituzioni le accetta come interventi e le liquida.
+
+  Vale la pena tenerne memoria perché l'errore non era nel ragionamento ma nella domanda. «Su
+  questa attività la valvola si può sostituire?» è una domanda tecnica; quella che decide se una
+  riga entra in un elenco da fatturare è «il committente la paga?», e la risposta a quella non sta
+  nel catalogo delle attività — sta in chi vede gli esiti. Finché il filtro è rimasto, 13
+  dichiarazioni sono state escluse dalla vista saracinesche E dalla Produzione economica: 1.184 €
+  che non comparivano da nessuna parte, nemmeno come problema.
+*/
 
 /**
  * I frammenti che riconoscono un'attività di sostituzione.
@@ -83,13 +81,24 @@ export type Famiglia = 'dunning' | 'massive';
 
 /** Saracinesca dichiarata sostituita in un rapportino. */
 export type Dichiarazione = Misuratore & {
-  /** ODL dell'intervento su cui è stata dichiarata (la limitazione, non la sostituzione). */
-  odl: string;
+  /**
+   * ODL dell'intervento su cui è stata dichiarata (la limitazione, non la sostituzione).
+   *
+   * `null` sulle limitazioni massive aperte a mano dal «+», che un ordine ACEA non ce l'hanno per
+   * costruzione: sono 803 su dati reali, e sono lavoro fatto esattamente come le altre. È il
+   * motivo per cui questo campo è nullable — pretendere l'ODL qui significava perderle tutte.
+   */
+  odl: string | null;
+  /** L'intervento da cui viene la dichiarazione: l'unica chiave che c'è sempre, anche senza ODL. */
+  intervento_id: string;
   /** Famiglia dell'ordine su cui si è intervenuti: è quella che il filtro delle fogliette usa. */
   famiglia: Famiglia | null;
   data: string | null;
   operatore: string | null;
   comune: string | null;
+  /** Serve alla richiesta ad ACEA: senza indirizzo il punto non è identificabile. */
+  indirizzo: string | null;
+  cap: string | null;
 };
 
 /** Ordine ACEA di sostituzione saracinesca presente nel registro. */
@@ -114,14 +123,25 @@ export type DichiarazioneClassificata = Dichiarazione & {
   sostituzione_aperta: boolean;
 };
 
+/*
+  Qui c'era `famiglia_vista`: l'ordine di sostituzione si mostrava sotto la famiglia del LAVORO che
+  lo aveva generato, non sotto la propria — così una sostituzione nata da un dunning si cercava fra
+  i dunning. Ritirata il 2026-08-06.
+
+  Il motivo: gli ordini di sostituzione sono tutti `massive`, ed è ACEA a classificarli così (sono
+  manutenzioni straordinarie). Il rimappaggio era una finzione a costo zero finché il ramo dunning
+  restava fermo — oggi la copertura là è zero su 141 — ma sarebbe diventato due numeri diversi per
+  la stessa cosa il giorno in cui quelle 141 vengono chieste e ACEA le apre come massive: la card
+  dunning ne avrebbe contate N, la tabella dunning zero. «Da esitare» è un concetto massive, su
+  entrambe le superfici, e ora lo è per costruzione invece che per promessa.
+*/
 export type OrdineAperto = OrdineSostituzione & {
   /**
-   * Famiglia sotto cui l'ordine si mostra nel filtro: quella della saracinesca che copre, se la
-   * conosciamo, altrimenti la propria. Un ordine nato da un dunning va cercato fra i dunning,
-   * anche se come tipo ordine è una manutenzione straordinaria.
+   * ODL dell'intervento su cui la saracinesca era stata dichiarata, se agganciato.
+   *
+   * Resta perché è informazione vera e utile — dice da quale lavoro nasce quella sostituzione — e
+   * a differenza della famiglia non pretende di spostare la riga sotto un'altra vista.
    */
-  famiglia_vista: Famiglia | null;
-  /** ODL dell'intervento su cui la saracinesca era stata dichiarata, se agganciato. */
   odl_dichiarazione: string | null;
 };
 
@@ -150,7 +170,10 @@ function chiaveDedup(d: Dichiarazione): string {
   if (imp !== '') return `I:${imp}`;
   const mat = normalizzaMatricola(d.matricola);
   if (mat) return `M:${mat}`;
-  return `O:${d.odl.trim().toUpperCase()}`;
+  // Ultimo ripiego: l'ODL se c'è, altrimenti l'intervento — che c'è sempre. Prima qui si dava per
+  // scontato l'ODL, e su una dichiarazione senza ordine sarebbe esploso invece di contarla.
+  const odl = String(d.odl ?? '').trim().toUpperCase();
+  return odl !== '' ? `O:${odl}` : `X:${d.intervento_id}`;
 }
 
 /**
@@ -207,22 +230,17 @@ export function statiSaracinesche(args: {
   }
 
   // Ordinamento stabile per la vista: prima le più vecchie, che sono a credito da più tempo.
+  // Lo spareggio passa per l'intervento e non per l'ODL: quello può mancare, l'intervento no.
   tutte.sort(
     (a, b) =>
       String(a.data ?? '￿').localeCompare(String(b.data ?? '￿')) ||
-      a.odl.localeCompare(b.odl),
+      String(a.odl ?? '').localeCompare(String(b.odl ?? '')) ||
+      a.intervento_id.localeCompare(b.intervento_id),
   );
 
   const apertiTutti: OrdineAperto[] = args.ordini
     .filter((o) => o.aperto)
-    .map((o) => {
-      const d = dichPerOdlSost.get(o.odl) ?? null;
-      return {
-        ...o,
-        famiglia_vista: d?.famiglia ?? o.famiglia,
-        odl_dichiarazione: d?.odl ?? null,
-      };
-    })
+    .map((o) => ({ ...o, odl_dichiarazione: dichPerOdlSost.get(o.odl)?.odl ?? null }))
     .sort(
       (a, b) =>
         String(a.data_creazione ?? '￿').localeCompare(String(b.data_creazione ?? '￿')) ||
@@ -231,7 +249,7 @@ export function statiSaracinesche(args: {
 
   const f = args.famiglia ?? null;
   const dichiarazioni = f ? tutte.filter((d) => d.famiglia === f) : tutte;
-  const ordiniAperti = f ? apertiTutti.filter((o) => o.famiglia_vista === f) : apertiTutti;
+  const ordiniAperti = f ? apertiTutti.filter((o) => o.famiglia === f) : apertiTutti;
 
   const coperte = dichiarazioni.filter((d) => d.stato === 'coperta').length;
   return {

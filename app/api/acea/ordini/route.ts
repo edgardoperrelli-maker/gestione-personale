@@ -10,7 +10,7 @@ import {
 } from '@/lib/acea/filtriOrdini';
 import { partiRoma } from '@/lib/orarioRoma';
 import {
-  chiaviAggancio, isAttivitaSaracinesca, saracinescaContemplata, FRAMMENTI_SARACINESCA,
+  chiaviAggancio, isAttivitaSaracinesca, FRAMMENTI_SARACINESCA,
 } from '@/lib/acea/saracinesche';
 import { odlConSaracinescaDichiarata } from '@/lib/acea/caricaSaracinesche';
 import { comuniMassiveAperti } from '@/lib/acea/caricaComuniMassive';
@@ -128,6 +128,21 @@ function queryRegistro(selezione: string, f: FiltriOrdini, oggi: string) {
   // `interventi` e Postgres da qui non la vede.
   if (f.stato === 'riaperture') q = q.eq('riapertura', true).eq('aperto', true);
 
+  /*
+    «Da esitare»: gli ORDINI di sostituzione ancora aperti, e si tagliano QUI.
+
+    È l'altra popolazione della scheda saracinesche, e a differenza di «Ordini per ACEA» il
+    registro la conosce da sé: attività e `aperto` sono due sue colonne. Nessun incrocio, nessuna
+    colonna derivata — quindi filtri, ordinamenti e paginazione restano quelli di sempre.
+
+    È anche la riga che si assegna davvero a un operatore. La limitazione su cui la saracinesca fu
+    dichiarata è chiusa da mesi: mandarci qualcuno non esita niente. L'ordine di sostituzione è
+    quello che va eseguito e rendicontato, ed è questo.
+  */
+  if (f.stato === 'saracinesche' && f.sara === 'da_esitare') {
+    q = q.or(FRAMMENTI_SARACINESCA.map((k: string) => `attivita.ilike.*${k}*`).join(',')).eq('aperto', true);
+  }
+
   // Filtri di colonna. `in` per le spunte (un valore solo resta un `in` di uno: stesso piano di
   // esecuzione di `eq` su Postgres), `ilike` per il «contiene».
   for (const c of COLONNE_ELENCO) {
@@ -213,13 +228,27 @@ type Chiave = {
   attivita: string | null;
   /** Solo acqualatina: entra nella chiave di aggancio con gli interventi. */
   matricola?: string | null;
+  /**
+   * Solo sulla scheda saracinesche: le due chiavi con cui si cerca l'ordine di sostituzione.
+   *
+   * Si proiettano nella SCANSIONE, non sulla pagina, perché il tasto «Ordini per ACEA» taglia
+   * sull'ordine di sostituzione — che non è una colonna ma un aggancio per impianto o matricola.
+   * Applicarlo alle sole righe scese darebbe «le 300 che sono capitate a schermo e non hanno un
+   * ordine» invece di «tutte quelle che non ce l'hanno», con un conteggio che mente e un export
+   * che manca righe. È lo stesso difetto che i filtri e gli ordinamenti evitano già.
+   */
+  impianto?: string | null;
 };
 
 /** Tutte le chiavi che passano i criteri della vista, nell'ordine della tabella. */
 async function scansionaChiavi(f: FiltriOrdini, oggi: string): Promise<Chiave[]> {
   const colonne = f.famiglia === 'acqualatina'
     ? 'odl, numero_operazione, attivita, matricola'
-    : 'odl, numero_operazione, attivita';
+    // Le due chiavi di aggancio solo dove servono: su una scansione da 5.000 righe due colonne in
+    // più a ogni caricamento del registro si pagherebbero per una scheda che si apre di rado.
+    : f.stato === 'saracinesche'
+      ? 'odl, numero_operazione, attivita, impianto, matricola'
+      : 'odl, numero_operazione, attivita';
   const chiavi: Chiave[] = [];
   for (let offset = 0; ; offset += PAGINA_SCAN) {
     const { data, error } = await queryRegistro(colonne, f, oggi)
@@ -550,12 +579,25 @@ export async function GET(req: Request) {
       */
       const serveIndiceCompleto =
         filtriPianificazioneAttivi(f.pianificazione) || ordinamentoDaIncrociare(f);
-      const [chiavi, indiceCompleto, saracinesche] = await Promise.all([
+      /*
+        L'indice delle sostituzioni serve PRIMA della paginazione quando c'è «Ordini per ACEA».
+
+        Più in basso viene letto comunque, per decorare le righe della pagina. Qui serve un momento
+        prima, perché il tasto taglia sull'insieme completo delle chiavi e non sulle 300 scese: è
+        la differenza fra «744 da chiedere» e «quelle fra le prime 300 che non hanno un ordine».
+        Non è una lettura in più — è la stessa, spostata: `indiceSostituzioni` ha una cache di 60
+        secondi, quindi la seconda chiamata più sotto trova il risultato già pronto.
+      */
+      const perAcea = f.stato === 'saracinesche' && f.sara === 'per_acea';
+      const [chiavi, indiceCompleto, saracinesche, sostPerFiltro] = await Promise.all([
         scansionaChiavi(f, oggi),
         serveIndiceCompleto ? indicePianificazione(f) : Promise.resolve(null),
-        f.stato === 'saracinesche'
+        // Su «Da esitare» le dichiarazioni non c'entrano: quella popolazione sono gli ordini di
+        // sostituzione, già tagliati da Postgres in `queryRegistro`.
+        f.stato === 'saracinesche' && f.sara !== 'da_esitare'
           ? odlConSaracinescaDichiarata(supabaseAdmin)
           : Promise.resolve(new Set<string>()),
+        perAcea ? indiceSostituzioni() : Promise.resolve(new Map<string, Sostituzione>()),
       ]);
       const indice = indiceCompleto
         ?? (f.stato === 'riaperture'
@@ -576,8 +618,22 @@ export async function GET(req: Request) {
         for (const s of (staff ?? []) as Array<{ id: string }>) staffScelti.add(s.id);
       }
 
+      /** `true` se su quella riga esiste gia` un ordine di sostituzione (aperto o chiuso). */
+      const haSostituzione = (k: Chiave): boolean =>
+        chiaviAggancio({ impianto: k.impianto ?? null, matricola: k.matricola ?? null })
+          .some((chiave) => sostPerFiltro.has(chiave));
+
       let passate = chiavi.filter(
-        (k) => (f.stato !== 'saracinesche' || saracinesche.has(k.odl))
+        (k) => (f.stato !== 'saracinesche' || f.sara === 'da_esitare' || saracinesche.has(k.odl))
+          /*
+            «Ordini per ACEA»: restano le dichiarazioni SENZA ordine di sostituzione.
+
+            Sono il lavoro fatto che nessuno ha ancora chiesto ad ACEA, quindi il lavoro che non
+            verra` mai pagato finche` l'ordine non esiste. Non teniamo memoria di cosa e` gia`
+            stato inviato: una riga esce di qui quando l'ordine COMPARE nell'import, non quando la
+            richiesta parte — cosi` l'elenco resta vero anche se ACEA evade solo in parte.
+          */
+          && (!perAcea || !haSostituzione(k))
           // La coda delle riaperture: fuori le completate nei rapportini. Le chiuse su ACEA sono
           // gia` fuori dalla query (`aperto=true` in `queryRegistro`).
           && (f.stato !== 'riaperture' || indice.get(chiaveDi(k))?.completato !== true)
@@ -889,12 +945,30 @@ export async function GET(req: Request) {
         ?? (parziale ? { data: bozzaData, staff_id: bozzaStaff, stato: null } : p ?? null);
       return {
         ...r,
-        saracinesca:
-          dichiarati.has(r.odl) && saracinescaContemplata(r.attivita as string | null)
-            ? 'SI'
-            : null,
+        /*
+          La dichiarazione dell'operatore, senza filtri sull'attivita`.
+
+          Prima le RIMOZIONI venivano scolorite a `—` per via di `saracinescaContemplata`: sulle
+          rimozioni — misuratore per morosita`, allaccio abusivo — il misuratore viene portato via,
+          quindi si assumeva che una valvola non ci fosse da sostituire e che quei SI fossero
+          spunte sbagliate. Ritirata il 2026-08-06: ACEA quelle sostituzioni le accetta come
+          interventi e le liquida, quindi sono lavoro fatturabile a tutti gli effetti. Sono 13
+          ordini, e nasconderli voleva dire non chiederli mai.
+        */
+        saracinesca: dichiarati.has(r.odl) ? 'SI' : null,
         odl_saracinesca: sost?.odl ?? null,
         stato_saracinesca: sost?.stato ?? null,
+        /*
+          Se l'ordine di sostituzione e` ancora APERTO, cioe` da esitare.
+
+          Booleano e non un confronto sul testo di `stato_saracinesca`: quello e` `stato_desc` di
+          ACEA — ci passano sia descrizioni («Intervento Richiesto») sia codici secchi («DAPI») —
+          e un `!== 'completato'` su quella colonna smetterebbe di funzionare il giorno che ACEA
+          cambia una dicitura, senza che nessuno se ne accorga. `aperto` e` una colonna del
+          registro e dice la stessa cosa. E` anche cio` che usa la card di Strumenti, quindi i due
+          conteggi restano lo stesso numero invece di divergere.
+        */
+        sostituzione_aperta: sost?.aperto === true,
         pianificato_il: mostrato?.data ?? null,
         pianificato_a: mostrato?.staff_id
           ? (nomi.get(mostrato.staff_id) ?? mostrato.staff_id)

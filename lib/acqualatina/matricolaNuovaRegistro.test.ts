@@ -33,7 +33,7 @@ const riga = (over: Partial<RigaTabella> = {}): RigaTabella => ({
   microarea: null, impianto: '900123456', nominativo: 'MARIO ROSSI', recapito: '333 1122334',
   matricola: '19AB000111', valore_netto: null, escludi_consuntivazione: false, codice_sla: null,
   priorita_testo: null, centro_lavoro: null, sospetto_troncamento: false, saracinesca: null,
-  odl_saracinesca: null, stato_saracinesca: null, note: null, pianificato_il: null,
+  odl_saracinesca: null, stato_saracinesca: null, sostituzione_aperta: false, note: null, pianificato_il: null,
   pianificato_a: null, stato_intervento: null,
   ...over,
 });

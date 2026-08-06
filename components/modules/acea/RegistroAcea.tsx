@@ -6,7 +6,7 @@ import { ClipboardList, Maximize2, Minimize2, RefreshCw, Upload } from 'lucide-r
 import Button from '@/components/Button';
 import { toast } from '@/components/ui/Toast';
 import {
-  COLONNE_ACQUALATINA, COLONNE_DUNNING, COLONNE_MASSIVE, colonnePerStato, dataIt,
+  COLONNE_ACQUALATINA, COLONNE_DUNNING, COLONNE_MASSIVE, colonnePerStato, colonneScheda, dataIt,
   type DefColonna, type RigaTabella,
 } from '@/lib/acea/colonneTabella';
 import { MAX_RIGHE_EXPORT, nomeFileExport, nomeFoglioExport } from '@/lib/acea/exportVista';
@@ -80,9 +80,42 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
     sostituzione.
   */
   const colonneVista = useMemo(
-    () => colonnePerStato(colonne, filtri.stato === 'saracinesche'),
-    [colonne, filtri.stato],
+    () => colonnePerStato(colonne, filtri.stato === 'saracinesche', filtri.sara),
+    [colonne, filtri.stato, filtri.sara],
   );
+
+  /*
+    Le colonne della scheda si ACCENDONO entrando e si rispengono uscendo.
+
+    `visibili` è uno stato inizializzato una volta sola dalla definizione di base, dove le tre
+    della saracinesca sono `predefinita: false`. Il `predefinita: true` che `colonnePerStato`
+    mette entrando nella scheda non veniva quindi letto da nessuno: le colonne restavano spente, e
+    la tabella mostrava l'ODL della limitazione rinominato «ODL limitazione» ma non quello della
+    sostituzione — cioè proprio il numero per cui si apre quella scheda. Lo stesso valeva per
+    l'export, che si costruisce su `colonneVisibili`.
+
+    Si INNESTA e si RITIRA, invece di ricalcolare tutto: chi ha acceso una colonna a mano se la
+    ritrova cambiando scheda. Un reset completo sarebbe più semplice da scrivere e cancellerebbe
+    la personalizzazione a ogni click su una fila che si usa di continuo.
+
+    Su «Da esitare» non si innesta niente: là la riga È l'ordine di sostituzione, e le tre colonne
+    ripeterebbero il numero che si sta già leggendo nella prima.
+  */
+  const chiaviScheda = useMemo(() => colonneScheda(definizione), [definizione]);
+  const schedaSaracinesche = filtri.stato === 'saracinesche' && filtri.sara !== 'da_esitare';
+  useEffect(() => {
+    setVisibili((prima) => {
+      const dopo = new Set(prima);
+      for (const k of chiaviScheda) {
+        if (schedaSaracinesche) dopo.add(k);
+        else dopo.delete(k);
+      }
+      // Insieme identico: si restituisce QUELLO di prima. Un `Set` nuovo con lo stesso contenuto
+      // cambierebbe identità a ogni render e rifarebbe `colonneVisibili`, quindi la tabella.
+      if (dopo.size === prima.size) return prima;
+      return dopo;
+    });
+  }, [schedaSaracinesche, chiaviScheda]);
 
   const colonneVisibili = useMemo(
     () => colonneVista.filter((c) => visibili.has(c.chiave)),
