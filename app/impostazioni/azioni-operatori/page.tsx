@@ -15,7 +15,7 @@ export default async function AzioniOperatoriPage() {
     // Gruppi per l'albero Committente → Gruppo attività (range esplicito: oltre il cap 1000 PostgREST).
     supabaseAdmin
       .from('attivita_tassonomia')
-      .select('committente, gruppo, attivo')
+      .select('committente, gruppo, attivo, descrizione')
       .range(0, 4999),
   ]);
 

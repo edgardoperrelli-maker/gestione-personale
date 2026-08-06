@@ -99,6 +99,17 @@ const TIPO_LABELS: Record<TemplateCampo['tipo'], string> = {
   matricola: 'Matricola (scansione o a mano)',
 };
 
+/**
+ * Le attività vere dentro un gruppo, tolte quelle che ripetono il nome del gruppo.
+ * Un gruppo può coprirne più d'una (PICARRO e PRONTO INTERVENTO stanno in «P.I.»): senza
+ * mostrarle, chi cerca «Picarro» in questa pagina non lo trova e crede di non poter
+ * toccare le sue azioni. Se ne servono di diverse, l'attività va portata in un gruppo
+ * suo da Impostazioni → Attività.
+ */
+function attivitaDelGruppo(g: { gruppo: string; descrizioni: string[] }): string[] {
+  return g.descrizioni.filter((d) => chiaveTassonomia(d) !== chiaveTassonomia(g.gruppo));
+}
+
 function slugify(s: string): string {
   return s.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
 }
@@ -817,12 +828,16 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
         ? `${COMMITTENTE_FLUSSO_LABEL[gruppoCommittente as CommittenteFlusso]} → ${gruppiAttivita.join(' · ')}`
         : 'Non collegato a nessuna attività';
 
-  const altriFlussiDelGruppo = gruppoVista
-    ? (albero.committenti
+  const nodoGruppoVista = gruppoVista
+    ? albero.committenti
         .find((c) => c.committente === gruppoVista.committente)
         ?.gruppi.find((g) => chiaveTassonomia(g.gruppo) === chiaveTassonomia(gruppoVista.gruppo))
-        ?.flussi.filter((f) => f.id !== selectedId) ?? [])
-    : [];
+    : undefined;
+
+  const altriFlussiDelGruppo = nodoGruppoVista?.flussi.filter((f) => f.id !== selectedId) ?? [];
+
+  /** Le attività che queste azioni raggiungono davvero: il gruppo può coprirne più d'una. */
+  const attivitaCoperte = nodoGruppoVista ? attivitaDelGruppo(nodoGruppoVista) : [];
 
   /* ── Pill di stato del salvataggio (mai silenziosa) ───────────────────── */
 
@@ -862,6 +877,7 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
             {c.gruppi.map((g) => {
               const win = flussoDiGruppo(c.committente, g.gruppo);
               const attiva = railAttiva(c.committente, g.gruppo);
+              const dentro = attivitaDelGruppo(g);
               return (
                 <button
                   key={g.gruppo}
@@ -874,7 +890,14 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
                 >
                   {attiva && <span aria-hidden className="absolute bottom-2 left-0 top-2 w-[3px] rounded-full bg-[var(--brand-primary)]" />}
                   <Dot tone={win ? 'ok' : 'warn'} />
-                  <span className="min-w-0 flex-1 truncate">{g.gruppo}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate">{g.gruppo}</span>
+                    {dentro.length > 0 && (
+                      <span className="block truncate text-[11px] font-normal text-[var(--brand-text-subtle)]" title={dentro.join(' · ')}>
+                        {dentro.join(' · ')}
+                      </span>
+                    )}
+                  </span>
                   <span className="shrink-0 text-[11px] font-normal text-[var(--brand-text-subtle)]">
                     {win ? `${win.campi.length} azion${win.campi.length === 1 ? 'e' : 'i'}` : 'da configurare'}
                   </span>
@@ -953,6 +976,7 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
               const prime = (win?.campi ?? []).slice().sort((a, b) => a.ordine - b.ordine).slice(0, 3);
               const extra = (win?.campi.length ?? 0) - prime.length;
               const condiviso = (win?.gruppi_attivita?.length ?? 0) > 1;
+              const dentro = attivitaDelGruppo(g);
               return (
                 <button
                   key={g.gruppo}
@@ -960,13 +984,20 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
                   onClick={() => apriGruppo(c.committente, g.gruppo)}
                   className="grid w-full grid-cols-1 items-center gap-x-4 gap-y-1 border-b border-[var(--brand-border)] px-4 py-2.5 text-left transition last:border-b-0 hover:bg-[var(--brand-primary-soft)] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--brand-primary)] md:grid-cols-[minmax(180px,1fr)_minmax(0,1.6fr)_110px_70px]"
                 >
-                  <span className="flex min-w-0 items-center gap-2.5 text-sm font-medium text-[var(--brand-text-main)]">
-                    <Dot tone={win ? 'ok' : 'warn'} />
-                    <span className="truncate">{g.gruppo}</span>
-                    {win && tagNatura(win).filter((n) => n !== 'manuale (+)').map((n) => (
-                      <span key={n} className="shrink-0 rounded border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-1.5 py-px text-[11px] font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">{n}</span>
-                    ))}
-                    {condiviso && <span className="shrink-0 rounded-full border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-2 py-px text-[11px] font-medium text-[var(--brand-text-muted)]">condiviso</span>}
+                  <span className="min-w-0">
+                    <span className="flex min-w-0 items-center gap-2.5 text-sm font-medium text-[var(--brand-text-main)]">
+                      <Dot tone={win ? 'ok' : 'warn'} />
+                      <span className="truncate">{g.gruppo}</span>
+                      {win && tagNatura(win).filter((n) => n !== 'manuale (+)').map((n) => (
+                        <span key={n} className="shrink-0 rounded border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-1.5 py-px text-[11px] font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">{n}</span>
+                      ))}
+                      {condiviso && <span className="shrink-0 rounded-full border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-2 py-px text-[11px] font-medium text-[var(--brand-text-muted)]">condiviso</span>}
+                    </span>
+                    {dentro.length > 0 && (
+                      <span className="ml-[18px] block truncate text-[11px] text-[var(--brand-text-subtle)]" title={dentro.join(' · ')}>
+                        {dentro.join(' · ')}
+                      </span>
+                    )}
                   </span>
                   <span className="flex min-w-0 flex-wrap items-center gap-1.5">
                     {win ? (
@@ -1166,6 +1197,18 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
             </span>
           )}
         </div>
+        {attivitaCoperte.length > 0 && (
+          <p className="mt-2 text-xs text-[var(--brand-text-muted)]">
+            Queste azioni arrivano a{' '}
+            <b className="font-semibold text-[var(--brand-text-main)]">{attivitaCoperte.join(' · ')}</b>
+            {attivitaCoperte.length > 1 ? ' — tutte insieme.' : '.'} Se una di queste deve compilare cose diverse,
+            spostala in un gruppo suo da{' '}
+            <a href="/impostazioni/attivita-tassonomia" className="font-medium text-[var(--primary-text)] underline-offset-2 hover:underline">
+              Impostazioni → Attività
+            </a>
+            , poi torna qui e dagli le sue azioni.
+          </p>
+        )}
         {isNew && motivoBlocco && (
           <p className="mt-2 rounded-[var(--radius-md)] bg-[var(--warning-soft)] px-3 py-1.5 text-xs font-medium text-[var(--warning)]">
             Per creare il flusso: {motivoBlocco}.

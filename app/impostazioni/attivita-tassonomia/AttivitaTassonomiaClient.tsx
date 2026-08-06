@@ -94,6 +94,12 @@ export default function AttivitaTassonomiaClient({
   const [savingId, setSavingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  // Spostamento di gruppo: una riga alla volta, editor inline aperto sulla riga scelta.
+  const [moveId, setMoveId] = useState<string | null>(null);
+  const [moveSelect, setMoveSelect] = useState('');
+  const [moveCustom, setMoveCustom] = useState('');
+  const [movingId, setMovingId] = useState<string | null>(null);
+
   const showFeedback = useCallback((type: 'success' | 'error', text: string) => {
     setFeedback({ type, text });
     window.setTimeout(() => setFeedback(null), 3500);
@@ -243,6 +249,69 @@ export default function AttivitaTassonomiaClient({
     }
   };
 
+  const apriSpostamento = (row: RigaTassonomia) => {
+    setMoveId(row.id);
+    setMoveSelect(NUOVO_GRUPPO);
+    setMoveCustom('');
+  };
+
+  const chiudiSpostamento = () => {
+    setMoveId(null);
+    setMoveSelect('');
+    setMoveCustom('');
+  };
+
+  /** Sposta l'attività in un altro gruppo: cambia CHI le dà le azioni, non la sua storia. */
+  const handleMove = async (row: RigaTassonomia) => {
+    if (movingId) return;
+
+    const scelto = moveSelect === NUOVO_GRUPPO ? moveCustom : moveSelect;
+    const gruppo = scelto.replace(/\s+/g, ' ').trim().toUpperCase();
+    if (!gruppo) {
+      showFeedback('error', 'Gruppo di destinazione obbligatorio.');
+      return;
+    }
+    if (gruppo === row.gruppo.toUpperCase()) {
+      chiudiSpostamento();
+      return;
+    }
+
+    const ok = await chiediConferma({
+      title: `Spostare "${row.descrizione}" nel gruppo ${gruppo}?`,
+      message:
+        row.utilizzo > 0
+          ? `${usageLabel(row.utilizzo)} già registrati passano da ${row.gruppo} a ${gruppo}. Da qui in poi l'attività prende le azioni del flusso di ${gruppo} (Azioni operatori); i rapportini già generati restano come sono finché non li rigeneri.`
+          : `Da qui in poi l'attività prende le azioni del flusso di ${gruppo} (Azioni operatori).`,
+      confirmLabel: 'Sposta',
+    });
+    if (!ok) return;
+
+    setMovingId(row.id);
+    try {
+      const response = await fetch('/api/admin/attivita-tassonomia', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: row.id, gruppo }),
+      });
+      const json = (await response.json()) as { error?: string; riga?: RigaTassonomia; interventiRiallineati?: number };
+      if (!response.ok) throw new Error(json.error ?? 'Errore spostamento gruppo.');
+      if (json.riga) {
+        const aggiornata = json.riga;
+        setRows((prev) => prev.map((r) => (r.id === row.id ? aggiornata : r)));
+        const n = json.interventiRiallineati ?? 0;
+        showFeedback(
+          'success',
+          `${aggiornata.descrizione} spostata in ${aggiornata.gruppo}${n > 0 ? ` · ${n.toLocaleString('it-IT')} interventi riallineati` : ''}.`,
+        );
+      }
+      chiudiSpostamento();
+    } catch (err) {
+      showFeedback('error', err instanceof Error ? err.message : 'Errore spostamento gruppo.');
+    } finally {
+      setMovingId(null);
+    }
+  };
+
   const handleDelete = async (row: RigaTassonomia) => {
     if (deletingId || row.utilizzo > 0) return;
     if (!(await chiediConferma({ title: `Eliminare "${row.descrizione}"?`, confirmLabel: 'Elimina', danger: true }))) return;
@@ -384,7 +453,9 @@ export default function AttivitaTassonomiaClient({
 
       <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-primary-soft)]/30 px-4 py-3 text-sm text-[var(--brand-text-muted)]">
         Le descrizioni non si rinominano: crea la nuova voce e disattiva la vecchia. Le nuove attività sono subito
-        valide per import mappa, template e inserimenti manuali.
+        valide per import mappa, template e inserimenti manuali. Il <strong>gruppo</strong> invece si cambia con
+        «Sposta»: è il gruppo a decidere le azioni che l&apos;operatore compila (Azioni operatori), quindi
+        un&apos;attività che deve avere azioni sue va portata in un gruppo suo.
       </div>
 
       <div className="flex flex-wrap items-end gap-3">
@@ -473,7 +544,12 @@ export default function AttivitaTassonomiaClient({
                   {gruppoGroup.rows.map((row) => {
                     const saving = savingId === row.id;
                     const deleting = deletingId === row.id;
+                    const moving = movingId === row.id;
                     const canDelete = row.utilizzo === 0;
+                    const inSpostamento = moveId === row.id;
+                    const gruppiDestinazione = [...(gruppiPerCommittente.get(row.committente) ?? new Set<string>())]
+                      .filter((g) => g !== row.gruppo)
+                      .sort((a, b) => a.localeCompare(b, 'it', { sensitivity: 'base' }));
 
                     return (
                       <div
@@ -493,12 +569,74 @@ export default function AttivitaTassonomiaClient({
                               {usageLabel(row.utilizzo)}
                             </span>
                           </div>
+
+                          {inSpostamento && (
+                            <div className="mt-3 flex flex-wrap items-end gap-2 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-primary-soft)]/30 p-3">
+                              <div className="min-w-[220px] flex-1">
+                                <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
+                                  Sposta nel gruppo
+                                </label>
+                                <select
+                                  value={moveSelect}
+                                  onChange={(event) => setMoveSelect(event.target.value)}
+                                  className="w-full rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm"
+                                >
+                                  {gruppiDestinazione.length > 0 && (
+                                    <optgroup label={`Gruppi ${etichettaDa(committenti, row.committente)}`}>
+                                      {gruppiDestinazione.map((gruppo) => (
+                                        <option key={gruppo} value={gruppo}>
+                                          {gruppo}
+                                        </option>
+                                      ))}
+                                    </optgroup>
+                                  )}
+                                  <option value={NUOVO_GRUPPO}>+ Nuovo gruppo...</option>
+                                </select>
+                                {moveSelect === NUOVO_GRUPPO && (
+                                  <input
+                                    value={moveCustom}
+                                    onChange={(event) => setMoveCustom(event.target.value)}
+                                    onKeyDown={(event) => {
+                                      if (event.key === 'Enter') void handleMove(row);
+                                    }}
+                                    placeholder="Nome nuovo gruppo"
+                                    className="mt-2 w-full rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm"
+                                  />
+                                )}
+                              </div>
+                              <button
+                                type="button"
+                                disabled={moving}
+                                onClick={() => void handleMove(row)}
+                                className="rounded-xl bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[var(--on-primary)] hover:bg-[var(--brand-primary-hover)] disabled:opacity-50"
+                              >
+                                {moving ? 'Spostamento...' : 'Sposta'}
+                              </button>
+                              <button
+                                type="button"
+                                disabled={moving}
+                                onClick={chiudiSpostamento}
+                                className="rounded-xl border border-[var(--brand-border)] px-4 py-2 text-sm font-semibold text-[var(--brand-text-main)] transition hover:bg-[var(--brand-surface)] disabled:opacity-50"
+                              >
+                                Annulla
+                              </button>
+                            </div>
+                          )}
                         </div>
 
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
-                            disabled={saving || deleting}
+                            disabled={saving || deleting || moving}
+                            title="Cambia il gruppo: è il gruppo a decidere le azioni che l'operatore compila"
+                            onClick={() => (inSpostamento ? chiudiSpostamento() : apriSpostamento(row))}
+                            className="rounded-lg border border-[var(--brand-border)] px-3 py-2 text-sm font-semibold text-[var(--brand-text-main)] transition hover:bg-[var(--brand-primary-soft)] disabled:opacity-50"
+                          >
+                            {inSpostamento ? 'Chiudi' : 'Sposta'}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={saving || deleting || moving}
                             onClick={() => void handleToggle(row)}
                             className="rounded-lg border border-[var(--brand-border)] px-3 py-2 text-sm font-semibold text-[var(--brand-text-main)] transition hover:bg-[var(--brand-primary-soft)] disabled:opacity-50"
                           >
@@ -506,7 +644,7 @@ export default function AttivitaTassonomiaClient({
                           </button>
                           <button
                             type="button"
-                            disabled={saving || deleting || !canDelete}
+                            disabled={saving || deleting || moving || !canDelete}
                             title={canDelete ? undefined : 'Voce già utilizzata: disattivala invece'}
                             onClick={() => void handleDelete(row)}
                             className="rounded-lg border border-[var(--brand-border)] px-3 py-2 text-sm font-semibold text-[var(--brand-primary)] transition hover:bg-[var(--brand-primary-soft)] disabled:opacity-50"

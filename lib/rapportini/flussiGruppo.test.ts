@@ -42,6 +42,22 @@ describe('buildAlberoFlussi', () => {
     expect(gruppi).not.toContain('GRUPPO DISMESSO');
   });
 
+  it('descrizioni: le attività dentro il gruppo, ordinate, solo attive, solo del committente', () => {
+    const righe = [
+      { committente: 'italgas', gruppo: 'P.I.', attivo: true, descrizione: 'PRONTO INTERVENTO' },
+      { committente: 'italgas', gruppo: 'P.I.', attivo: true, descrizione: 'PICARRO' },
+      { committente: 'italgas', gruppo: 'P.I.', attivo: false, descrizione: 'DISMESSA' },
+      { committente: 'acea', gruppo: 'P.I.', attivo: true, descrizione: 'ALTRUI' },
+    ];
+    const gruppo = nodo(buildAlberoFlussi(righe, []), 'italgas').gruppi.find((g) => g.gruppo === 'P.I.');
+    expect(gruppo?.descrizioni).toEqual(['PICARRO', 'PRONTO INTERVENTO']);
+  });
+
+  it('descrizioni: assenti nella tassonomia → lista vuota, mai undefined', () => {
+    const gruppo = nodo(buildAlberoFlussi(TASSONOMIA, []), 'italgas').gruppi.find((g) => g.gruppo === 'P.I.');
+    expect(gruppo?.descrizioni).toEqual([]);
+  });
+
   it('acqualatina senza tassonomia né foglie extra → ramo vuoto (RESINE è italgas/RISANAMENTO COLONNE)', () => {
     const albero = buildAlberoFlussi(TASSONOMIA, []);
     expect(nodo(albero, 'acqualatina').gruppi).toEqual([]);
