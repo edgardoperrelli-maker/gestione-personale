@@ -1,125 +1,169 @@
-# Handoff — App mobile Android/iOS + ripresa in locale (2026-08-04)
+# Handoff — Env allineate e passaggio dal cloud al PC locale (2026-08-06)
 
-> Catena: lo stream precedente («Registro commesse: ACEA + AcquaLatina», 2026-07-31 →
-> 2026-08-04) è **concluso e mergiato** con PR #227. Il suo handoff completo vive nella
-> storia git: `git show 509847a:HANDOFF.md`. Questo file riparte con lo stream nuovo.
+> Catena: l'handoff precedente («App mobile Android/iOS», 2026-08-04) vive in
+> `git show 2bcbf98:HANDOFF.md`. Da allora lo stream mobile è andato avanti da solo: il
+> piano è su `main`, insieme al workflow iOS/TestFlight e alla rinomina dell'appId in
+> `it.gestilab.personale` (commit `f7b15b7`); esistono `android/`, `ios/`, `fastlane/`.
+> Le sue domande aperte sono riportate in fondo **da riverificare**: non risulta che
+> siano state risolte, ma il lavoro è proseguito oltre quel documento.
 
 ## Goal
 
-Trasformare gestione-personale in un'**app installabile su telefoni e tablet, Android e
-iOS**, ottimizzata per l'uso sul campo: via i link `/r/[token]` come canale operatore,
-più stabilità. Account sviluppatore Apple e Google già attivi e pagati. Lo sviluppo
-prosegue **in locale sul PC di Edgardo** (questa è la sessione di passaggio dal
-container cloud al CLI locale).
+Avere progetto **e** variabili d'ambiente corrette sul PC di Edgardo, e proseguire lo
+sviluppo da Claude Code **locale** invece che dal container cloud (effimero: quando la
+sessione web si chiude, sparisce tutto quello che non è stato pushato).
 
 ## Current status
 
-Verifica del progetto completata nel container cloud (tutto verde), **piano approvabile
-scritto e pushato** in `docs/superpowers/plans/2026-08-04-app-mobile-capacitor.md`
-(commit `c8f8b97` sul branch `claude/mobile-app-local-setup-e9sf0i`). Nessuna riga di
-codice app ancora scritta: si parte con le decisioni aperte + Fase 1–2 del piano.
+- Branch `claude/scarica-progetto-env-uygghj`, ultimo commit **`21a86db`**, **pushato**
+  su GitHub, working tree pulito. È 1 commit avanti a `origin/main` (`6865514`).
+  Nessuna PR aperta.
+- Il container cloud ha repo + `.env.local` completo, ma **il PC non ha ancora niente**:
+  il passaggio va fatto con i comandi qui sotto.
 
 ## Done
 
-- **Verifica progetto** (container cloud, 2026-08-04): `npm run build` ✅ (~60 route,
-  TS strict); `npm test` ✅ **354 file / 3432 test verdi** (~50s); service worker
-  Serwist generato nel build di prod (`public/sw.js`); manifest PWA + icone ok
-  (`app/manifest.ts`, `public/icons/`); offline outbox già solido (`lib/offline/*`).
-- **Riproduzione visiva locale dimostrata**: server di prod nel container + screenshot
-  Chromium/Playwright a **390×844** (telefono) e **834×1194** (tablet) sulla `/login`.
-- **Progetto Supabase identificato**: «Calendario personale», id `aceztqfebringeaebvce`,
-  URL `https://aceztqfebringeaebvce.supabase.co`. ⚠️ Trappola: «gestilab-aurea» nella
-  stessa org sembra questo progetto ma è UN'ALTRA app (produzione economica standalone).
-- **Piano in 6 fasi** committato (vedi Key decisions): rifiniture mobile web → scaffold
-  Capacitor → login operatore + home «Il mio giorno» → plugin nativi campo → CI GitHub
-  Actions → distribuzione privata store.
+- **`.env.example` sul repo** (nuovo): elenca tutte e 15 le variabili lette dal codice,
+  raggruppate per effetto reale se mancano (app non parte / link monco / funzione
+  spenta), senza valori veri. Prima non esisteva: l'unico elenco stava nelle env Vercel
+  e nel backup Drive, quindi una variabile mancante si scopriva solo trovando la
+  funzione rotta.
+- **`.gitignore`**: aggiunta l'eccezione `!.env.example` — la riga 3 `.env*` copriva
+  anche il template. Verificato che `.env.local` **resta** ignorato (`git add` lo rifiuta).
+- **`app/api/hotel-booking/request/route.ts`**: env e codice si contraddicevano.
+  `SMTP_PORT=465` è TLS implicito, ma il trasporto forzava `secure: false` + STARTTLS →
+  su quella porta il client attacca in chiaro un canale già cifrato e resta appeso fino
+  al timeout. Ora `secure`/`requireTLS` derivano dalla porta: 465 e 587 funzionano
+  entrambe.
+- **`.env.local` nel container**: ricostruito ordinato e commentato, tolte 5 variabili
+  di un altro progetto (`ALERT_FROM_NAME`, `ALERT_REPLY_TO`, `ALERT_TO`,
+  `ATTREZZATURE_BUCKET`, `ATTREZZATURE_MASTER_KEY` — verificate assenti da tutto il
+  codice) e il `VERCEL_OIDC_TOKEN` scaduto. I 9 valori reali sono stati **filtrati dalle
+  righe originali, non ricopiati**: hash riga per riga identici.
+- **Backup Drive**: caricato il file ripulito in `app/Personale/` come
+  **`.env.local.NUOVO-2026-08-06`** (id `18ldm6TdAxtWYUelkWGOQpJ82asyxY7Hu`, 1665 byte,
+  sha256 `61ada7e1…`), riscaricato e confrontato: identico byte per byte. Il vecchio
+  `.env.local` (id `1exlnRt-7nvwV4yyBxQT5lIRMwEuAr8gO`, 2432 byte) è **intatto**.
 
-## Setup locale (prima cosa da fare sul PC)
+## In progress / not yet done
 
-```bash
-git clone https://github.com/edgardoperrelli-maker/gestione-personale.git
-cd gestione-personale
-git checkout claude/mobile-app-local-setup-e9sf0i
+1. **Portare progetto + env sul PC** (vedi «Setup sul PC»). ← prima cosa
+2. **Swap del file su Drive**: sostituire il vecchio `.env.local` con il `NUOVO-`.
+   Il modo pulito è farlo dal PC con `salva-env.ps1`, che gestisce da solo la copia
+   `.OLD-<data>`.
+3. **Due segreti da recuperare** dal dashboard Vercel del progetto e mettere in
+   `.env.local`: `ATLAS_REPORT_SECRET` (senza, `/api/segnala` risponde 503 — la route è
+   fail-closed) e `ASSIST_CHANNEL_SECRET` (ha un fallback funzionante su
+   `SUPABASE_SERVICE_ROLE_KEY`, ma se in produzione è valorizzato gli id di sessione
+   dell'assistenza non coincidono tra locale e prod).
+4. Decidere se aprire una PR per `claude/scarica-progetto-env-uygghj`.
+
+## Setup sul PC (comandi esatti, PowerShell)
+
+```powershell
+cd $HOME\Desktop
+git clone https://github.com/edgardoperrelli-maker/gestione-personale.git gestione-personale-main
+cd gestione-personale-main
+git checkout claude/scarica-progetto-env-uygghj
 npm install
 ```
 
-Creare `.env.local` nella root (è in .gitignore, MAI committarlo):
+⚠️ **La cartella deve chiamarsi `gestione-personale-main`**: è il nome che
+`salva-env.ps1` si aspetta per questo progetto (tabella in `ISTRUZIONI-ENV.md`). Con un
+nome diverso, `-Restore` lo segnala come assente e passa oltre senza dire altro.
 
-```
-NEXT_PUBLIC_SUPABASE_URL=https://aceztqfebringeaebvce.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon key legacy (JWT): dashboard Supabase → Settings → API, o env Vercel>
-SUPABASE_SERVICE_ROLE_KEY=<service role key: stessa fonte — serve per le API admin>
-NEXT_PUBLIC_SITE_URL=http://localhost:3000
+Poi le env, in uno dei due modi:
+
+```powershell
+# A) dal backup Drive, per tutti i progetti in un colpo
+powershell -File "G:\Il mio Drive\app\salva-env.ps1" -Restore -Only Personale
+
+# B) a mano, prendendo il file già ripulito
+copy "G:\Il mio Drive\app\Personale\.env.local.NUOVO-2026-08-06" .env.local
 ```
 
-Poi: `npm run dev` → http://localhost:3000 (in dev il SW **non** viene generato — è
-atteso, vedi `next.config.mjs`). Per provare PWA/service worker: `npm run build && npm start`.
+La via **A** rimette il file **vecchio** (quello con i residui) finché lo swap del
+punto 2 non è fatto; la via **B** mette subito quello ripulito. Dopo aver aggiunto i due
+segreti, riallineare il backup con `powershell -File "…\salva-env.ps1"` (senza
+`-Restore`): copia solo ciò che è cambiato e mette da parte un `.OLD-<data>`.
+
+Verifica: `npm run dev` → http://localhost:3000 mostra la login. In dev il service
+worker **non** viene generato (atteso, vedi `next.config.mjs`); per provare la PWA
+serve `npm run build && npm start`.
 
 ## What worked
 
-- **Loop visivo**: modifica → screenshot Playwright a viewport reali → confronto. In
-  locale è ancora più semplice (browser vero + device via USB).
-- **UI senza service key**: con `SUPABASE_SERVICE_ROLE_KEY` placeholder non vuoto l'app
-  builda e la UI gira; solo le API admin falliscono (nel container il key vero non
-  c'era; in locale mettere quello vero).
-- Test e build come rete di sicurezza: girano identici ovunque.
+- **Ricostruire `.env.local` filtrando le righe originali** (`grep -E "^CHIAVE="` da una
+  copia) invece di ritrascrivere i valori: elimina il rischio di errore di battitura su
+  una chiave, e l'uguaglianza si verifica con `sha256sum` riga per riga.
+- **Distinguere i due `.env.local` su Drive** leggendo `ISTRUZIONI-ENV.md`
+  (id `1-Q6B8UFkFPhPrgQaezth_oYfewqpKvx0`), che mappa progetto → repo → file → cartella.
+  Quello in `app/Aurea/` è più recente ma è di **un altro progetto**: prenderlo avrebbe
+  puntato l'app al database sbagliato.
+- **Verificare i test rossi con `git stash`** prima di attribuirseli.
 
 ## What did NOT work (e perché)
 
-- **Script Playwright fuori dalla cartella del progetto** → `ERR_MODULE_NOT_FOUND`:
-  la risoluzione ESM parte dalla posizione dello script, non dal cwd. Fix usato nel
-  container: import assoluto `file:///…/node_modules/playwright/index.mjs` +
-  `executablePath: /opt/pw-browsers/chromium`. In locale non serve: `@playwright/test`
-  normale (pattern repo: `playwright.local.config.ts`, gitignorato).
-- **Build nativi nel container**: impossibili — iOS richiede macOS/Xcode, manca
-  l'Android SDK. Per questo i binari vanno in **GitHub Actions** (macOS runner +
-  Fastlane per iOS/TestFlight; ubuntu per AAB → Play internal).
-- **MCP Supabase non espone il service-role key** (by design): nel container le API
-  admin erano mute. Non è un bug dell'app.
+- **Sovrascrivere il file su Drive**: il connettore Drive di questa sessione ha
+  `create_file`/`copy_file` ma **nessun update in place, nessun delete/trash**. Caricare
+  un secondo file chiamato `.env.local` avrebbe lasciato due omonimi nella stessa
+  cartella (Drive lo permette; su Drive desktop diventano `.env.local` e
+  `.env.local (1)`) e `salva-env.ps1` cerca **per nome** → poteva prendere quello
+  sbagliato. Da qui il nome datato `NUOVO-`, che lascia lo stato non ambiguo.
+- **Recuperare `ATLAS_REPORT_SECRET` da qualche altra parte**: non c'è. Controllati i
+  backup di Aurea, Villaverde, Salute, Ripristini, Gelateria e la cartella `Atlas` su
+  Drive (contiene solo `ATLAS_PROJECT_BRIEF.md`). Gli strumenti Vercel disponibili
+  (`get_project`, `list_projects`, …) **non espongono i valori delle variabili**: nessun
+  tool env. Va preso a mano dal dashboard.
+- **`git fetch origin <branch>` con un ref remoto stale**: `claude/scarica-progetto-env-uygghj`
+  risultava in `git branch -a` ma non esisteva su origin; il fetch fallisce con
+  `couldn't find remote ref` e **aborta l'intera fetch**, lasciando `origin/main`
+  indietro di 277 commit e facendo sembrare il repo divergente. Fetchare `main` da solo
+  ha risolto (forced update).
 
 ## Key decisions
 
-- **Capacitor shell con `server.url` → web app in produzione (Vercel)** — una codebase,
-  due app native, aggiornamenti = deploy web (store solo per cambi shell). Scartati:
-  TWA/Bubblewrap (solo Android), static export (perderebbe SSR/API route/middleware),
-  riscrittura React Native (duplicherebbe 14+ moduli).
-- **Login operatore al posto dei token**: utenze Supabase estese da `staff` (ruolo
-  `operatore`), sessione persistente + biometria, home «Il mio giorno» che risolve il
-  giro del giorno internamente. `/r/[token]` resta come fallback in transizione.
-- **Distribuzione privata**: Managed Google Play; iOS Custom Apps (ABM) o Unlisted.
-- **Nativizzazione campo** (Fase 4): scanner ML Kit al posto di @zxing (sole/matricole
-  rovinate), Camera nativa, Geolocation, push FCM/APNs, keep-awake.
+- **`.env.example` committato** invece di documentare le variabili solo in un `.md`: il
+  template sta accanto al codice, quindi si aggiorna insieme a chi legge `process.env`.
+  Costo: l'eccezione in `.gitignore`, che va lasciata lì.
+- **`secure` derivato dalla porta** invece di cambiare `SMTP_PORT` a 587 nell'env: la
+  seconda avrebbe lasciato il codice fragile e il valore 465 sarebbe comunque rimasto su
+  Vercel e nel backup Drive. Così entrambe le porte sono corrette ovunque.
+- **`NEXT_PUBLIC_SITE_URL` lasciata all'URL di produzione** anche in locale: è usata per
+  costruire link assoluti nelle sincronizzazioni rapportini e nelle API mappa, quindi i
+  link condivisi devono puntare all'app vera. Non è un errore di configurazione.
 
 ## Key files & commands
 
-- `docs/superpowers/plans/2026-08-04-app-mobile-capacitor.md` — **il piano completo**
-  (6 fasi, rischi, decisioni aperte §7). Fonte di verità dello stream.
-- `app/manifest.ts`, `app/sw.ts`, `next.config.mjs` — PWA esistente (Serwist; SW solo
-  in build di prod).
-- `lib/offline/*` — outbox IndexedDB + background sync: si riusa identico nell'app.
-- `app/r/[token]/`, `middleware.ts`, `lib/moduleAccess.ts` — canale token e permessi
-  attuali (da NON toccare senza istruzione, AGENTS.md §11).
-- `npm run build` · `npm test` · `npm run e2e` — verifiche standard.
-- Branch di lavoro: `claude/mobile-app-local-setup-e9sf0i` (ultimo commit `c8f8b97`).
+- `.env.example` — elenco autorevole delle variabili e di cosa si rompe senza.
+- `HANDOFF.md` (questo file) · `AGENTS.md` — regole di progetto, §11 sui file da non
+  toccare senza istruzione.
+- Drive `app/ISTRUZIONI-ENV.md` — mappa progetto→repo→file e trappole del backup.
+- Drive `app/salva-env.ps1` — sync PC↔Drive; anche in `C:\Users\Edgardo\Desktop\tools\`.
+  `-WhatIf` mostra cosa farebbe, `-Only Personale` limita a questo progetto.
+- `npm run dev` · `npm run build` · `npm test` · `npx tsc --noEmit` · `npm run lint`.
 
-## Open questions (bloccano l'avvio delle fasi)
+## Open questions
 
-1. **Perimetro moduli sul telefono operatore**: solo «Il mio giorno» + rapportino +
-   scanner + foto? Anche agenda/altro? ← **bloccante Fase 1**
-2. **Ok a installare Capacitor** (AGENTS.md §11.3 richiede approvazione esplicita per
-   nuove librerie). ← **bloccante Fase 2**
-3. Modello login operatore (username+password da `/impostazioni/utenze`? PIN?).
-4. Moduli per tablet ufficio in mobilità (mappa, dashboard, misuratori?).
-5. Nome app e icona store; canale iOS (Custom Apps vs Unlisted).
-6. Eventi push (assegnazione giro, ODL TOP, annunci?).
-7. **Sicurezza (fuori stream, da non perdere)**: 6 tabelle `bak_*_20260730` con RLS
-   disabilitata (`bak_committente_manuali_20260730_{int,voci,ops}`,
-   `bak_odl_impianto_20260730_{int,voci,ops}`) → abilitare RLS o eliminarle.
-   Inoltre `npm audit`: 21 avvisi, quasi tutti toolchain di build.
+- **Test rossi preesistenti su `main`** (3 su 3254, verificati con `git stash`: falliscono
+  identici senza le modifiche di questa sessione): `lib/acqualatina/anagraficaUtente.test.ts`
+  («la select espone le due colonne nuove»), `lib/acqualatina/matricolaNuovaRegistro.test.ts`
+  («NON sta nella COLONNE principale»), `utils/numeroItGuardia.test.ts` («nessun sorgente
+  formatta NUMERI con toLocaleString/Intl»). Sembrano guardie legate a **migration non
+  ancora applicate**. Da sistemare o da dichiarare attese — ora rendono `npm test` rosso
+  sempre, quindi non fa più da rete di sicurezza.
+- `npm run lint`: **70 problemi** (37 errori, 33 warning) su tutto il repo, preesistenti.
+- **Ereditate dallo stream mobile, da riverificare** (potrebbero essere superate dai
+  commit iOS/fastlane): perimetro moduli sul telefono operatore; ok esplicito a
+  installare Capacitor (AGENTS.md §11.3); modello login operatore; moduli per tablet;
+  nome app e canale iOS; eventi push.
+- **Sicurezza, fuori stream ma da non perdere**: 6 tabelle `bak_*_20260730` con RLS
+  disabilitata (`bak_committente_manuali_20260730_{int,voci,ops}`,
+  `bak_odl_impianto_20260730_{int,voci,ops}`) → abilitare RLS o eliminarle.
 
 ## Next step
 
-Sul PC locale: eseguire il **Setup locale** qui sopra e verificare che `npm run dev`
-mostri la login su http://localhost:3000. Poi rispondere alle domande aperte 1 e 2
-(perimetro moduli operatore + ok a Capacitor) e partire con la **Fase 1** del piano
-(audit viewport moduli operatore) e la **Fase 2** (scaffold Capacitor).
+Sul PC: eseguire il **Setup sul PC** qui sopra, poi aggiungere a `.env.local` i due
+segreti presi da Vercel (`ATLAS_REPORT_SECRET`, `ASSIST_CHANNEL_SECRET`) e lanciare
+`salva-env.ps1` senza `-Restore` per riallineare il backup su Drive — a quel punto il
+file `.env.local.NUOVO-2026-08-06` su Drive si può cancellare.
