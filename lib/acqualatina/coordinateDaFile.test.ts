@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  abbinaCoordinate, parseCoordinateFile, trovaHeaderCoordinate,
-  type OrdineDaCoordinare,
+  LIMITE_RIGHE_FOGLIO, abbinaCoordinate, parseCoordinateFile, righeDaPayload,
+  trovaHeaderCoordinate, type OrdineDaCoordinare,
 } from './coordinateDaFile';
 
 /** L'header vero dell'estrazione di Terracina, ridotto alle colonne che contano. */
@@ -87,6 +87,58 @@ describe('parseCoordinateFile', () => {
   it('rifiuta rumorosamente un file che non è l’estrazione con le coordinate', () => {
     expect(() => parseCoordinateFile([['ODL', 'Matricola'], ['9123', 'MAT1']]))
       .toThrowError(/LATITUDINE/i);
+  });
+});
+
+describe('righeDaPayload — quello che manda il browser non è fidato', () => {
+  it('tiene le righe buone e ricalcola la coordinata', () => {
+    expect(righeDaPayload([{ odl: ' 912350788 ', impianto: '77942025', coordinate: '41.288, 13.224' }]))
+      .toEqual([{ odl: '912350788', impianto: '77942025', coordinate: '41.288, 13.224' }]);
+  });
+
+  /* La coppia scritta all'italiana è ambigua (quattro pezzi, non due): si scarta, non si indovina. */
+  it('scarta la coppia con virgole decimali invece di inventare un punto', () => {
+    expect(righeDaPayload([{ odl: '1', impianto: 'A', coordinate: '41,288, 13,224' }])).toEqual([]);
+  });
+
+  it('scarta le coordinate non valide invece di scriverle a registro', () => {
+    expect(righeDaPayload([
+      { odl: '1', impianto: 'A', coordinate: '0, 0' },
+      { odl: '2', impianto: 'B', coordinate: '999, 999' },
+      { odl: '3', impianto: 'C', coordinate: 'ciao' },
+      { odl: '4', impianto: 'D', coordinate: '' },
+      { odl: '5', impianto: 'E' },
+    ])).toEqual([]);
+  });
+
+  it('scarta una riga senza né ODL né fornitura: non avrebbe come agganciarsi', () => {
+    expect(righeDaPayload([{ odl: '', impianto: '', coordinate: '41.288, 13.224' }])).toEqual([]);
+  });
+
+  it('regge input malformato senza lanciare', () => {
+    expect(righeDaPayload(null)).toEqual([]);
+    expect(righeDaPayload('non un array')).toEqual([]);
+    expect(righeDaPayload([null, 42, 'x', { odl: '1', coordinate: '41.288, 13.224' }]))
+      .toEqual([{ odl: '1', impianto: '', coordinate: '41.288, 13.224' }]);
+  });
+
+  /* Una riga rotta in mezzo a quattromila non deve far fallire l'import: si scarta e si conta. */
+  it('una riga rotta non travolge le buone', () => {
+    const righe = righeDaPayload([
+      { odl: '1', impianto: 'A', coordinate: '41.1, 13.1' },
+      { odl: '2', impianto: 'B', coordinate: 'rotta' },
+      { odl: '3', impianto: 'C', coordinate: '41.3, 13.3' },
+    ]);
+    expect(righe.map((r) => r.odl)).toEqual(['1', '3']);
+  });
+});
+
+describe('il tetto delle righe non tronca in silenzio', () => {
+  it('se i dati arrivano al tetto, si ferma e lo dice', () => {
+    const header = ['COD_FORNITURA', 'LATITUDINE', 'LONGITUDINE'];
+    const rows: unknown[][] = [header];
+    for (let i = 0; i < LIMITE_RIGHE_FOGLIO; i++) rows.push([`F${i}`, '41.288', '13.224']);
+    expect(() => parseCoordinateFile(rows)).toThrowError(/dividilo per comune/i);
   });
 });
 

@@ -6,6 +6,7 @@ import Button from '@/components/Button';
 import { Card } from '@/components/Card';
 import StatTile from '@/components/ui/StatTile';
 import { toast } from '@/components/ui/Toast';
+import { LIMITE_RIGHE_FOGLIO, parseCoordinateFile } from '@/lib/acqualatina/coordinateDaFile';
 
 const ENDPOINT = '/api/acqualatina/coordinate';
 
@@ -28,10 +29,20 @@ type Esito = {
  * l'ordine quasi su nessuna (a Terracina 489 righe su 4.194). Il master pretende l'ODL — è la
  * sua identità — e di là quelle righe verrebbero buttate; qui l'aggancio è la fornitura, e il
  * file non crea mai un ordine: arricchisce quelli che il registro ha già.
+ *
+ * IL FOGLIO SI LEGGE QUI, nel browser, e al server vanno solo le coordinate.
+ *
+ * Non è un vezzo: il file del committente pesa 19 MB — dichiara 835.771 righe per 4.195 di dati,
+ * il resto sono righe fantasma — e una funzione serverless rifiuta i body sopra ~4,5 MB prima
+ * ancora di svegliarsi. Il 06/08 l'import rispondeva 413 senza lasciare una riga di log, perché
+ * la richiesta non arrivava. Le coordinate utili sono 300 KB: si mandano quelle. Il parsing è la
+ * stessa funzione pura del server (`parseCoordinateFile`), solo eseguita da questa parte del filo,
+ * e il server ricontrolla ogni coordinata prima di scriverla.
  */
 export default function ImportCoordinateCard() {
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
+  const [fase, setFase] = useState<'lettura' | 'invio' | null>(null);
   const [esito, setEsito] = useState<Esito | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const idFile = useId();
@@ -41,26 +52,63 @@ export default function ImportCoordinateCard() {
     setBusy(true);
     setEsito(null);
     try {
-      const fd = new FormData();
-      fd.append('file', file);
-      const res = await fetch(ENDPOINT, { method: 'POST', body: fd });
-      const body = (await res.json().catch(() => ({}))) as Esito;
+      setFase('lettura');
+      const XLSX = await import('xlsx');
+      /*
+        `sheetRows` e `dense` sono la differenza fra quattro secondi e quaranta: senza il tetto
+        SheetJS percorre l'intervallo DICHIARATO dal foglio (835.771 righe × 42 colonne = 35
+        milioni di celle) invece delle 4.195 che hanno un valore. Il tetto non tronca mai in
+        silenzio: se i dati ci arrivassero davvero, `parseCoordinateFile` si ferma e lo dice.
+      */
+      const wb = XLSX.read(new Uint8Array(await file.arrayBuffer()), {
+        type: 'array', sheetRows: LIMITE_RIGHE_FOGLIO, dense: true,
+      });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      if (!ws) { toast.error('File vuoto o privo di fogli.'); return; }
+      const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, {
+        header: 1, defval: '', raw: false, blankrows: false,
+      });
+      const parsed = parseCoordinateFile(rows);
+      if (parsed.righe.length === 0) {
+        toast.error('Nessuna riga con coordinate valide e un aggancio (CODODL o COD_FORNITURA).');
+        return;
+      }
+
+      setFase('invio');
+      const res = await fetch(ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ righe: parsed.righe }),
+      });
+      const body = (await res.json().catch(() => ({}))) as Partial<Esito>;
       if (!res.ok) {
         toast.error(body.error ?? 'Import delle coordinate non riuscito.');
         return;
       }
-      setEsito(body);
+      setEsito({
+        // I conteggi del FILE li sa solo chi l'ha letto, cioè questa pagina.
+        letteDalFile: parsed.totale,
+        conCoordinate: parsed.righe.length,
+        senzaCoordinate: parsed.senzaCoordinate,
+        senzaAggancio: parsed.senzaAggancio,
+        aggiornate: body.aggiornate ?? 0,
+        giaUguali: body.giaUguali ?? 0,
+        nonTrovate: body.nonTrovate ?? 0,
+      });
       toast.success(
-        body.aggiornate > 0
+        (body.aggiornate ?? 0) > 0
           ? `${body.aggiornate} punti hanno ora le coordinate.`
           : 'Nessuna novità: il registro aveva già queste coordinate.',
       );
       setFile(null);
       if (inputRef.current) inputRef.current.value = '';
     } catch (e) {
+      // Qui finiscono anche i rifiuti del parser («non è l'estrazione con le coordinate», il
+      // tetto delle righe): sono messaggi scritti per chi carica, si mostrano com'è.
       toast.error(e instanceof Error ? e.message : 'Import delle coordinate non riuscito.');
     } finally {
       setBusy(false);
+      setFase(null);
     }
   }, [file]);
 
@@ -94,6 +142,13 @@ export default function ImportCoordinateCard() {
           <Crosshair size={16} aria-hidden="true" />
           Importa coordinate
         </Button>
+        {/* Il file del committente è grosso e la lettura dura qualche secondo: senza una parola
+            sembra bloccato, e si ricarica sopra. */}
+        {fase && (
+          <span className="text-xs text-[var(--brand-text-muted)]" role="status">
+            {fase === 'lettura' ? 'Leggo il file…' : 'Aggiorno il registro…'}
+          </span>
+        )}
       </div>
 
       {esito && (

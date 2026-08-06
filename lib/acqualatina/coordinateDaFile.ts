@@ -21,6 +21,21 @@ export type RigaCoordinata = {
   coordinate: string;
 };
 
+/**
+ * Quante righe di FOGLIO leggere al massimo (`sheetRows` di SheetJS).
+ *
+ * Non è una difesa dai file grandi, è una difesa dai file GONFI: l'estrazione di Terracina
+ * dichiara un intervallo di 835.771 righe per 4.195 righe di dati — 19 MB di righe fantasma. Senza
+ * questo tetto SheetJS le percorre tutte, e sono 35 milioni di celle: 40 secondi di lavoro per
+ * leggerne 176 mila utili. Con il tetto sono meno di quattro.
+ *
+ * Alto abbastanza da non entrare mai in mezzo ai dati veri (il registro intero della commessa è
+ * 4.205 righe), e se un giorno un file lo toccasse il parser se ne accorge e lo dice: vedi
+ * `parseCoordinateFile`. Un troncamento silenzioso qui vorrebbe dire punti senza coordinate senza
+ * che nessuno lo sappia.
+ */
+export const LIMITE_RIGHE_FOGLIO = 100_000;
+
 export type ParseCoordinateResult = {
   righe: RigaCoordinata[];
   /** Righe dati non vuote sotto l'header. */
@@ -102,6 +117,13 @@ export function parseCoordinateFile(rows: unknown[][]): ParseCoordinateResult {
   const dataRows = (rows.slice(headerIdx + 1)).filter(
     (r) => Array.isArray(r) && r.some((c) => cell(c) !== ''),
   );
+  // Il foglio è stato letto col tetto di `LIMITE_RIGHE_FOGLIO`: se i dati arrivano fin lassù non
+  // si può sapere se sotto ce n'erano altri. Meglio fermarsi che importarne una parte in silenzio.
+  if (dataRows.length >= LIMITE_RIGHE_FOGLIO - 1) {
+    throw new Error(
+      `Il file supera le ${LIMITE_RIGHE_FOGLIO.toLocaleString('it-IT')} righe leggibili in un colpo: dividilo per comune e caricalo in più volte.`,
+    );
+  }
   const righe: RigaCoordinata[] = [];
   let senzaCoordinate = 0;
   let senzaAggancio = 0;
@@ -116,6 +138,42 @@ export function parseCoordinateFile(rows: unknown[][]): ParseCoordinateResult {
   }
 
   return { righe, totale: dataRows.length, senzaCoordinate, senzaAggancio };
+}
+
+/**
+ * Le righe che arrivano dal CLIENT, ricontrollate una per una.
+ *
+ * Il foglio si legge nel browser — 19 MB di file non passano da una funzione serverless, e i dati
+ * utili sono 300 KB — quindi quello che il server riceve non l'ha prodotto lui: è un payload, e un
+ * payload si valida. La coordinata si ricalcola da capo con `parseLatLng`, la stessa guardia del
+ * percorso di prima: quello che non è una coordinata italiana valida non entra nel registro,
+ * comunque sia stato scritto.
+ *
+ * Scarta invece di lanciare: una riga malformata in mezzo a quattromila non deve far fallire
+ * l'import: chi chiama conta quante ne restano.
+ */
+export function righeDaPayload(input: unknown): RigaCoordinata[] {
+  if (!Array.isArray(input)) return [];
+  const out: RigaCoordinata[] = [];
+  for (const v of input) {
+    if (!v || typeof v !== 'object') continue;
+    const r = v as Record<string, unknown>;
+    /*
+      Il contratto è la forma che produce `parseLatLng`: «lat, lng» col PUNTO decimale. Si pretende
+      che le parti siano esattamente due — una coppia scritta all'italiana («41,288, 13,224») ne
+      darebbe quattro, e indovinare quale virgola separa i due numeri e quale è decimale
+      significherebbe scrivere a registro una coordinata inventata. Meglio scartarla.
+    */
+    const parti = String(r.coordinate ?? '').split(',');
+    if (parti.length !== 2) continue;
+    const coordinate = parseLatLng(parti[0], parti[1]);
+    if (!coordinate) continue;
+    const odl = String(r.odl ?? '').trim();
+    const impianto = String(r.impianto ?? '').trim();
+    if (odl === '' && impianto === '') continue;
+    out.push({ odl, impianto, coordinate });
+  }
+  return out;
 }
 
 /** Una riga del registro, ridotta a quello che l'abbinamento guarda. */
