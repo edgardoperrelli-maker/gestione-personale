@@ -104,7 +104,11 @@ export interface ProduzioneEconomica {
    * d'ufficio vorrebbe dire scegliere noi quale SAL confrontare, e la scelta è il punto.
    */
   confrontoSal: ConfrontoSal | null;
-  preSal: { n: number; totale: Totale };
+  /**
+   * `totale` = pre-SAL del PERIODO a schermo (quello che ACEA ha in pancia per quelle date);
+   * `totaleVivo` = stock complessivo non ancora pagato, a qualunque data.
+   */
+  preSal: { n: number; totale: Totale; totaleVivo: Totale };
   /**
    * TUTTO il prodotto non ancora consuntivato dal portale, con o senza un ordine ACEA dietro.
    * ⚠️ NON scomporlo in «con ordine» / «senza ordine» (correzione utente 2026-08-05): la card
@@ -812,12 +816,40 @@ export async function caricaProduzioneEconomica(
       })
     : null;
 
-  // Pre-SAL COMPLETO: tutti gli ODL COMPLETATO sul portale non ancora entrati in un SAL pagato,
-  // qualunque sia la causale (E% e non-E insieme — l'utente vuole un solo totale).
-  const preSalRighe = [...salRighe, ...nonRemuneratoRighe].filter((r) => !odlGiaPagati.has(r.odl));
+  /*
+    PRE-SAL: consuntivato da ACEA e non ancora entrato in un SAL pagato, qualunque sia la causale
+    (E% e non-E insieme — decisione utente 10/07: un solo totale).
+
+    Segue il PERIODO a schermo (correzione utente 2026-08-06): «se seleziono un periodo devo
+    vedere il pre-SAL in pancia ad ACEA a quel giorno». Prima era lo stock a oggi, indifferente
+    alle date, e leggerlo accanto a un luglio secco ingannava: 51.186 € contro i ~45.700 di
+    luglio, perché dentro c'erano agosto e la coda di giugno.
+
+    È anche la lettura che rende visibile lo scarto vero col SAL del committente: ACEA fotografa
+    a una certa ora, e ciò che si chiude dopo quel taglio resta «in pancia» — a luglio erano 14
+    ordini per 610,37 €. Con la finestra giusta quel numero si legge da solo.
+
+    `totaleVivo` conserva lo stock complessivo a oggi, che è la domanda «quanto ci devono in
+    tutto»: vive nella nota della card, non nel numero grande.
+  */
+  const preSalTutte = [...salRighe, ...nonRemuneratoRighe].filter((r) => !odlGiaPagati.has(r.odl));
+  /*
+    L'asse è la data con cui ACEA CONSUNTIVA, non quella in cui abbiamo lavorato: il SAL del
+    committente si taglia su quella, e fra le due passano giorni (lavoro del 31/07 completato il
+    03/08 sta nel SAL di agosto, non in quello di luglio). Filtrare sulla nostra data farebbe
+    dire alla card una cosa vera ma di un'altra domanda. Fallback alla nostra data solo dove ACEA
+    non ne ha una.
+  */
+  const dataConsuntivazione = (odl: string): string =>
+    registroUltimo.get(odl)?.data || dbDataByOdl.get(odl) || to;
+  const preSalRighe = preSalTutte.filter((r) => {
+    const d = dataConsuntivazione(r.odl);
+    return d >= from && d <= to;
+  });
   const preSal = {
     n: (salStorico.length > 0 ? Math.max(...salStorico.map((s) => s.n)) : 0) + 1,
     totale: aggregaProduzione(preSalRighe).totale,
+    totaleVivo: aggregaProduzione(preSalTutte).totale,
   };
 
   /*

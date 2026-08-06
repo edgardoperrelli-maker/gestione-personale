@@ -518,6 +518,16 @@ via `chiaviAggancio`, anche dal misuratore dell'ordine madre nel registro), con 
 completato > aperto > primo — mai una mappa first-wins, che sceglierebbe a caso tra un figlio
 chiuso già pagato e uno nuovo.
 
+### Il pre-SAL segue il PERIODO (correzione utente 2026-08-06)
+`preSal.totale` è il consuntivato-non-ancora-pagato **del periodo a schermo** — «il pre-SAL in
+pancia ad ACEA a quel giorno»; `preSal.totaleVivo` è lo stock complessivo a qualunque data e vive
+nella nota della card. Prima il numero grande era lo stock: accanto a un luglio secco diceva
+51.186 € contro i ~45.700 di luglio, perché conteneva agosto e la coda di giugno.
+L'asse è la **data di completamento ACEA** (`registroUltimo`), non la nostra data di esecuzione:
+il SAL del committente si taglia su quella, e fra le due passano giorni. Così la card mostra
+esattamente lo scarto col SAL del mese — a luglio 2026, dopo il carico del SAL 2: **731,64 € su
+20 ODL**, cioè i 14 ordini per 610,37 € chiusi da ACEA dopo il taglio del SAL più 6 non pagabili.
+
 ### KPI personale: giornate-uomo ≠ giorni (correzione utente 2026-08-06)
 `personale.totaleGiornate` sono **giornate-uomo** (somma delle frazioni: 4 operatori per 5 giorni
 ≈ 19); `personale.giorniLavorati` sono i **giorni di calendario** feriali in cui la commessa è
