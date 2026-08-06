@@ -14,14 +14,18 @@ export async function POST(req: NextRequest) {
     if (!to || !Array.isArray(to) || to.length === 0)
       return NextResponse.json({ error: 'Destinatari mancanti' }, { status: 400 });
 
-    // Imposta trasporto SMTP (legge da variabili ambiente)
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT) || 587,
-  secure: false,
-  requireTLS: true,
-  auth: { user: process.env.SMTP_USER!, pass: process.env.SMTP_PASS! },
-});
+    // Imposta trasporto SMTP (legge da variabili ambiente).
+    // È la porta a decidere la modalità: 465 è TLS implicito, 587 è STARTTLS.
+    // Con SMTP_PORT=465 e `secure: false` il client attacca in chiaro un canale
+    // già cifrato e la connessione resta appesa fino al timeout.
+    const smtpPort = Number(process.env.SMTP_PORT) || 587;
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: smtpPort,
+      secure: smtpPort === 465,
+      requireTLS: smtpPort !== 465,
+      auth: { user: process.env.SMTP_USER!, pass: process.env.SMTP_PASS! },
+    });
 
 
     const fromEmail = process.env.SMTP_USER;
