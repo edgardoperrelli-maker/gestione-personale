@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { RowSelectionState } from '@tanstack/react-table';
-import { ClipboardList, Maximize2, Minimize2, RefreshCw, Upload } from 'lucide-react';
+import {
+  ClipboardList, Download, Maximize2, Minimize2, RefreshCw, Upload,
+} from 'lucide-react';
 import Button from '@/components/Button';
 import { toast } from '@/components/ui/Toast';
 import {
@@ -105,6 +107,16 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
   */
   const chiaviScheda = useMemo(() => colonneScheda(definizione), [definizione]);
   const schedaSaracinesche = filtri.stato === 'saracinesche' && filtri.sara !== 'da_esitare';
+  /*
+    La scheda «Sostituzione saracinesca» è un posto da cui si ESTRAE, non da cui si assegna.
+
+    Entrambi i suoi passi finiscono in un file: «Ordini per ACEA» in quello che si manda al
+    committente, «Da esitare» nell'elenco degli ordini aperti da lavorare. Gli operatori si
+    mandano sul posto dalle schede-comune, dove quegli stessi ordini di sostituzione compaiono
+    come massive aperte con tutto il loro contorno — qui la pianificazione sarebbe una seconda
+    via alla stessa cosa, in una vista che serve a un'altra domanda.
+  */
+  const schedaEstrazione = filtri.stato === 'saracinesche';
   useEffect(() => {
     setVisibili((prima) => {
       const dopo = new Set(prima);
@@ -279,6 +291,7 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
     onSalvato: ricarica,
     attivo: true,
     famiglia,
+    senzaPianificazione: schedaEstrazione,
   });
 
   /**
@@ -419,13 +432,13 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
     setScaricate(tutteCaricate ? righe.length : 0);
     try {
       const tutte = tutteCaricate ? righe : await caricaTutteLeRighe(query, totale, setScaricate);
-      await esportaRichiestaAcea(tutte, nomeFileRichiesta(famiglia, oggi));
+      await esportaRichiestaAcea(tutte, nomeFileRichiesta(famiglia, oggi, filtri.sara), filtri.sara);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Export non riuscito.');
     } finally {
       setEsportando(false);
     }
-  }, [righe, tutteCaricate, query, totale, famiglia, oggi]);
+  }, [righe, tutteCaricate, query, totale, famiglia, oggi, filtri.sara]);
 
   if (errore) {
     /*
@@ -526,8 +539,9 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
         <div className="flex flex-wrap items-center gap-2">
           {selezionate.length === 0 && (
             <span className="text-xs text-[var(--brand-text-muted)]">
-              Seleziona le righe cliccandole (shift-click per un intervallo): da lì si pianifica
-              e si copia
+              {schedaEstrazione
+                ? 'Seleziona le righe cliccandole (shift-click per un intervallo): da lì si copia'
+                : 'Seleziona le righe cliccandole (shift-click per un intervallo): da lì si pianifica e si copia'}
             </span>
           )}
         </div>
@@ -659,7 +673,7 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
             Compare solo su «Ordini per ACEA»: altrove esporterebbe righe che un ordine ce l'hanno
             già, cioè chiederebbe ad ACEA di aprire ordini che esistono.
           */}
-          {filtri.stato === 'saracinesche' && filtri.sara === 'per_acea' && (
+          {schedaEstrazione && filtri.sara !== 'tutte' && (
             <Button
               variant="secondary"
               size="sm"
@@ -667,8 +681,8 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
               loading={esportando}
               disabled={totale === 0}
             >
-              <ClipboardList size={14} aria-hidden="true" />
-              Richiesta ACEA
+              <Download size={14} aria-hidden="true" />
+              {filtri.sara === 'da_esitare' ? 'Estrai da esitare' : 'Richiesta ACEA'}
               {totale > 0 && ` (${numero(totale)})`}
             </Button>
           )}
@@ -696,6 +710,7 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
             onGiorno={setGiorno}
             caricandoOperatori={caricandoOperatori}
             onCopiaRighe={editing.copiaRigheSpuntate}
+            soloEstrazione={schedaEstrazione}
           />
         </div>
       </div>

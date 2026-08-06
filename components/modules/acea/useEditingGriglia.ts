@@ -82,6 +82,11 @@ type Props = {
   /** Chiamata dopo un salvataggio andato a buon fine, per ricaricare i dati veri. */
   onSalvato: (operazioneId: string | null) => void;
   attivo: boolean;
+  /**
+   * `true` sulle schede da cui si ESTRAE e non si assegna: le due colonne della pianificazione
+   * diventano di sola lettura come quelle di ACEA.
+   */
+  senzaPianificazione?: boolean;
   /** Famiglia della vista: il salvataggio deve scrivere sul registro giusto. */
   famiglia: Famiglia;
 };
@@ -105,6 +110,7 @@ type Props = {
  */
 export function useEditingGriglia({
   righe, operatori, oggi, colonneVisibili, righeSpuntate, onSalvato, attivo, famiglia,
+  senzaPianificazione = false,
 }: Props) {
   const [focus, setFocus] = useState<Cella | null>(null);
   const [selezione, setSelezione] = useState<Intervallo | null>(null);
@@ -154,8 +160,17 @@ export function useEditingGriglia({
   /** `true` se su quella colonna si puo` SCRIVERE. Muoversi e copiare si puo` ovunque. */
   const editabile = useCallback(
     (chiave: string): chiave is ColonnaEditabile =>
-      (COLONNE_EDITABILI as string[]).includes(chiave),
-    [],
+      (COLONNE_EDITABILI as string[]).includes(chiave)
+      /*
+        Sulle schede di ESTRAZIONE le due colonne della pianificazione non si scrivono.
+
+        Là non si manda nessuno sul posto: si guarda cosa c'è da chiedere ad ACEA e cosa c'è da
+        esitare, e si estrae. Lasciarle scrivibili avrebbe tenuto aperta una seconda via alla
+        pianificazione — la griglia — proprio mentre la barra azioni la toglie: due comportamenti
+        diversi per la stessa cosa nella stessa schermata.
+      */
+      && !(senzaPianificazione && (chiave === 'pianificato_a' || chiave === 'pianificato_il')),
+    [senzaPianificazione],
   );
 
   /**

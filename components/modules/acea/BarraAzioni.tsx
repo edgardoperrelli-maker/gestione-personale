@@ -56,6 +56,16 @@ type Props = {
   caricandoOperatori?: boolean;
   /** Copia negli appunti le righe spuntate. Torna `false` se non c'era niente da copiare. */
   onCopiaRighe: () => Promise<boolean>;
+  /**
+   * `true` sulle schede da cui si ESTRAE: via i comandi che mandano qualcuno sul posto.
+   *
+   * Restano la copia e la deselezione, che servono a portare fuori un elenco. Spariscono giorno,
+   * operatore, «Pianifica» e «compila il tabellone»: nella scheda saracinesche non si assegna —
+   * gli ordini di sostituzione si danno agli operatori dalle schede-comune, dove compaiono come
+   * massive aperte. Sparisce anche «Segna TOP», che è una priorità di lavorazione e appartiene
+   * allo stesso gesto.
+   */
+  soloEstrazione?: boolean;
 };
 
 /**
@@ -70,7 +80,7 @@ type Props = {
  */
 export default function BarraAzioni({
   famiglia, chiavi, onAnnullaSelezione, onPianificato, operatori, oggi, giorno, onGiorno,
-  caricandoOperatori = false, onCopiaRighe,
+  caricandoOperatori = false, onCopiaRighe, soloEstrazione = false,
 }: Props) {
   const { etichetta: etichettaAttivita } = ATTIVITA_TABELLONE[famiglia];
   const [staffId, setStaffId] = useState('');
@@ -236,103 +246,115 @@ export default function BarraAzioni({
           </span>
 
           {/*
-            Il giorno prima dell'operatore, e non dopo: è il giorno a decidere quali nomi si
-            vedono. Invertirli faceva scegliere una persona e poi vedersela sparire cambiando
-            data — l'ordine di lettura deve seguire quello di dipendenza.
+            La PIANIFICAZIONE, che sulle schede di estrazione non c'è.
 
-            UN CAMPO DATA, non più il menu di due voci: la finestra ora arriva a due settimane
-            (dec. 49) e il lunedì — il primo giorno pieno del dunning, visto che venerdì e sabato
-            passano solo le attivazioni — con due voci non era raggiungibile affatto. Si scrive o
-            si sceglie dal calendario; `min`/`max` sono gli estremi veri della finestra.
-
-            L'etichetta accanto («oggi», «domani», «lunedì») resta perché il campo mostra il
-            numero e non il giorno della settimana, ed è il giorno della settimana a decidere se
-            passano solo le attivazioni.
+            Giorno, operatore e «Pianifica» servono a mandare qualcuno sul posto: nella scheda
+            saracinesche non è quello che si fa — si guarda cosa chiedere ad ACEA e cosa c'è da
+            esitare, e si estrae. Gli stessi ordini di sostituzione si assegnano dalle
+            schede-comune, dove compaiono come massive aperte con tutto il loro contorno.
           */}
-          <input
-            type="date"
-            value={giorno}
-            onChange={(e) => onGiorno(e.target.value)}
-            min={limiti?.min}
-            max={limiti?.max}
-            aria-label="Giorno di lavoro"
-            aria-invalid={fuoriFinestra || undefined}
-            title={oggi ? `${spiegaFinestra(oggi)}.` : undefined}
-            /*
-              `h-[30px]` come i Button sm che gli stanno in fila (py-1.5 + testo 12 + bordo = 30):
-              a h-8 campo e menu sporgevano di 2px sui bottoni della stessa barra — la classe
-              esatta di disallineamento bonificata su tutta la console in questa PR.
-            */
-            /* `w-[7.5rem]` = 120px: quanto basta a «04/08/2026» più l'icona del calendario.
-               Erano 140 e ne avanzavano venti: su questa riga venti pixel sono la differenza fra
-               una riga e due, misurata a 1280. */
-            className={`h-[30px] w-[7.5rem] shrink-0 rounded-[var(--radius-md)] border bg-[var(--brand-surface)] px-2 text-sm text-[var(--brand-text-main)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ${
-              fuoriFinestra ? 'border-[var(--status-ko)]' : 'border-[var(--brand-border)]'
-            }`}
-          />
-          {giorno !== '' && !fuoriFinestra && (
-            <span className="whitespace-nowrap text-xs text-[var(--brand-text-muted)]">
-              {etichettaGiorno(giorno, oggi).toLowerCase()}
-            </span>
-          )}
-          {fuoriFinestra && (
-            <span
-              className="inline-flex items-center gap-1 whitespace-nowrap text-xs text-[var(--status-ko)]"
-              title={`${giornoEsteso(giorno)}: ${spiegaFinestra(oggi)}.`}
+          {!soloEstrazione && (
+            <>
+            {/*
+              Il giorno prima dell'operatore, e non dopo: è il giorno a decidere quali nomi si
+              vedono. Invertirli faceva scegliere una persona e poi vedersela sparire cambiando
+              data — l'ordine di lettura deve seguire quello di dipendenza.
+
+              UN CAMPO DATA, non più il menu di due voci: la finestra ora arriva a due settimane
+              (dec. 49) e il lunedì — il primo giorno pieno del dunning, visto che venerdì e sabato
+              passano solo le attivazioni — con due voci non era raggiungibile affatto. Si scrive o
+              si sceglie dal calendario; `min`/`max` sono gli estremi veri della finestra.
+
+              L'etichetta accanto («oggi», «domani», «lunedì») resta perché il campo mostra il
+              numero e non il giorno della settimana, ed è il giorno della settimana a decidere se
+              passano solo le attivazioni.
+            */}
+            <input
+              type="date"
+              value={giorno}
+              onChange={(e) => onGiorno(e.target.value)}
+              min={limiti?.min}
+              max={limiti?.max}
+              aria-label="Giorno di lavoro"
+              aria-invalid={fuoriFinestra || undefined}
+              title={oggi ? `${spiegaFinestra(oggi)}.` : undefined}
+              /*
+                `h-[30px]` come i Button sm che gli stanno in fila (py-1.5 + testo 12 + bordo = 30):
+                a h-8 campo e menu sporgevano di 2px sui bottoni della stessa barra — la classe
+                esatta di disallineamento bonificata su tutta la console in questa PR.
+              */
+              /* `w-[7.5rem]` = 120px: quanto basta a «04/08/2026» più l'icona del calendario.
+                 Erano 140 e ne avanzavano venti: su questa riga venti pixel sono la differenza fra
+                 una riga e due, misurata a 1280. */
+              className={`h-[30px] w-[7.5rem] shrink-0 rounded-[var(--radius-md)] border bg-[var(--brand-surface)] px-2 text-sm text-[var(--brand-text-main)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ${
+                fuoriFinestra ? 'border-[var(--status-ko)]' : 'border-[var(--brand-border)]'
+              }`}
+            />
+            {giorno !== '' && !fuoriFinestra && (
+              <span className="whitespace-nowrap text-xs text-[var(--brand-text-muted)]">
+                {etichettaGiorno(giorno, oggi).toLowerCase()}
+              </span>
+            )}
+            {fuoriFinestra && (
+              <span
+                className="inline-flex items-center gap-1 whitespace-nowrap text-xs text-[var(--status-ko)]"
+                title={`${giornoEsteso(giorno)}: ${spiegaFinestra(oggi)}.`}
+              >
+                <TriangleAlert size={12} aria-hidden="true" />
+                fuori finestra
+                <span className="sr-only">: {spiegaFinestra(oggi)}.</span>
+              </span>
+            )}
+
+            <Select
+              value={staffId}
+              onChange={(e) => setStaffId(e.target.value)}
+              aria-label="Assegna a"
+              /* `w-[11.25rem]` = 180px invece di 192: i nomi lunghi («DE SANTIS ALESSANDRO · LAZIO
+                 EST») si troncavano già a 192, e la lista aperta li mostra comunque per esteso. */
+              className="h-[30px] w-[11.25rem] py-0 text-xs"
+              disabled={operatori.length === 0}
+              // Il nome dell'attività per esteso sta qui: dentro una select da w-48
+              // «LIMITAZIONI MASSIVE» usciva tagliato a metà parola.
+              title={operatori.length === 0 && !caricandoOperatori
+                ? `Nessun operatore con attività ${etichettaAttivita} in cronoprogramma`
+                : undefined}
             >
-              <TriangleAlert size={12} aria-hidden="true" />
-              fuori finestra
-              <span className="sr-only">: {spiegaFinestra(oggi)}.</span>
-            </span>
-          )}
-
-          <Select
-            value={staffId}
-            onChange={(e) => setStaffId(e.target.value)}
-            aria-label="Assegna a"
-            /* `w-[11.25rem]` = 180px invece di 192: i nomi lunghi («DE SANTIS ALESSANDRO · LAZIO
-               EST») si troncavano già a 192, e la lista aperta li mostra comunque per esteso. */
-            className="h-[30px] w-[11.25rem] py-0 text-xs"
-            disabled={operatori.length === 0}
-            // Il nome dell'attività per esteso sta qui: dentro una select da w-48
-            // «LIMITAZIONI MASSIVE» usciva tagliato a metà parola.
-            title={operatori.length === 0 && !caricandoOperatori
-              ? `Nessun operatore con attività ${etichettaAttivita} in cronoprogramma`
-              : undefined}
-          >
-            {/*
-              «Nessuno in tabellone» è una RISPOSTA, e finché il tabellone del giorno si sta
-              leggendo la risposta non c'è: scegliendo un giorno nuovo dal campo data comparirebbe
-              per un istante, e chi legge veloce va a compilare un cronoprogramma che è pieno.
-            */}
-            <option value="">
-              {caricandoOperatori
-                ? 'Carico il tabellone…'
-                : operatori.length === 0 ? 'Nessuno in tabellone' : 'Assegna a…'}
-            </option>
-            {/*
-              Il territorio accanto al nome: il primo passo della mattina è «assegnazione in base
-              all'operatore più vicino», e con il solo cognome quella scelta si fa a memoria.
-            */}
-            {operatori.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.territorio ? `${o.display_name} · ${o.territorio}` : o.display_name}
+              {/*
+                «Nessuno in tabellone» è una RISPOSTA, e finché il tabellone del giorno si sta
+                leggendo la risposta non c'è: scegliendo un giorno nuovo dal campo data comparirebbe
+                per un istante, e chi legge veloce va a compilare un cronoprogramma che è pieno.
+              */}
+              <option value="">
+                {caricandoOperatori
+                  ? 'Carico il tabellone…'
+                  : operatori.length === 0 ? 'Nessuno in tabellone' : 'Assegna a…'}
               </option>
-            ))}
-          </Select>
+              {/*
+                Il territorio accanto al nome: il primo passo della mattina è «assegnazione in base
+                all'operatore più vicino», e con il solo cognome quella scelta si fa a memoria.
+              */}
+              {operatori.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.territorio ? `${o.display_name} · ${o.territorio}` : o.display_name}
+                </option>
+              ))}
+            </Select>
 
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => void pianifica()}
-            // Fuori finestra non parte: il server rifiuterebbe comunque, e un rifiuto che si può
-            // prevedere si dice prima di far premere.
-            disabled={!staffId || fuoriFinestra}
-            loading={busy}
-          >
-            <CalendarCheck size={14} aria-hidden="true" />
-            Pianifica
-          </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => void pianifica()}
+              // Fuori finestra non parte: il server rifiuterebbe comunque, e un rifiuto che si può
+              // prevedere si dice prima di far premere.
+              disabled={!staffId || fuoriFinestra}
+              loading={busy}
+            >
+              <CalendarCheck size={14} aria-hidden="true" />
+              Pianifica
+            </Button>
+            </>
+          )}
 
           {/*
             LE SECONDARIE SONO A SOLA ICONA, la primaria no.
@@ -364,27 +386,31 @@ export default function BarraAzioni({
             <ClipboardCopy size={14} aria-hidden="true" />
           </Button>
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => void segnaTop(true)}
-            loading={marcandoTop}
-            title="Segna gli ordini spuntati come TOP (prioritari per ACEA)"
-          >
-            <Star size={14} aria-hidden="true" />
-            Segna TOP
-          </Button>
+          {!soloEstrazione && (
+            <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void segnaTop(true)}
+              loading={marcandoTop}
+              title="Segna gli ordini spuntati come TOP (prioritari per ACEA)"
+            >
+              <Star size={14} aria-hidden="true" />
+              Segna TOP
+            </Button>
 
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => void segnaTop(false)}
-            loading={marcandoTop}
-            aria-label="Togli TOP"
-            title="Togli il TOP dagli ordini spuntati"
-          >
-            <StarOff size={14} aria-hidden="true" />
-          </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => void segnaTop(false)}
+              loading={marcandoTop}
+              aria-label="Togli TOP"
+              title="Togli il TOP dagli ordini spuntati"
+            >
+              <StarOff size={14} aria-hidden="true" />
+            </Button>
+            </>
+          )}
 
           <Button
             variant="ghost"
