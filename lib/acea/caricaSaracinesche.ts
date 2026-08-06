@@ -123,6 +123,24 @@ export async function interventiConSaracinescaDichiarata(db: SupabaseClient): Pr
   )];
 }
 
+/**
+ * Gli INTERVENTI dichiarati, con la stessa memoria di un minuto degli ODL.
+ *
+ * Serve al registro massive, che dalla vista unificata mostra anche le limitazioni aperte a mano
+ * dal «+»: quelle righe un ODL non ce l'hanno, quindi «questa riga ha una saracinesca?» non si può
+ * chiedere per ODL. È la stessa scansione di `odlConSaracinescaDichiarata` — che infatti la usa
+ * come primo passo — fermata un gradino prima.
+ */
+let cacheInterventi: { ids: Set<string>; quando: number } | null = null;
+
+export async function interventiDichiarati(db: SupabaseClient): Promise<Set<string>> {
+  const ora = Date.now();
+  if (cacheInterventi && ora - cacheInterventi.quando < TTL_CACHE_MS) return cacheInterventi.ids;
+  const ids = new Set(await interventiConSaracinescaDichiarata(db));
+  cacheInterventi = { ids, quando: ora };
+  return ids;
+}
+
 export async function odlConSaracinescaDichiarata(db: SupabaseClient): Promise<Set<string>> {
   const ora = Date.now();
   if (cache && ora - cache.quando < TTL_CACHE_MS) return cache.odl;

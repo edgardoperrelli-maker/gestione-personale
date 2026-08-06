@@ -202,6 +202,19 @@ export function useEditingGriglia({
         saltate += 1;
         continue;
       }
+      /*
+        Le righe SENZA ordine non si scrivono, nemmeno sulle colonne nostre.
+
+        Sono le limitazioni massive aperte a mano dal «+», che il registro mostra dalla vista
+        unificata. Il salvataggio identifica la riga con (odl, numero_operazione) su `acea_ordini`:
+        lì un ODL non c'e`, quindi la scrittura non avrebbe bersaglio. Si salta e si conta, come
+        per le colonne di ACEA — un errore dopo il salvataggio sarebbe peggio, perche` il valore
+        resterebbe a schermo come se fosse passato.
+      */
+      if (righeRef.current[s.riga]?.sola_lettura) {
+        saltate += 1;
+        continue;
+      }
       if (colonna === 'note') {
         // Testo libero: nessuna validazione se non il taglio. Una nota e` un messaggio a chi va
         // sul posto, non un campo strutturato — l'unica cosa da impedire e` un incolla enorme che

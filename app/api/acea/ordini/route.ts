@@ -12,7 +12,9 @@ import { partiRoma } from '@/lib/orarioRoma';
 import {
   chiaviAggancio, isAttivitaSaracinesca, FRAMMENTI_SARACINESCA,
 } from '@/lib/acea/saracinesche';
-import { odlConSaracinescaDichiarata } from '@/lib/acea/caricaSaracinesche';
+import {
+  interventiDichiarati, odlConSaracinescaDichiarata,
+} from '@/lib/acea/caricaSaracinesche';
 import { comuniMassiveAperti } from '@/lib/acea/caricaComuniMassive';
 import { contaSenzaData, type InterventoDellOdl } from '@/lib/acea/codaRiaperture';
 import { PROFILO_COMMESSA } from '@/lib/acea/famiglia';
@@ -85,6 +87,35 @@ const COLONNE = [
 type OrdineRow = Record<string, unknown> & { odl: string; numero_operazione: string };
 
 /**
+ * Da dove si LEGGE il registro di questa vista.
+ *
+ * Sulle massive è una vista che unisce `acea_ordini` e gli interventi completati senza ODL — le
+ * limitazioni aperte a mano dal «+», che un ordine ACEA non ce l'hanno per costruzione. Sono
+ * 1.317 righe di lavoro fatto che il registro non mostrava da nessuna parte.
+ *
+ * Vale solo in LETTURA, ed è il motivo per cui non è in `PROFILO_COMMESSA.tabellaOrdini`: quel
+ * campo lo usano anche le scritture (pianificazione, appunti, celle), che devono continuare a
+ * puntare alla tabella vera. Una vista con una UNION non è aggiornabile, e farcele passare sopra
+ * avrebbe rotto il salvataggio su ogni riga del registro.
+ */
+function relazioneRegistro(f: FiltriOrdini): string {
+  if (f.famiglia === 'massive') return 'acea_registro_massive';
+  return PROFILO_COMMESSA[f.famiglia ?? 'dunning'].tabellaOrdini;
+}
+
+/**
+ * Le colonne da leggere: quelle di sempre, più le due che esistono solo nella vista massive.
+ *
+ * Aggiunte QUI e non nella `COLONNE` condivisa perché quella gira anche su `acea_ordini` e su
+ * `acqualatina_ordini`, dove `intervento_id` e `sola_lettura` non esistono. Una colonna ignota in
+ * quell'elenco non degrada una decorazione: fa fallire la query del registro, cioè la schermata.
+ * È già successo due volte (vedi la nota dentro `COLONNE`), e non serve una terza.
+ */
+function selezioneRegistro(f: FiltriOrdini): string {
+  return f.famiglia === 'massive' ? `${COLONNE}, intervento_id, sola_lettura` : COLONNE;
+}
+
+/**
  * GET /api/acea/ordini — registro filtrato e paginato.
  *
  * Query: famiglia, stato (tutti|aperti|chiusi), scadenza (tutte|scaduti|in_scadenza|senza_scadenza),
@@ -103,10 +134,7 @@ type OrdineRow = Record<string, unknown> & { odl: string; numero_operazione: str
  */
 /** La query sul registro con tutti i criteri e l'ordinamento canonico. */
 function queryRegistro(selezione: string, f: FiltriOrdini, oggi: string) {
-  // La tabella la decide la famiglia: acqualatina ha il SUO registro, con la stessa forma di
-  // colonne — è ciò che permette a questa query (e alla select condivisa) di valere su entrambi.
-  const profilo = PROFILO_COMMESSA[f.famiglia ?? 'dunning'];
-  let q = supabaseAdmin.from(profilo.tabellaOrdini).select(selezione, { count: 'exact' });
+  let q = supabaseAdmin.from(relazioneRegistro(f)).select(selezione, { count: 'exact' });
 
   if (f.famiglia) q = q.eq('famiglia', f.famiglia);
   if (f.stato === 'aperti') q = q.eq('aperto', true);
@@ -225,6 +253,13 @@ function queryRegistro(selezione: string, f: FiltriOrdini, oggi: string) {
 type Chiave = {
   odl: string;
   numero_operazione: string;
+  /**
+   * L'identificativo della riga, con cui la pagina si rilegge dopo l'incrocio.
+   *
+   * Serve perché nella vista massive l'ODL non è più una chiave utilizzabile: le righe senza
+   * ordine ce l'hanno vuoto, e sono 1.317. L'`id` c'è su entrambi i rami della UNION.
+   */
+  id?: string;
   attivita: string | null;
   /** Solo acqualatina: entra nella chiave di aggancio con gli interventi. */
   matricola?: string | null;
@@ -238,17 +273,28 @@ type Chiave = {
    * che manca righe. È lo stesso difetto che i filtri e gli ordinamenti evitano già.
    */
   impianto?: string | null;
+  /**
+   * L'intervento da cui nasce la riga, sulle sole massive senza ODL.
+   *
+   * È l'unica chiave con cui una dichiarazione si aggancia a quelle righe: l'ODL, che è la chiave
+   * di tutte le altre, lì non c'è.
+   */
+  intervento_id?: string | null;
 };
 
 /** Tutte le chiavi che passano i criteri della vista, nell'ordine della tabella. */
 async function scansionaChiavi(f: FiltriOrdini, oggi: string): Promise<Chiave[]> {
-  const colonne = f.famiglia === 'acqualatina'
-    ? 'odl, numero_operazione, attivita, matricola'
-    // Le due chiavi di aggancio solo dove servono: su una scansione da 5.000 righe due colonne in
-    // più a ogni caricamento del registro si pagherebbero per una scheda che si apre di rado.
-    : f.stato === 'saracinesche'
-      ? 'odl, numero_operazione, attivita, impianto, matricola'
-      : 'odl, numero_operazione, attivita';
+  const campi = ['id', 'odl', 'numero_operazione', 'attivita'];
+  if (f.famiglia === 'acqualatina') campi.push('matricola');
+  // Le chiavi di aggancio solo dove servono: su una scansione da 5.000 righe, colonne in più a
+  // ogni caricamento del registro si pagherebbero per una scheda che si apre di rado.
+  else if (f.stato === 'saracinesche') {
+    campi.push('impianto', 'matricola');
+    // `intervento_id` esiste SOLO nella vista massive: chiederlo su `acea_ordini` farebbe fallire
+    // la scansione, cioè la schermata, invece di degradare una decorazione.
+    if (f.famiglia === 'massive') campi.push('intervento_id');
+  }
+  const colonne = campi.join(', ');
   const chiavi: Chiave[] = [];
   for (let offset = 0; ; offset += PAGINA_SCAN) {
     const { data, error } = await queryRegistro(colonne, f, oggi)
@@ -553,7 +599,7 @@ export async function GET(req: Request) {
 
     if (!serveIncrocio(f)) {
       // Percorso normale: una sola interrogazione paginata, il conteggio lo fa Postgres.
-      const { data, error, count } = await queryRegistro(COLONNE, f, oggi).range(da, a);
+      const { data, error, count } = await queryRegistro(selezioneRegistro(f), f, oggi).range(da, a);
       if (error) throw error;
       righe = (data ?? []) as unknown as OrdineRow[];
       totale = count ?? righe.length;
@@ -589,7 +635,7 @@ export async function GET(req: Request) {
         secondi, quindi la seconda chiamata più sotto trova il risultato già pronto.
       */
       const perAcea = f.stato === 'saracinesche' && f.sara === 'per_acea';
-      const [chiavi, indiceCompleto, saracinesche, sostPerFiltro] = await Promise.all([
+      const [chiavi, indiceCompleto, saracinesche, sostPerFiltro, intDichFiltro] = await Promise.all([
         scansionaChiavi(f, oggi),
         serveIndiceCompleto ? indicePianificazione(f) : Promise.resolve(null),
         // Su «Da esitare» le dichiarazioni non c'entrano: quella popolazione sono gli ordini di
@@ -598,6 +644,11 @@ export async function GET(req: Request) {
           ? odlConSaracinescaDichiarata(supabaseAdmin)
           : Promise.resolve(new Set<string>()),
         perAcea ? indiceSostituzioni() : Promise.resolve(new Map<string, Sostituzione>()),
+        // Le dichiarazioni per INTERVENTO: le righe massive senza ODL non si possono agganciare
+        // altrimenti, e sono 803 di quelle dichiarate.
+        f.stato === 'saracinesche' && f.sara !== 'da_esitare' && f.famiglia === 'massive'
+          ? interventiDichiarati(supabaseAdmin)
+          : Promise.resolve(new Set<string>()),
       ]);
       const indice = indiceCompleto
         ?? (f.stato === 'riaperture'
@@ -623,8 +674,12 @@ export async function GET(req: Request) {
         chiaviAggancio({ impianto: k.impianto ?? null, matricola: k.matricola ?? null })
           .some((chiave) => sostPerFiltro.has(chiave));
 
+      /** La dichiarazione si cerca per ODL; dove l'ODL non c'è, per intervento. */
+      const dichiarata = (k: Chiave): boolean =>
+        saracinesche.has(k.odl) || (!!k.intervento_id && intDichFiltro.has(k.intervento_id));
+
       let passate = chiavi.filter(
-        (k) => (f.stato !== 'saracinesche' || f.sara === 'da_esitare' || saracinesche.has(k.odl))
+        (k) => (f.stato !== 'saracinesche' || f.sara === 'da_esitare' || dichiarata(k))
           /*
             «Ordini per ACEA»: restano le dichiarazioni SENZA ordine di sostituzione.
 
@@ -679,19 +734,25 @@ export async function GET(req: Request) {
       if (pagina.length === 0) {
         righe = [];
       } else {
-        // Solo le righe della pagina: al massimo `perPagina` ODL, quindi un `in` corto.
+        /*
+          Solo le righe della pagina, cercate per IDENTIFICATIVO e non per ODL.
+
+          Per ODL non funzionerebbe più: nella vista massive le righe senza ordine hanno l'ODL
+          vuoto, e un `in('odl', [''])` ne riporterebbe indietro tutte e 1.317 invece delle poche
+          della pagina — o nessuna, a seconda di come cade il filtro. L'`id` c'è su entrambi i
+          rami della UNION ed è unico, quindi la lettura resta esatta e corta.
+        */
         const { data, error } = await supabaseAdmin
-          .from(PROFILO_COMMESSA[f.famiglia ?? 'dunning'].tabellaOrdini)
-          .select(COLONNE)
-          .in('odl', [...new Set(pagina.map((k) => k.odl))]);
+          .from(relazioneRegistro(f))
+          .select(selezioneRegistro(f))
+          .in('id', [...new Set(pagina.map((k) => k.id).filter(Boolean))]);
         if (error) throw error;
-        const perChiave = new Map(
-          ((data ?? []) as unknown as OrdineRow[]).map((r) => [`${r.odl}|${r.numero_operazione}`, r]),
+        const perId = new Map<string, OrdineRow>(
+          ((data ?? []) as unknown as Array<OrdineRow & { id: string }>).map((r) => [r.id, r]),
         );
-        // Riordinate come le chiavi: `in` non conserva l'ordine, e un ODL con più operazioni ne
-        // riporta indietro anche di non richieste.
+        // Riordinate come le chiavi: `in` non conserva l'ordine di richiesta.
         righe = pagina
-          .map((k) => perChiave.get(`${k.odl}|${k.numero_operazione}`))
+          .map((k): OrdineRow | undefined => (k.id ? perId.get(k.id) : undefined))
           .filter((r): r is OrdineRow => Boolean(r));
       }
     }
@@ -825,6 +886,14 @@ export async function GET(req: Request) {
         console.error('[acea/ordini] dichiarazioni saracinesca non lette:', e);
         return new Set<string>();
       });
+    // Le stesse dichiarazioni viste per INTERVENTO: è l'unico aggancio possibile sulle righe
+    // massive senza ODL. Solo dove quelle righe esistono, e best-effort come la precedente.
+    const dichiaratiInterventi = f.famiglia === 'massive'
+      ? await interventiDichiarati(supabaseAdmin).catch((e) => {
+        console.error('[acea/ordini] dichiarazioni per intervento non lette:', e);
+        return new Set<string>();
+      })
+      : new Set<string>();
     const sostituzioni = acqua
       ? new Map<string, Sostituzione>()
       : await indiceSostituzioni().catch((e) => {
@@ -955,7 +1024,11 @@ export async function GET(req: Request) {
           interventi e le liquida, quindi sono lavoro fatturabile a tutti gli effetti. Sono 13
           ordini, e nasconderli voleva dire non chiederli mai.
         */
-        saracinesca: dichiarati.has(r.odl) ? 'SI' : null,
+        saracinesca:
+          dichiarati.has(r.odl)
+            || (typeof r.intervento_id === 'string' && dichiaratiInterventi.has(r.intervento_id))
+            ? 'SI'
+            : null,
         odl_saracinesca: sost?.odl ?? null,
         stato_saracinesca: sost?.stato ?? null,
         /*

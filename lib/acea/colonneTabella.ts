@@ -80,6 +80,15 @@ export type RigaTabella = {
    */
   sostituzione_aperta: boolean;
   /**
+   * `true` sulle righe che non hanno un ordine ACEA su cui scrivere.
+   *
+   * Sono le limitazioni massive aperte a mano dal «+», che il registro mostra dalla vista
+   * unificata: la pianificazione, gli appunti e le celle salvano su `acea_ordini` per la coppia
+   * (odl, numero_operazione), e senza ODL non c'è dove mettere il valore. La griglia le salta
+   * invece di lasciar credere che l'incolla sia passato.
+   */
+  sola_lettura?: boolean;
+  /**
    * Nota dell'ufficio. Si scrive qui in tabella e arriva all'operatore dentro il rapportino, nel
    * banner «Nota dall'ufficio» — non e` un promemoria interno, e` un messaggio a chi va sul posto.
    */
