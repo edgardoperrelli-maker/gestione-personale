@@ -46,6 +46,14 @@ const chiaveAggancioIntervento = (
   matricola?: string | null,
 ): string => (famiglia === 'acqualatina' ? `${odl}#${normMatr(matricola)}` : odl);
 
+/**
+ * Chiave di aggancio di una riga che NON ha un ODL: il suo intervento.
+ *
+ * Prefissata, così non può mai collidere con un ODL vero — che è un numero — e si riconosce a
+ * colpo d'occhio nei log quando una riga non trova la sua pianificazione.
+ */
+const chiaveIntervento = (id: string): string => `INT:${id}`;
+
 /** Pagina delle scansioni interne (chiavi, interventi): non esce dal server, può essere ampia. */
 const PAGINA_SCAN = 1000;
 
@@ -752,6 +760,45 @@ export async function GET(req: Request) {
     }
 
     /*
+      Le righe SENZA ODL si agganciano a sé stesse.
+
+      Il blocco qui sopra cerca gli interventi PER ODL, che è la chiave di ogni riga del registro.
+      Le limitazioni massive aperte a mano dal «+» un ODL non ce l'hanno, quindi non trovavano
+      niente: «Esecutore», «Data pianificata» ed «Eseguito» restavano vuote — e con loro la data
+      nell'estrazione, che è dove il buco si vedeva per primo.
+
+      Il paradosso era che quelle righe SONO interventi: il dato ce l'avevano addosso, solo che si
+      andava a cercarlo dalla parte sbagliata.
+
+      La chiave è l'`intervento_id`, NON l'ODL vuoto: con `chiaveAggancioIntervento` tutte quelle
+      righe collasserebbero sulla stessa chiave (stringa vuota) e si scambierebbero esecutore e
+      data fra loro. Scrivendo qui dentro `pianificazione` e `interventiPerChiave` — le stesse due
+      mappe delle righe normali — tutto ciò che sta a valle continua a funzionare senza sapere che
+      esistono due tipi di riga.
+    */
+    const idInterventiPagina = [...new Set(
+      righe.map((r) => r.intervento_id).filter((v): v is string => typeof v === 'string' && v !== ''),
+    )];
+    for (let i = 0; i < idInterventiPagina.length; i += 200) {
+      const { data: propri, error: eProprio } = await supabaseAdmin
+        .from('interventi')
+        .select('id, odl, data, staff_id, stato, esito, matricola_contatore')
+        .in('id', idInterventiPagina.slice(i, i + 200));
+      // Best-effort come le altre decorazioni: senza, la riga si mostra spoglia invece di far
+      // fallire il registro.
+      if (eProprio) {
+        console.error('[acea/ordini] interventi delle righe senza ODL non letti:', eProprio);
+        break;
+      }
+      for (const it of (propri ?? []) as VoceIntervento[]) {
+        if (!it.id || it.stato === 'annullato') continue;
+        const chiave = chiaveIntervento(it.id);
+        pianificazione.set(chiave, { data: it.data, staff_id: it.staff_id, stato: it.stato });
+        interventiPerChiave.set(chiave, [it.id]);
+      }
+    }
+
+    /*
       ---- Le colonne che vengono DAL RAPPORTINO -------------------------------------------------
 
       Due colonne, due viste, una sola lettura di `rapportino_voci`:
@@ -939,7 +986,13 @@ export async function GET(req: Request) {
     }
 
     const conPianificazione = righe.map((r) => {
-      const chiaveRiga = chiaveAggancioIntervento(f.famiglia, r.odl, r.matricola as string | null);
+      /*
+        Le righe senza ODL si cercano per intervento; tutte le altre per ODL, come sempre.
+        Una sola espressione, così nessuno più in basso deve sapere che esistono due tipi di riga.
+      */
+      const chiaveRiga = typeof r.intervento_id === 'string' && r.intervento_id !== ''
+        ? chiaveIntervento(r.intervento_id)
+        : chiaveAggancioIntervento(f.famiglia, r.odl, r.matricola as string | null);
       const p = pianificazione.get(chiaveRiga);
       // L'ordine di sostituzione si cerca per impianto O per matricola, non per ODL: la
       // sostituzione e` un ordine SUO, con un numero diverso da quello della limitazione.

@@ -10,7 +10,7 @@
 // tenere pure e testabili sono queste: quante pagine servono, e come si chiama il file.
 
 import type { ChiaveColonna } from './colonneTabella';
-import type { StatoFiltro } from './filtriOrdini';
+import type { SaraFiltro, StatoFiltro } from './filtriOrdini';
 import type { Famiglia } from './famiglia';
 
 /** Righe per richiesta durante l'export: è il tetto che `/api/acea/ordini` accetta. */
@@ -113,28 +113,56 @@ export function nomeFoglioExport(famiglia: Famiglia): string {
  * Sulle limitazioni massive aperte a mano dal «+» un ordine non c'è, e la cella resta vuota —
  * quelle righe si identificano con matricola e indirizzo.
  */
-export const RICHIESTA_ACEA: ReadonlyArray<{
+export type CampoRichiesta = {
   intestazione: string;
   larghezza: number;
   chiave: ChiaveColonna;
-}> = [
+};
+
+const BASE_RICHIESTA: CampoRichiesta[] = [
   { intestazione: 'Impianto', larghezza: 120, chiave: 'impianto' },
   { intestazione: 'Matricola', larghezza: 140, chiave: 'matricola' },
   { intestazione: 'Indirizzo', larghezza: 220, chiave: 'indirizzo' },
   { intestazione: 'CAP', larghezza: 80, chiave: 'cap' },
   { intestazione: 'Località', larghezza: 140, chiave: 'comune' },
-  // L'ODL su cui la saracinesca è stata dichiarata: è il riferimento con cui ACEA ritrova il
-  // lavoro a cui la sostituzione si aggancia. Senza, la richiesta è un indirizzo nudo.
-  { intestazione: 'ODL intervento', larghezza: 120, chiave: 'odl' },
-  // Quando ci siamo stati: è la data da cui quel lavoro è a credito.
-  { intestazione: 'Data intervento', larghezza: 120, chiave: 'pianificato_il' },
-  // L'attività dell'ordine su cui si è intervenuti: dà ad ACEA il contesto della richiesta.
-  { intestazione: 'Attività', larghezza: 210, chiave: 'attivita' },
 ];
 
-/** Nome del file della richiesta: dice cos'è e di quando, senza aprirlo. */
-export function nomeFileRichiesta(famiglia: Famiglia, oggi: string): string {
-  const parti = ['acea', famiglia, 'richiesta-saracinesche'];
+/**
+ * Il tracciato dell'estrazione, per il passo del ciclo che si sta guardando.
+ *
+ * I primi cinque campi sono gli stessi — è il PUNTO, e il punto non cambia — mentre le ultime tre
+ * colonne seguono la popolazione, perché le due schede parlano di cose diverse:
+ *
+ * - su «Ordini per ACEA» la riga è la limitazione su cui la saracinesca è stata dichiarata, e
+ *   l'ODL è il riferimento con cui ACEA ritrova quel lavoro. La data è quando ci siamo stati:
+ *   è da lì che il lavoro è a credito.
+ * - su «Da esitare» la riga È l'ordine di sostituzione. Chiamare «ODL intervento» quel numero
+ *   sarebbe l'etichetta sbagliata sul numero giusto — esattamente l'inganno che questa scheda è
+ *   nata per togliere — e la data che conta è quando ACEA l'ha aperto, cioè da quanto aspetta.
+ */
+export function tracciatoRichiesta(sara: SaraFiltro): CampoRichiesta[] {
+  if (sara === 'da_esitare') {
+    return [
+      ...BASE_RICHIESTA,
+      { intestazione: 'ODL sostituzione', larghezza: 120, chiave: 'odl' },
+      { intestazione: 'Creato il', larghezza: 120, chiave: 'data_creazione' },
+      { intestazione: 'Stato ordine', larghezza: 190, chiave: 'stato' },
+    ];
+  }
+  return [
+    ...BASE_RICHIESTA,
+    { intestazione: 'ODL intervento', larghezza: 120, chiave: 'odl' },
+    { intestazione: 'Data intervento', larghezza: 120, chiave: 'pianificato_il' },
+    { intestazione: 'Attività', larghezza: 210, chiave: 'attivita' },
+  ];
+}
+
+/** Nome del file: dice quale dei due passi contiene, e di quando. */
+export function nomeFileRichiesta(famiglia: Famiglia, oggi: string, sara: SaraFiltro): string {
+  const parti = [
+    'acea', famiglia,
+    sara === 'da_esitare' ? 'saracinesche-da-esitare' : 'richiesta-saracinesche',
+  ];
   if (ISO.test(oggi)) parti.push(oggi.replaceAll('-', ''));
   return `${parti.join('-')}.xlsx`;
 }

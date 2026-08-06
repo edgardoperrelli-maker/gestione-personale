@@ -1,9 +1,12 @@
 'use client';
 
 import {
-  valoreCella, type ChiaveColonna, type DefColonna, type RigaTabella,
+  valoreCella, type DefColonna, type RigaTabella,
 } from '@/lib/acea/colonneTabella';
-import { PER_PAGINA_EXPORT, RICHIESTA_ACEA, pagineExport } from '@/lib/acea/exportVista';
+import {
+  PER_PAGINA_EXPORT, pagineExport, tracciatoRichiesta, type CampoRichiesta,
+} from '@/lib/acea/exportVista';
+import type { SaraFiltro } from '@/lib/acea/filtriOrdini';
 
 /**
  * Scarica **tutte** le righe che la query dei filtri seleziona, non solo quelle già scese.
@@ -73,14 +76,20 @@ export async function esportaVista(
 export async function esportaRichiestaAcea(
   righe: readonly RigaTabella[],
   nomeFile: string,
+  sara: SaraFiltro,
 ): Promise<void> {
-  await scriviXlsx(righe, RICHIESTA_ACEA, nomeFile, 'Richiesta saracinesche');
+  await scriviXlsx(
+    righe,
+    tracciatoRichiesta(sara),
+    nomeFile,
+    sara === 'da_esitare' ? 'Da esitare' : 'Richiesta saracinesche',
+  );
 }
 
 /** Il pezzo comune ai due export: dalle righe al file scaricato. */
 async function scriviXlsx(
   righe: readonly RigaTabella[],
-  colonne: ReadonlyArray<{ intestazione: string; larghezza: number; chiave: ChiaveColonna }>,
+  colonne: ReadonlyArray<CampoRichiesta | DefColonna>,
   nomeFile: string,
   nomeFoglio: string,
 ): Promise<void> {
