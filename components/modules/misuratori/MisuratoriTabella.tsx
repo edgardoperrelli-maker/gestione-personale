@@ -224,6 +224,18 @@ export default function MisuratoriTabella({
     });
   }, [onSelezione, sorted]);
 
+  /*
+    Chiavi d'ordinamento esposte come pillole: la tabella si ordina dalle intestazioni, le
+    schede non ne hanno una — senza questa riga, sotto md non si potrebbe ordinare affatto.
+    Le stesse chiavi della tabella (`SortKey`), stesso stato: una sola sorgente.
+  */
+  const ordinabili: Array<{ key: SortKey; label: string }> = [
+    { key: 'data_esecuzione', label: 'Data' },
+    { key: 'stato', label: 'Stato' },
+    { key: 'comune', label: 'Comune' },
+    ...(mostraCesta ? ([{ key: 'cesta', label: 'Cesta' }] as Array<{ key: SortKey; label: string }>) : []),
+  ];
+
   if (rows.length === 0) {
     return (
       <p className="py-12 text-center text-sm text-[var(--brand-text-muted)]">
@@ -233,10 +245,202 @@ export default function MisuratoriTabella({
   }
 
   return (
-    <table
-      aria-label="Registro dei misuratori rimossi"
-      className="min-w-full divide-y divide-[var(--brand-border)] text-sm"
-    >
+    <>
+      {/*
+        TELEFONO — una scheda per misuratore. La tabella qui sotto ha dieci colonne: su 428px
+        sono ~1200px di scorrimento laterale e celle da 20px, cioè un registro che si legge
+        con due dita e si modifica per sbaglio. La scheda porta in alto la MATRICOLA (è la
+        chiave con cui si cerca un contatore in mano) e lo stato, sotto il resto in ordine di
+        utilità. Stessi handler della tabella — nessuna logica duplicata, e valgono per
+        entrambi i registri (ACEA e AcquaLatina montano questo stesso componente).
+      */}
+      <div className="md:hidden">
+        <div className="flex flex-wrap items-center gap-1.5 px-1 pb-2 pt-1">
+          <span className="text-xs text-[var(--brand-text-subtle)]">Ordina</span>
+          {ordinabili.map(({ key, label }) => {
+            const attiva = sortKey === key;
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => toggleSort(key)}
+                aria-pressed={attiva}
+                className={`rounded-full border px-2.5 py-1 text-xs transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ${
+                  attiva
+                    ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)] font-semibold text-white'
+                    : 'border-[var(--brand-border)] bg-[var(--brand-surface)] text-[var(--brand-text-muted)]'
+                }`}
+              >
+                {label}
+                {attiva && (sortAsc ? ' ↑' : ' ↓')}
+              </button>
+            );
+          })}
+        </div>
+
+        <ul className="space-y-2 pb-2">
+          {sorted.map((row) => {
+            const accent = STATO_ACCENT[row.stato];
+            const scelta = spuntate.has(row.id);
+            return (
+              <li
+                key={row.id}
+                style={{ boxShadow: `inset 3px 0 0 0 ${accent}` }}
+                className={`overflow-hidden rounded-[var(--radius-lg)] border border-[var(--brand-border)] px-3 py-2.5 pl-4 ${
+                  scelta ? 'bg-[var(--brand-primary-soft)]' : 'bg-[var(--brand-surface)]'
+                }`}
+              >
+                <div className="flex items-start gap-2.5">
+                  {conSpunte && (
+                    // 44px di bersaglio col padding: la spunta è il gesto dell'assegnazione
+                    // in blocco, e a 16px nuda sul telefono si manca.
+                    <label className="-m-1.5 shrink-0 cursor-pointer p-1.5">
+                      <input
+                        type="checkbox"
+                        checked={scelta}
+                        onChange={() => toggleRiga(row.id)}
+                        aria-label={`Seleziona misuratore ${row.matricola}`}
+                        className="h-4 w-4 accent-[var(--brand-primary)]"
+                      />
+                    </label>
+                  )}
+                  {/* `truncate`: le matricole AcquaLatina arrivano anche in forma lunga
+                      (`SETA071225203189`) e senza taglio finivano addosso alla pastiglia. */}
+                  <span className="min-w-0 flex-1 truncate font-mono text-lg tabular-nums leading-tight text-[var(--brand-text-main)]">
+                    {row.matricola}
+                  </span>
+                  {/*
+                    Lo stato resta un <select> nativo: su iOS apre la ruota a tutto schermo,
+                    che è il miglior selettore che il telefono abbia — e porta con sé le
+                    stesse regole di regressione della tabella (le opzioni all'indietro sono
+                    disabilitate se non sei Admin Plus).
+                  */}
+                  <select
+                    aria-label={`Stato misuratore ${row.matricola}${
+                      isAdminPlus ? '' : '. Solo Admin Plus può riportare indietro lo stato'}`}
+                    value={row.stato}
+                    onChange={e => handleStatoChange(row.id, e.target.value as StatoMisuratore)}
+                    disabled={salvando?.has(row.id)}
+                    style={{ color: STATO_TESTO[row.stato], borderColor: accent }}
+                    className="max-w-[46%] shrink-0 truncate rounded-full border bg-[var(--brand-surface)] px-2.5 py-1 text-xs font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] disabled:cursor-wait disabled:opacity-60"
+                  >
+                    {STATI_MISURATORE.map((s, i) => (
+                      <option key={s} value={s} disabled={!isAdminPlus && i < STATI_MISURATORE.indexOf(row.stato)}>
+                        {STATO_LABEL[s]}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <p className="mt-1 truncate text-sm text-[var(--brand-text-main)]" title={row.indirizzo ?? undefined}>
+                  {row.indirizzo ?? '—'}
+                </p>
+                {/* Riga di contorno: chi, dove e quando. `PDR` solo dove esiste (ACEA). */}
+                <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs tabular-nums text-[var(--brand-text-subtle)]">
+                  <span>{row.comune ?? '—'}</span>
+                  <span aria-hidden>·</span>
+                  <span>{formatItalian(row.data_esecuzione)}</span>
+                  <span aria-hidden>·</span>
+                  <span>{row.esecutore ?? '—'}</span>
+                  {mostraPdr && row.pdr && (
+                    <>
+                      <span aria-hidden>·</span>
+                      <span className="font-mono">PDR {row.pdr}</span>
+                    </>
+                  )}
+                  <span aria-hidden>·</span>
+                  <span className="font-mono">ODL {row.odl ?? '—'}</span>
+                </p>
+
+                {/* Le due celle scrivibili, come bottoni a piena riga: stessi commit della tabella. */}
+                <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-[var(--brand-border)] pt-1.5 text-xs">
+                  {mostraCesta && (
+                    <span className="flex items-center gap-1.5">
+                      <span className="text-[var(--brand-text-subtle)]">Cesta</span>
+                      {editingCesta === row.id ? (
+                        <input
+                          autoFocus
+                          value={cestaValue}
+                          onChange={e => setCestaValue(e.target.value)}
+                          aria-label={`Cesta per il misuratore ${row.matricola}`}
+                          inputMode="numeric"
+                          disabled={salvando?.has(row.id)}
+                          onBlur={() => {
+                            if (annullaCesta.current) { annullaCesta.current = false; return; }
+                            void commitCesta(row.id, row.cesta);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') void commitCesta(row.id, row.cesta);
+                            if (e.key === 'Escape') {
+                              annullaCesta.current = true;
+                              cestaAppenaChiusa.current = row.id;
+                              setEditingCesta(null);
+                            }
+                          }}
+                          className="w-16 rounded-[var(--radius-sm)] border border-[var(--brand-primary)] bg-[var(--brand-surface)] px-1.5 py-1 font-mono text-xs tabular-nums focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] disabled:cursor-wait disabled:opacity-60"
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          data-cesta-btn={row.id}
+                          aria-label={`Modifica cesta per il misuratore ${row.matricola}`}
+                          onClick={() => {
+                            if (salvando?.has(row.id)) return;
+                            startCestaEdit(row);
+                          }}
+                          aria-disabled={salvando?.has(row.id)}
+                          className="-my-1 rounded-[var(--radius-sm)] px-1.5 py-1 font-mono text-xs tabular-nums text-[var(--brand-text-main)] underline decoration-dotted underline-offset-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] aria-disabled:cursor-wait aria-disabled:opacity-60"
+                        >
+                          {row.cesta?.trim() || '—'}
+                        </button>
+                      )}
+                    </span>
+                  )}
+                  <span className="flex min-w-0 flex-1 items-center gap-1.5">
+                    <span className="shrink-0 text-[var(--brand-text-subtle)]">Nota</span>
+                    {editingNote === row.id ? (
+                      <input
+                        autoFocus
+                        value={noteValue}
+                        onChange={e => setNoteValue(e.target.value)}
+                        aria-label={`Note per ${row.matricola}`}
+                        onBlur={() => {
+                          if (annullaNota.current) { annullaNota.current = false; return; }
+                          void commitNote(row.id, row.note);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') void commitNote(row.id, row.note);
+                          if (e.key === 'Escape') {
+                            annullaNota.current = true;
+                            notaAppenaChiusa.current = row.id;
+                            setEditingNote(null);
+                          }
+                        }}
+                        className="min-w-0 flex-1 rounded-[var(--radius-sm)] border border-[var(--brand-primary)] bg-[var(--brand-surface)] px-1.5 py-1 text-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        data-nota-btn={row.id}
+                        aria-label={`Modifica note per ${row.matricola}`}
+                        onClick={() => startNoteEdit(row)}
+                        className="-my-1 min-w-0 flex-1 truncate rounded-[var(--radius-sm)] px-1.5 py-1 text-left text-xs text-[var(--brand-text-main)] underline decoration-dotted underline-offset-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+                      >
+                        {row.note || '—'}
+                      </button>
+                    )}
+                  </span>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+
+      <table
+        aria-label="Registro dei misuratori rimossi"
+        className="hidden min-w-full divide-y divide-[var(--brand-border)] text-sm md:table"
+      >
       <thead className="sticky top-0 z-10 bg-[var(--brand-surface-muted)]">
         <tr>
             {conSpunte && (
@@ -485,6 +689,7 @@ export default function MisuratoriTabella({
             );
           })}
         </tbody>
-    </table>
+      </table>
+    </>
   );
 }
