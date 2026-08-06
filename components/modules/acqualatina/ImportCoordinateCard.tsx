@@ -18,6 +18,8 @@ type Esito = {
   aggiornate: number;
   giaUguali: number;
   nonTrovate: number;
+  /** Voci dei rapportini in corso di OGGI che hanno ricevuto la coordinata subito. */
+  vociAggiornate: number;
   error?: string;
 };
 
@@ -94,6 +96,7 @@ export default function ImportCoordinateCard() {
         aggiornate: body.aggiornate ?? 0,
         giaUguali: body.giaUguali ?? 0,
         nonTrovate: body.nonTrovate ?? 0,
+        vociAggiornate: body.vociAggiornate ?? 0,
       });
       toast.success(
         (body.aggiornate ?? 0) > 0
@@ -178,9 +181,15 @@ export default function ImportCoordinateCard() {
               note={esito.senzaAggancio > 0 ? `${esito.senzaAggancio} senza ODL né fornitura` : undefined}
             />
           </div>
+          {/* Il numero che dice se la giornata IN CORSO ne ha beneficiato: senza, l'import
+              sembrerebbe servire solo da domani. */}
           <p className="text-xs text-[var(--brand-text-muted)]">
-            Perché l&apos;operatore le veda, il campo <b>COORDINATE</b> va acceso nel flusso
-            AcquaLatina (Impostazioni → Azioni operatori), come gli altri campi anagrafici.
+            {esito.vociAggiornate > 0
+              ? <><b>{esito.vociAggiornate} voci</b> dei rapportini aperti oggi hanno già il «Punto esatto»: gli operatori lo vedono ricaricando la pagina. </>
+              : 'Nessun rapportino in corso oggi aveva punti di questo file. '}
+            Perché l&apos;operatore lo veda, va spuntato <b>«Mostra il link Punto esatto
+            (coordinate)»</b> nel flusso AcquaLatina — Impostazioni → Azioni operatori →
+            Sostituzione misuratori, in fondo ai dettagli della card.
           </p>
         </div>
       )}

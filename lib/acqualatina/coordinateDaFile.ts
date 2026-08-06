@@ -13,6 +13,7 @@
 
 import { parseLatLng } from '@/utils/routing/parseCoordinate';
 import { normHeader } from '@/lib/attivita/masterUpload';
+import { normMatricola } from './ordiniDaMaster';
 
 /** Una riga del file ridotta a ciò che serve: come si aggancia, e cosa porta. */
 export type RigaCoordinata = {
@@ -252,4 +253,83 @@ export function abbinaCoordinate(
   }
 
   return { aggiornamenti, giaUguali, nonTrovate };
+}
+
+/* ------------------------------------------------------------------------------------------------
+   Dal registro ai rapportini GIÀ APERTI.
+
+   Il motore dei rapportini scrive la coordinata nel `raw_json` della voce quando la voce NASCE. Una
+   giornata già distribuita — gli operatori hanno il link in mano da stamattina — resterebbe senza,
+   e l'import servirebbe solo da domani. Queste due funzioni chiudono quel buco: dopo aver scritto
+   il registro, l'import ripassa sulle voci del giorno e ci mette la coordinata che ora esiste.
+   ------------------------------------------------------------------------------------------------ */
+
+/** Riga di registro come serve alla propagazione: la matricola normalizzata è la seconda chiave. */
+export type OrdineConMatricola = OrdineDaCoordinare & { matricola_norm?: string | null };
+
+/**
+ * Le coordinate del registro indicizzate come le cerca una voce di rapportino.
+ *
+ * DUE chiavi per riga, e l'ordine di preferenza lo decide chi legge (`vociDaAggiornare`):
+ *  - `odl#matricola` — quella giusta, perché su AcquaLatina un ordine copre fino a cinque contatori
+ *    e ognuno ha la sua fornitura, quindi il suo punto;
+ *  - `odl` da solo — il ripiego per la voce che la matricola non ce l'ha (o l'ha scritta in un'altra
+ *    forma). Vince la prima riga dell'ordine: su un condominio è comunque il portone.
+ *
+ * `aggiornamenti` sono le scritture appena fatte: si sovrappongono al valore letto prima, così la
+ * mappa descrive il registro com'è ADESSO senza doverlo rileggere.
+ */
+export function coordinatePerVoce(
+  registro: readonly OrdineConMatricola[],
+  aggiornamenti: readonly Aggiornamento[],
+): Map<string, string> {
+  const appena = new Map<string, string>(
+    aggiornamenti.map((a) => [`${a.odl}|${a.numero_operazione}`, a.coordinate]),
+  );
+  const out = new Map<string, string>();
+  for (const r of registro) {
+    const coordinata = appena.get(`${r.odl}|${r.numero_operazione}`) ?? chiave(r.coordinate);
+    if (coordinata === '') continue;
+    const odl = chiave(r.odl);
+    if (odl === '') continue;
+    const m = normMatricola(r.matricola_norm);
+    if (m !== '') out.set(`${odl}#${m}`, coordinata);
+    if (!out.has(odl)) out.set(odl, coordinata);
+  }
+  return out;
+}
+
+/** Una voce di rapportino, ridotta a quello che la propagazione guarda. */
+export type VoceDaCoordinare = {
+  id: string;
+  odl: string | null;
+  matricola: string | null;
+  raw_json: Record<string, unknown> | null;
+};
+
+/**
+ * Le voci da riscrivere, col loro `raw_json` GIÀ FUSO.
+ *
+ * Il raw_json si conserva intero e ci si aggiunge `coordinate`: dentro ci vivono la nota
+ * dell'ufficio, il badge «nuovo», il flag di provenienza — sostituirlo con un oggetto di una chiave
+ * sola cancellerebbe roba che l'operatore sta guardando.
+ *
+ * Chi ha già quella coordinata non entra: rilanciare l'import non riscrive le voci.
+ */
+export function vociDaAggiornare(
+  voci: readonly VoceDaCoordinare[],
+  coordinate: ReadonlyMap<string, string>,
+): Array<{ id: string; raw_json: Record<string, unknown> }> {
+  const out: Array<{ id: string; raw_json: Record<string, unknown> }> = [];
+  for (const v of voci) {
+    const odl = chiave(v.odl);
+    if (odl === '') continue;
+    const m = normMatricola(v.matricola);
+    const coordinata = (m !== '' ? coordinate.get(`${odl}#${m}`) : undefined) ?? coordinate.get(odl);
+    if (!coordinata) continue;
+    const raw = v.raw_json ?? {};
+    if (chiave(raw.coordinate as string | undefined) === coordinata) continue;
+    out.push({ id: v.id, raw_json: { ...raw, coordinate: coordinata } });
+  }
+  return out;
 }

@@ -2,8 +2,10 @@ import 'server-only';
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireAdmin } from '@/lib/apiAuth';
+import { partiRoma } from '@/lib/orarioRoma';
 import {
-  abbinaCoordinate, righeDaPayload, type OrdineDaCoordinare,
+  abbinaCoordinate, coordinatePerVoce, righeDaPayload, vociDaAggiornare,
+  type OrdineConMatricola, type VoceDaCoordinare,
 } from '@/lib/acqualatina/coordinateDaFile';
 
 export const runtime = 'nodejs';
@@ -57,14 +59,14 @@ export async function POST(req: Request) {
   try {
     // Il registro intero, paginato: l'abbinamento è per fornitura, che non è indicizzata — e
     // comunque una scansione sola costa meno di migliaia di query puntuali.
-    const registro: OrdineDaCoordinare[] = [];
+    const registro: OrdineConMatricola[] = [];
     for (let offset = 0; ; offset += PAGINA) {
       const { data, error } = await supabaseAdmin
         .from('acqualatina_ordini')
-        .select('odl, numero_operazione, impianto, coordinate')
+        .select('odl, numero_operazione, impianto, matricola_norm, coordinate')
         .range(offset, offset + PAGINA - 1);
       if (error) throw error;
-      const blocco = (data ?? []) as OrdineDaCoordinare[];
+      const blocco = (data ?? []) as OrdineConMatricola[];
       registro.push(...blocco);
       if (blocco.length < PAGINA) break;
     }
@@ -86,8 +88,59 @@ export async function POST(req: Request) {
       }));
     }
 
+    /*
+      ---- I rapportini GIÀ APERTI di oggi ------------------------------------------------------
+
+      Il motore scrive la coordinata nel `raw_json` quando la voce NASCE: una giornata già
+      distribuita — gli operatori hanno il link in mano da stamattina — resterebbe senza, e
+      l'import servirebbe solo da domani. Qui la coordinata scende anche su quelle voci.
+
+      Solo i rapportini `in_corso` di OGGI. Un rapportino inviato non si tocca: è consegnato, e
+      questo modulo non altera in silenzio il lavoro chiuso — la regola del motore rapportini, non
+      un'eccezione inventata qui. I giorni passati nemmeno: sono la fotografia di dov'è andata la
+      squadra, non una lista da arricchire.
+
+      DECORAZIONE: se questo passo fallisce, l'import del registro resta valido e la risposta lo
+      dice con `vociAggiornate: 0`. Le coordinate sono comunque a registro, e i rapportini di
+      domani le prendono dal motore.
+    */
+    let vociAggiornate = 0;
+    try {
+      const oggi = partiRoma(new Date()).oggi;
+      const { data: rapp, error: eRapp } = await supabaseAdmin
+        .from('rapportini').select('id').eq('data', oggi).eq('stato', 'in_corso');
+      if (eRapp) throw eRapp;
+      const idRapportini = ((rapp ?? []) as Array<{ id: string }>).map((r) => r.id);
+
+      if (idRapportini.length > 0) {
+        const voci: VoceDaCoordinare[] = [];
+        for (let i = 0; i < idRapportini.length; i += 100) {
+          const { data, error } = await supabaseAdmin
+            .from('rapportino_voci')
+            .select('id, odl, matricola, raw_json')
+            .in('rapportino_id', idRapportini.slice(i, i + 100))
+            .not('odl', 'is', null);
+          if (error) throw error;
+          voci.push(...((data ?? []) as VoceDaCoordinare[]));
+        }
+        // La mappa è costruita SOLO dal registro acqualatina: una voce ACEA o Italgas del giorno
+        // non ci si trova dentro, e resta intatta senza bisogno di filtrarla per committente.
+        const daScrivere = vociDaAggiornare(voci, coordinatePerVoce(registro, aggiornamenti));
+        for (let i = 0; i < daScrivere.length; i += CONCORRENZA) {
+          await Promise.all(daScrivere.slice(i, i + CONCORRENZA).map(async (v) => {
+            const { error } = await supabaseAdmin
+              .from('rapportino_voci').update({ raw_json: v.raw_json }).eq('id', v.id);
+            if (error) throw error;
+            vociAggiornate += 1;
+          }));
+        }
+      }
+    } catch (e) {
+      console.error('[acqualatina/coordinate] propagazione ai rapportini di oggi non riuscita:', e);
+    }
+
     return NextResponse.json(
-      { conCoordinate: righe.length, aggiornate, giaUguali, nonTrovate },
+      { conCoordinate: righe.length, aggiornate, giaUguali, nonTrovate, vociAggiornate },
       { headers: { 'Cache-Control': 'no-store' } },
     );
   } catch (e) {

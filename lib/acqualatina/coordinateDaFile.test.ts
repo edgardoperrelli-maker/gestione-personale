@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  LIMITE_RIGHE_FOGLIO, abbinaCoordinate, parseCoordinateFile, righeDaPayload,
-  trovaHeaderCoordinate, type OrdineDaCoordinare,
+  LIMITE_RIGHE_FOGLIO, abbinaCoordinate, coordinatePerVoce, parseCoordinateFile, righeDaPayload,
+  trovaHeaderCoordinate, vociDaAggiornare, type OrdineConMatricola, type OrdineDaCoordinare,
 } from './coordinateDaFile';
 
 /** L'header vero dell'estrazione di Terracina, ridotto alle colonne che contano. */
@@ -215,5 +215,97 @@ describe('abbinaCoordinate', () => {
     expect(res.aggiornamenti).toEqual([
       { odl: '912350788', numero_operazione: '1', coordinate: '41.111, 13.111' },
     ]);
+  });
+});
+
+describe('coordinatePerVoce', () => {
+  const riga = (over: Partial<OrdineConMatricola> = {}): OrdineConMatricola => ({
+    odl: '912350788', numero_operazione: '1', impianto: '77942025',
+    matricola_norm: 'MAT1', coordinate: null, ...over,
+  });
+
+  it('indicizza per odl#matricola e per odl', () => {
+    const m = coordinatePerVoce([riga({ coordinate: '41.1, 13.1' })], []);
+    expect(m.get('912350788#MAT1')).toBe('41.1, 13.1');
+    expect(m.get('912350788')).toBe('41.1, 13.1');
+  });
+
+  /* Le scritture appena fatte valgono più del valore letto prima: la mappa descrive il registro
+     com'è ADESSO, senza rileggerlo. */
+  it('gli aggiornamenti appena scritti vincono sul valore vecchio', () => {
+    const m = coordinatePerVoce(
+      [riga({ coordinate: '40.0, 14.0' })],
+      [{ odl: '912350788', numero_operazione: '1', coordinate: '41.9, 13.9' }],
+    );
+    expect(m.get('912350788#MAT1')).toBe('41.9, 13.9');
+  });
+
+  it('sul ripiego per solo ODL vince la prima operazione (è comunque il portone)', () => {
+    const m = coordinatePerVoce([
+      riga({ numero_operazione: '1', matricola_norm: 'A', coordinate: '41.1, 13.1' }),
+      riga({ numero_operazione: '2', matricola_norm: 'B', coordinate: '41.2, 13.2' }),
+    ], []);
+    expect(m.get('912350788')).toBe('41.1, 13.1');
+    expect(m.get('912350788#B')).toBe('41.2, 13.2');
+  });
+
+  it('le righe senza coordinata non entrano', () => {
+    expect(coordinatePerVoce([riga({ coordinate: null }), riga({ coordinate: '  ' })], []).size).toBe(0);
+  });
+});
+
+describe('vociDaAggiornare', () => {
+  const mappa = new Map([
+    ['912350788#MAT1', '41.1, 13.1'],
+    ['912350788', '41.0, 13.0'],
+  ]);
+  const voce = (over: Partial<Parameters<typeof vociDaAggiornare>[0][number]> = {}) => ({
+    id: 'v1', odl: '912350788', matricola: 'MAT1', raw_json: {}, ...over,
+  });
+
+  it('la matricola è più precisa dell’ODL e vince', () => {
+    expect(vociDaAggiornare([voce()], mappa)).toEqual([
+      { id: 'v1', raw_json: { coordinate: '41.1, 13.1' } },
+    ]);
+  });
+
+  it('senza matricola ripiega sull’ODL', () => {
+    expect(vociDaAggiornare([voce({ matricola: null })], mappa)[0].raw_json.coordinate)
+      .toBe('41.0, 13.0');
+  });
+
+  it('confronta la matricola normalizzata (trattini e minuscole non contano)', () => {
+    expect(vociDaAggiornare([voce({ matricola: 'mat-1' })], mappa)[0].raw_json.coordinate)
+      .toBe('41.1, 13.1');
+  });
+
+  /* Il raw_json porta la nota dell'ufficio, il badge «nuovo», la provenienza: sostituirlo con un
+     oggetto di una chiave sola cancellerebbe quello che l'operatore sta guardando. */
+  it('CONSERVA il resto del raw_json', () => {
+    const r = vociDaAggiornare(
+      [voce({ raw_json: { _acea: true, _nuovo: true, note: 'citofonare Rossi' } })],
+      mappa,
+    );
+    expect(r[0].raw_json).toEqual({
+      _acea: true, _nuovo: true, note: 'citofonare Rossi', coordinate: '41.1, 13.1',
+    });
+  });
+
+  it('idempotente: chi ha già quella coordinata non si riscrive', () => {
+    expect(vociDaAggiornare([voce({ raw_json: { coordinate: '41.1, 13.1' } })], mappa)).toEqual([]);
+  });
+
+  it('una coordinata diversa si corregge', () => {
+    expect(vociDaAggiornare([voce({ raw_json: { coordinate: '1.0, 1.0' } })], mappa)).toHaveLength(1);
+  });
+
+  /* Le voci degli altri committenti non sono nella mappa (costruita dal solo registro
+     acqualatina): restano intatte senza bisogno di filtrarle per committente. */
+  it('una voce di un altro committente non viene toccata', () => {
+    expect(vociDaAggiornare([voce({ odl: '20044576235', matricola: 'ITGG03420' })], mappa)).toEqual([]);
+  });
+
+  it('una voce senza ODL non ha come agganciarsi', () => {
+    expect(vociDaAggiornare([voce({ odl: null })], mappa)).toEqual([]);
   });
 });
