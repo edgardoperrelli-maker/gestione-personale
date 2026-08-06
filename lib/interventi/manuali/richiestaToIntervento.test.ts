@@ -24,9 +24,11 @@ describe('richiestaToIntervento', () => {
       committente: 'italgas',
       odl: 'ODL9',
       pdr: 'PDR1',
-      nominativo: 'Mario Rossi',
-      indirizzo: 'Via Roma 1',
-      comune: 'Roma',
+      // MAIUSCOLO: è la garanzia lato server della spec 2026-06-25 (vedi `normalizza`), che
+      // questa funzione non applicava. I dati entrano come li ha digitati l'operatore.
+      nominativo: 'MARIO ROSSI',
+      indirizzo: 'VIA ROMA 1',
+      comune: 'ROMA',
       cap: '00100',
       lat: 41.9,
       lng: 12.5,
@@ -51,6 +53,49 @@ describe('richiestaToIntervento', () => {
   it('odl vuoto/spazi → null', () => {
     const d = { ...dati, anagrafica: { ...dati.anagrafica, odl: '   ' } };
     expect(richiestaToIntervento(d, ctx).odl).toBeNull();
+  });
+
+  /*
+    Il difetto che questi test presidiano, e che era in produzione.
+
+    Il comune arrivava com'era stato digitato. «Zagarolo» invece di «ZAGAROLO» su 250 righe del
+    registro massive: le schede e i filtri lo confrontano con un uguale secco contro un valore che
+    `lib/acea/comuniMassive.ts` produce già maiuscolo, quindi filtrare i «Chiusi» per ZAGAROLO ne
+    restituiva 2.488 invece di 2.738. Righe che spariscono da un elenco, con un conteggio che
+    torna: il modo peggiore di sbagliare.
+
+    Il client maiuscola già mentre si digita, ma da solo non ha tenuto — misurato su 2.802
+    interventi manuali: nominativo, matricola, ODL e PDR puliti al 100%, `comune` e `indirizzo` no.
+    Per quello la spec vuole DUE livelli, e questo è il secondo.
+  */
+  it('l’anagrafica si salva in MAIUSCOLO, comunque sia stata digitata', () => {
+    const d = {
+      ...dati,
+      anagrafica: {
+        ...dati.anagrafica,
+        comune: 'Zagarolo', via: 'via dei Mille 12/a', nominativo: 'mario rossi',
+        odl: 'odl9', pdr: 'pdr1', matricola: 'a12b',
+      },
+    };
+    const r = richiestaToIntervento(d, ctx);
+    expect(r.comune).toBe('ZAGAROLO');
+    expect(r.indirizzo).toBe('VIA DEI MILLE 12/A');
+    expect(r.nominativo).toBe('MARIO ROSSI');
+    expect(r.odl).toBe('ODL9');
+    expect(r.pdr).toBe('PDR1');
+    expect(r.matricola_contatore).toBe('A12B');
+  });
+
+  it('gli spazi ai bordi se ne vanno prima del maiuscolo, non dopo', () => {
+    // «  Zagarolo  » deve dare «ZAGAROLO», non « ZAGAROLO »: un uguale secco non perdona uno
+    // spazio più di quanto non perdoni una minuscola.
+    const d = { ...dati, anagrafica: { ...dati.anagrafica, comune: '  Zagarolo  ' } };
+    expect(richiestaToIntervento(d, ctx).comune).toBe('ZAGAROLO');
+  });
+
+  it('un campo di soli spazi resta null, non diventa stringa vuota', () => {
+    const d = { ...dati, anagrafica: { ...dati.anagrafica, comune: '   ' } };
+    expect(richiestaToIntervento(d, ctx).comune).toBeNull();
   });
   it('coordinate assenti o non parseabili → lat/lng null', () => {
     const d = { ...dati, anagrafica: { ...dati.anagrafica, coordinate: undefined } };
@@ -93,6 +138,6 @@ describe('richiestaToIntervento', () => {
     expect(r.gruppo_attivita).toBe('BONIFICHE EXTRA');
     // gli altri campi restano invariati (via, matricola, ecc.)
     expect(r.matricola_contatore).toBe('M1');
-    expect(r.indirizzo).toBe('Via Roma 1');
+    expect(r.indirizzo).toBe('VIA ROMA 1');
   });
 });
