@@ -85,6 +85,26 @@ export function motivoManuale400(
   return messaggioErroreManuale(body, 400);
 }
 
+/**
+ * Motivo amichevole per un 422 del percorso manuale, o null se il corpo non dice nulla di utile.
+ *
+ * Qui NON serve una lista di codici come per il 400: i due soli 422 della route — anagrafica
+ * senza identificativo e foto obbligatorie mancanti — dicono entrambi all'operatore cosa manca,
+ * e la route li manda già valorizzati (`dettaglio`, `mancanti`). Il generico «Dati non validi»
+ * di `classificaEsito` buttava via proprio quella parte: in campo restava una riga rossa che non
+ * spiega quale foto rifare, e senza spiegazione l'unica mossa possibile è «Rimuovi», cioè
+ * buttare il lavoro.
+ */
+export function motivoManuale422(
+  body: { error?: string; messaggio?: string; dettaglio?: string; mancanti?: string[] } | null,
+): string | null {
+  if (!body) return null;
+  const m = messaggioErroreManuale(body, 422).trim();
+  // `messaggioErroreManuale` non torna mai vuoto: se non sa nulla ripiega su "Errore 422",
+  // che non è meglio del motivo generico — in quel caso lasciamo parlare classificaEsito.
+  return m === '' || m === 'Errore 422' ? null : m;
+}
+
 /** Finestra minima prima di tentare la conferma differita: supera la finestra di sparizione osservata. */
 export const GRACE_CONFERMA_MS = 90_000;
 

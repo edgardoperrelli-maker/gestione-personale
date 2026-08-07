@@ -365,7 +365,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   if (!templateId && !campiFlussoGruppo && campiEffettivi.length === 0) {
     return NextResponse.json({ error: 'template_mancante' }, { status: 409 });
   }
-  const slotFoto = campiFoto(campiEffettivi);
+  // Il CANCELLO delle foto si applica ai campi che il "+" ha davvero mostrato in campo —
+  // l'eredità override→standard, la stessa riga del client — e NON al flusso del gruppo.
+  // I due possono descrivere la stessa foto con chiavi diverse: «TEMPLATE MANUALI LIM MASSIVE»
+  // (il modello del "+") la chiama `sostituzione_valvola`, il flusso «RAPPORTINO LIMITAZIONI
+  // MASSIVE» la chiama `sost_valvola`. Con «Sostituzione valvola = SI» la regola condizionale
+  // scatta su entrambi, ma la foto arriva con la chiave del client: pretendere quella del
+  // flusso vuol dire chiedere uno slot che sul telefono non è mai esistito, e la richiesta
+  // resta bloccata in coda per sempre (caso reale del 07/08/2026: 12 invii, stesso 422, la
+  // pratica mai arrivata). Un obbligo che il campo non può soddisfare non protegge nulla:
+  // fa solo perdere il lavoro già fatto. `campiEffettivi` resta il flusso per tutto il
+  // resto, che è la fonte giusta per la STRUTTURA della voce.
+  const campiGateFoto = risolviCampiManuali(overrideCampi, standardCampi);
+  const slotFoto = campiFoto(campiGateFoto);
 
   // Gli interventi dal "+" sono sempre a esito positivo: se non valorizzato, imposta
   // `eseguito` all'opzione positiva del template (così la colonna Eseguito si popola e i
@@ -389,9 +401,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   // Valida le foto obbligatorie → 422 se mancano (solo per il primo invio; i re-invii
   // idempotenti sono già stati intercettati sopra).
   const presentiSet = new Set(received.map((r) => r.chiave));
+  // `haEsitoNegativo` resta sui campiEffettivi: l'`eseguito` sta nel flusso e può mancare nel
+  // modello del "+", e riconoscere un esito negativo può solo TOGLIERE obblighi, mai aggiungerne.
   const esito = haEsitoNegativo(dati.risposte, campiEffettivi)
     ? { ok: true, mancanti: [] as string[] }
-    : validaFotoObbligatorie(campiEffettivi, Object.fromEntries(
+    : validaFotoObbligatorie(campiGateFoto, Object.fromEntries(
         slotFoto.map((c) => [c.chiave, presentiSet.has(c.chiave)]),
       ), dati.risposte);
   if (!esito.ok) {

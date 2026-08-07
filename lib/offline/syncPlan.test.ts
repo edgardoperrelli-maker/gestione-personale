@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ordineInvio, classificaEsito, deveRilasciareFoto, modoInvioManuale, esitoInvioManuale, motivoManuale400, GRACE_CONFERMA_MS } from './syncPlan';
+import { ordineInvio, classificaEsito, deveRilasciareFoto, modoInvioManuale, esitoInvioManuale, motivoManuale400, motivoManuale422, GRACE_CONFERMA_MS } from './syncPlan';
 import type { OutboxItem } from './types';
 
 const base = { token: 'tok', tentativi: 0, stato: 'in_attesa' as const };
@@ -157,5 +157,25 @@ describe('respinta del "+" AcquaLatina nella coda offline', () => {
       motivo: 'Intervento non più disponibile — riapri il link',
     });
     // …e il motivo generico viene poi sovrascritto da motivoManuale400 in sync.ts.
+  });
+});
+
+// Il 422 generico («Dati non validi») è un vicolo cieco: la riga resta rossa nel cassetto e
+// l'operatore non sa quale foto rifare, quindi l'unica mossa che gli resta è «Rimuovi», cioè
+// buttare il lavoro. Il corpo della route dice sempre cosa manca: va mostrato.
+describe('motivoManuale422', () => {
+  it('foto obbligatorie mancanti → elenca le foto, non "Dati non validi"', () => {
+    expect(motivoManuale422({ error: 'Foto obbligatorie mancanti', mancanti: ['SOST. VALVOLA'] }))
+      .toBe('Foto obbligatorie mancanti: SOST. VALVOLA');
+  });
+  it('anagrafica incompleta → il dettaglio del server', () => {
+    expect(motivoManuale422({
+      error: 'campi_mancanti',
+      dettaglio: 'Indicare almeno un identificativo (matricola, PDR o ODL).',
+    })).toBe('Indicare almeno un identificativo (matricola, PDR o ODL).');
+  });
+  it('corpo assente o muto → null (resta il motivo generico di classificaEsito)', () => {
+    expect(motivoManuale422(null)).toBeNull();
+    expect(motivoManuale422({})).toBeNull();
   });
 });

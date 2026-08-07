@@ -43,6 +43,26 @@ export async function rimuoviItemEBlob(it: OutboxItem): Promise<void> {
 }
 
 /**
+ * Rimette in coda un elemento "da risolvere" (PURA, così il rientro è testabile).
+ *
+ * Serve quando il blocco non dipendeva dalla pratica ma dal server: `sincronizzaToken` scarta
+ * per sempre gli item `bloccato`, quindi correggere il server non basta a farli ripartire.
+ * Caso reale del 07/08/2026: il cancello foto del "+" pretendeva uno slot che sul telefono non
+ * esisteva (cfr. gateFotoManuale.test.ts) — corretto il server, senza un rientro l'unica via
+ * restava «Rimuovi», cioè rifare da capo un lavoro già fatto, con l'operatore ormai lontano dal
+ * posto e le foto ancora in coda. Azzera i tentativi (il tetto era stato raggiunto proprio per
+ * quei fallimenti) e il motivo, che ora non vale più.
+ */
+export function riapriItemBloccato(it: OutboxItem): OutboxItem {
+  return { ...it, stato: 'in_attesa', tentativi: 0, ultimoErrore: undefined };
+}
+
+/** Rimette in coda l'elemento; far ripartire la sync resta al chiamante. */
+export async function riprovaItem(it: OutboxItem): Promise<void> {
+  await dbOutbox.put(riapriItemBloccato(it));
+}
+
+/**
  * Ripristino completo "come navigazione anonima": elimina gli elementi bloccati passati (con i loro
  * blob) e azzera cache + service worker. NON tocca gli elementi validi ancora in coda. Il reload
  * resta a carico del chiamante (subito dopo), così la pagina riparte pulita.
