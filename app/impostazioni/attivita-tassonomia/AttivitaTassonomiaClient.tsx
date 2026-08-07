@@ -306,8 +306,8 @@ export default function AttivitaTassonomiaClient({
         showFeedback(
           'success',
           `${aggiornata.descrizione} spostata in ${aggiornata.gruppo}` +
-            (n > 0 ? ` · ${n.toLocaleString('it-IT')} interventi riallineati` : '') +
-            (v > 0 ? ` · ${v.toLocaleString('it-IT')} voci di rapportini aperti già sulle nuove azioni` : '') +
+            (n > 0 ? ` · ${numeroIt(n)} interventi riallineati` : '') +
+            (v > 0 ? ` · ${numeroIt(v)} voci di rapportini aperti già sulle nuove azioni` : '') +
             '.',
         );
       }

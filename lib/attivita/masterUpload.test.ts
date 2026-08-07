@@ -51,6 +51,18 @@ describe('parseMasterUpload', () => {
     expect(out.totale).toBe(2);
     expect(out.scartate).toBe(1);
   });
+  // Stesso difetto d'origine dell'import anagrafica (bonifica del 07/08/2026): il master ACEA
+  // porta il suffisso «ENT»/«ENTE» in coda alla matricola, e da qui finiva in
+  // `template_master_righe` senza combaciare più con niente.
+  it('toglie il suffisso ENT/ENTE dalla matricola del master', () => {
+    const out = parseMasterUpload([
+      ['Ordine', 'Matricola'],
+      ['912000001', '14223205ENT'],
+      ['912000002', '124381AENTE'],
+      ['912000003', '202015210663'],
+    ]);
+    expect(out.righe.map((r) => r.matricola)).toEqual(['14223205', '124381A', '202015210663']);
+  });
   it('campi assenti nel file → stringa vuota (li riempiranno le altre fonti, se possono)', () => {
     const out = parseMasterUpload([
       ['Ordine', 'Matricola'],

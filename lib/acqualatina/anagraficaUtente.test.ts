@@ -105,11 +105,16 @@ describe('la forma della select condivisa resta valida su entrambi i registri', 
     schermata. Il contratto è dichiarato in 20260731170000_acqualatina_ordini.sql; questo test è
     la sua guardia per le due colonne nuove.
   */
-  const ROUTE = leggi('app/api/acea/ordini/route.ts');
+  /*
+    La select condivisa NON sta più nella route: è stata estratta in
+    `lib/acea/selezioneRegistro.ts`, che è anche il posto giusto dove sorvegliarla — quel file
+    esiste apposta perché una svista sulle colonne non dà errore, dà una tabella vuota.
+  */
+  const SELEZIONE = leggi('lib/acea/selezioneRegistro.ts');
   const MIGRAZIONE = leggi('supabase/migrations/20260802140000_acqualatina_anagrafica_utente.sql');
 
   it('la select espone le due colonne nuove', () => {
-    expect(ROUTE).toMatch(/'nominativo', 'recapito',/);
+    expect(SELEZIONE).toMatch(/'nominativo', 'recapito',/);
   });
 
   it('la migrazione le crea su TUTTI E DUE i registri', () => {

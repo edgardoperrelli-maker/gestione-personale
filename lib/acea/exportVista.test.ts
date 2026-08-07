@@ -1,8 +1,51 @@
 import { describe, it, expect } from 'vitest';
 import {
-  MAX_RIGHE_EXPORT, PER_PAGINA_EXPORT, nomeFileExport, nomeFoglioExport, pagineExport,
-  serialeExcel, tracciatoRichiesta,
+  MAX_RIGHE_EXPORT, PER_PAGINA_EXPORT, dedupRigheExport, nomeFileExport, nomeFoglioExport,
+  pagineExport, serialeExcel, tracciatoRichiesta,
 } from './exportVista';
+
+describe('dedupRigheExport', () => {
+  const r = (odl: string, op: string) => ({ odl, numero_operazione: op });
+
+  it('la stessa riga due volte finisce nel foglio una sola volta', () => {
+    const out = dedupRigheExport([r('12381328', '1'), r('12381328', '1'), r('12386351', '1')]);
+    expect(out.righe).toEqual([r('12381328', '1'), r('12386351', '1')]);
+    expect(out.scartate).toBe(1);
+  });
+
+  it('tiene la PRIMA occorrenza, non l’ultima', () => {
+    const primo = { odl: 'A', numero_operazione: '1', nota: 'primo' };
+    const secondo = { odl: 'A', numero_operazione: '1', nota: 'secondo' };
+    expect(dedupRigheExport([primo, secondo]).righe).toEqual([primo]);
+  });
+
+  // Il caso che rende obbligatoria la coppia: un ODL può avere più operazioni, e sono lavoro
+  // diverso. Deduplicare sul solo ODL cancellerebbe righe vere.
+  it('due operazioni dello stesso ODL NON sono un doppione', () => {
+    const out = dedupRigheExport([r('12381328', '1'), r('12381328', '2')]);
+    expect(out.righe).toHaveLength(2);
+    expect(out.scartate).toBe(0);
+  });
+
+  // Le righe della vista massive che vengono da `interventi` hanno odl '' e numero_operazione =
+  // id: restano distinte. Ma se entrambi mancassero non si può dire che siano la stessa riga.
+  it('righe senza identità si tengono tutte, non si scartano al buio', () => {
+    const out = dedupRigheExport([r('', ''), r('', ''), r('', '')]);
+    expect(out.righe).toHaveLength(3);
+    expect(out.scartate).toBe(0);
+  });
+
+  it('elenco già pulito: nessuno scarto e stesso ordine', () => {
+    const righe = [r('A', '1'), r('B', '1'), r('C', '2')];
+    const out = dedupRigheExport(righe);
+    expect(out.righe).toEqual(righe);
+    expect(out.scartate).toBe(0);
+  });
+
+  it('elenco vuoto', () => {
+    expect(dedupRigheExport([])).toEqual({ righe: [], scartate: 0 });
+  });
+});
 
 describe('pagineExport', () => {
   it('copre tutte le righe, ultima pagina parziale compresa', () => {

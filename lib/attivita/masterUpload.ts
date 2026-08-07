@@ -5,6 +5,8 @@
 // si riempiono, se possibile, dalle altre fonti. L'header può NON essere la prima riga
 // (i master ACEA hanno righe di preambolo): si scandiscono le prime righe del foglio.
 
+import { matricolaSenzaEnte } from '@/lib/limitazione/matricoleSimili';
+
 export type RigaMasterUpload = {
   odl: string;
   matricola: string;
@@ -274,7 +276,9 @@ export function parseMasterUpload(rows: unknown[][]): ParseMasterResult {
     if (!odl) { scartate++; continue; }
     righe.push({
       odl,
-      matricola: get(row, 'matricola'),
+      // Stesso taglio dell'import anagrafica: il master ACEA porta lo stesso suffisso «ENT»/«ENTE»,
+      // e da qui finirebbe in `template_master_righe` (vedi `matricolaSenzaEnte`).
+      matricola: matricolaSenzaEnte(get(row, 'matricola')),
       impianto: get(row, 'impianto'),
       indirizzo: get(row, 'indirizzo'),
       cap: get(row, 'cap'),

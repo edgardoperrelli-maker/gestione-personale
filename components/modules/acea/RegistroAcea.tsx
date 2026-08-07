@@ -28,11 +28,27 @@ import BarraAzioni from './BarraAzioni';
 import GuidaTabella from './GuidaTabella';
 import ModaleRapportini from './ModaleRapportini';
 import MenuColonne from './MenuColonne';
-import { caricaTutteLeRighe, esportaRichiestaAcea, esportaVista } from './esportaVista';
+import {
+  caricaTutteLeRighe, esportaRichiestaAcea, esportaVista, type EsitoExport,
+} from './esportaVista';
 import { useOrdiniAcea } from './useOrdiniAcea';
 import { numeroIt } from '@/utils/numero-it';
 
 const numero = (n: number) => numeroIt(n);
+
+/**
+ * La rete di sicurezza dell'export che scatta DEVE farsi sentire.
+ *
+ * `dedupRigheExport` toglie dal foglio la stessa riga comparsa due volte. Se lo facesse in
+ * silenzio, chi esporta si ritroverebbe un file più corto del conteggio che ha davanti senza
+ * niente da cui capirlo — cioè lo stesso difetto, in un'altra forma, che l'export della vista
+ * intera è nato per togliere. Se ha scartato qualcosa lo si dice: è anche il solo modo per
+ * accorgersi che il problema a monte si è ripresentato.
+ */
+function avvisaScartate({ scritte, scartate }: EsitoExport): void {
+  if (scartate <= 0) return;
+  toast.info(`Nel foglio ${numero(scritte)} righe: ${numero(scartate)} doppie sono state scartate.`);
+}
 
 const DEFINIZIONI: Record<Famiglia, DefColonna[]> = {
   dunning: COLONNE_DUNNING,
@@ -401,7 +417,7 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
     setScaricate(tutteCaricate ? righe.length : 0);
     try {
       const tutte = tutteCaricate ? righe : await caricaTutteLeRighe(query, totale, setScaricate);
-      await esportaVista(
+      avvisaScartate(await esportaVista(
         tutte,
         colonneVisibili,
         nomeFileExport({
@@ -413,7 +429,7 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
           filtrato: contaFiltriColonna(filtri) > 0 || filtri.cerca.trim() !== '',
         }),
         nomeFoglioExport(famiglia),
-      );
+      ));
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Export non riuscito.');
     } finally {
@@ -435,7 +451,7 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
   const esportaSelezione = useCallback(async () => {
     setEsportando(true);
     try {
-      await esportaVista(
+      avvisaScartate(await esportaVista(
         selezionate,
         colonneVisibili,
         nomeFileExport({
@@ -447,7 +463,7 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
           selezione: true,
         }),
         nomeFoglioExport(famiglia),
-      );
+      ));
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Export non riuscito.');
     } finally {
@@ -474,7 +490,9 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
     setScaricate(tutteCaricate ? righe.length : 0);
     try {
       const tutte = tutteCaricate ? righe : await caricaTutteLeRighe(query, totale, setScaricate);
-      await esportaRichiestaAcea(tutte, nomeFileRichiesta(famiglia, oggi, filtri.sara), filtri.sara);
+      avvisaScartate(
+        await esportaRichiestaAcea(tutte, nomeFileRichiesta(famiglia, oggi, filtri.sara), filtri.sara),
+      );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Export non riuscito.');
     } finally {
