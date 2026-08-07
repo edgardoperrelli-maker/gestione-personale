@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { anagraficaValida } from './anagraficaValida';
+import { anagraficaValida, dettaglioAnagraficaMancante } from './anagraficaValida';
 
 describe('anagraficaValida', () => {
   it('valida: ha identificativo (pdr) e indirizzo (via + comune)', () => {
@@ -40,5 +40,31 @@ describe('anagraficaValida', () => {
 
   it('lim_massive: senza identificativo resta non valida', () => {
     expect(anagraficaValida({ via: 'Corso Garibaldi 131' }, 'lim_massive')).toBe(false);
+  });
+});
+
+// La frase deve descrivere la regola APPLICATA. Prima nominava via e comune anche a chi
+// l'indirizzo non lo chiede, mandando l'operatore a cercare un campo che nessuno gli domandava.
+describe('dettaglioAnagraficaMancante', () => {
+  it("lim_massive e acqualatina: solo l'identificativo, nessun accenno all'indirizzo", () => {
+    for (const c of ['lim_massive', 'acqualatina']) {
+      const m = dettaglioAnagraficaMancante(c);
+      expect(m).toMatch(/identificativo/i);
+      expect(m).not.toMatch(/indirizzo|via|comune/i);
+    }
+  });
+  it('gli altri committenti: identificativo E indirizzo', () => {
+    for (const c of ['acea', 'italgas', 'altro', undefined]) {
+      const m = dettaglioAnagraficaMancante(c);
+      expect(m).toMatch(/identificativo/i);
+      expect(m).toMatch(/indirizzo/i);
+    }
+  });
+  it('la frase resta agganciata a chi la regola esonera davvero', () => {
+    // Se un domani `anagraficaValida` cambiasse elenco, questo test cade insieme al messaggio.
+    for (const c of ['lim_massive', 'acqualatina', 'acea', 'italgas', 'altro']) {
+      const bastaIdentificativo = anagraficaValida({ matricola: '1' }, c);
+      expect(dettaglioAnagraficaMancante(c).includes('indirizzo')).toBe(!bastaIdentificativo);
+    }
   });
 });

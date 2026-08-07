@@ -38,9 +38,12 @@ describe('guardia: modale e route usano lo STESSO predicato', () => {
     expect(modale).not.toMatch(/soloRichiesta = committente === /);
   });
 
-  it('la route spegne il cancello foto con lo stesso predicato', () => {
+  it('la route spegne il cancello foto passando dallo stesso predicato', () => {
+    // Il predicato è dentro `campiGateFoto` (gateFotoManuale.ts), che la route chiama col
+    // committente: la guardia fissa la catena, non il testo della condizione.
     const route = leggi('app', 'api', 'r', '[token]', 'intervento-manuale', 'route.ts');
-    expect(route).toMatch(/isSoloRichiesta\(committente\)/);
+    expect(route).toMatch(/campiGateFoto\(committente, overrideCampi, standardCampi\)/);
+    expect(leggi('lib', 'interventi', 'manuali', 'gateFotoManuale.ts')).toMatch(/isSoloRichiesta\(committente\)/);
   });
 
   it('anche la pre-validazione offline lo usa', () => {

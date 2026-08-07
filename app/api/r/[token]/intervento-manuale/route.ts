@@ -8,7 +8,7 @@ import { caricaTemplateManuali } from '@/lib/interventi/manuali/caricaTemplateMa
 import { buildVoceManuale } from '@/lib/interventi/manuali/buildVoceManuale';
 import type { DatiInterventoManuale, CommittenteManuale } from '@/lib/interventi/manuali/types';
 import { anagraficaValida, dettaglioAnagraficaMancante } from '@/lib/interventi/manuali/anagraficaValida';
-import { isSoloRichiesta } from '@/lib/interventi/manuali/soloRichiesta';
+import { campiGateFoto, campiEsonero, campiEtichettaFoto } from '@/lib/interventi/manuali/gateFotoManuale';
 import { esitoPositivoDefault } from '@/lib/interventi/manuali/esitoPositivoDefault';
 import { attivitaDefaultManuale } from '@/lib/interventi/manuali/attivitaPerCommittente';
 import { caricaTassonomia } from '@/lib/attivita/caricaTassonomia';
@@ -385,8 +385,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   // insoddisfacibile. Non è teoria: AcquaLatina non ha un modello "+" proprio, quindi eredita
   // il template del RAPPORTINO — e su un rapportino «RAPPORTINO LIMITAZIONI MASSIVE» o «RESINE»
   // (4 foto obbligatorie a testa) ogni richiesta di assegnazione morirebbe con un 422 eterno.
-  const campiGateFoto = isSoloRichiesta(committente) ? [] : risolviCampiManuali(overrideCampi, standardCampi);
-  const slotFoto = campiFoto(campiGateFoto);
+  const campiGate = campiGateFoto(committente, overrideCampi, standardCampi);
+  const slotFoto = campiFoto(campiGate);
 
   // Gli interventi dal "+" sono sempre a esito positivo: se non valorizzato, imposta
   // `eseguito` all'opzione positiva del template (così la colonna Eseguito si popola e i
@@ -410,11 +410,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   // Valida le foto obbligatorie → 422 se mancano (solo per il primo invio; i re-invii
   // idempotenti sono già stati intercettati sopra).
   const presentiSet = new Set(received.map((r) => r.chiave));
-  // `haEsitoNegativo` resta sui campiEffettivi: l'`eseguito` sta nel flusso e può mancare nel
-  // modello del "+", e riconoscere un esito negativo può solo TOGLIERE obblighi, mai aggiungerne.
-  const esito = haEsitoNegativo(dati.risposte, campiEffettivi)
+  // L'esonero per esito negativo si legge sull'UNIONE di cancello e flusso: sul solo flusso il
+  // client (che valuta esonero e obbligo sulla stessa lista) toglierebbe l'obbligo dove il
+  // server lo tiene, e saremmo di nuovo a un 422 insanabile — vedi campiEsonero.
+  const esito = haEsitoNegativo(dati.risposte, campiEsonero(campiGate, campiEffettivi))
     ? { ok: true, mancanti: [] as string[] }
-    : validaFotoObbligatorie(campiGateFoto, Object.fromEntries(
+    : validaFotoObbligatorie(campiGate, Object.fromEntries(
         slotFoto.map((c) => [c.chiave, presentiSet.has(c.chiave)]),
       ), dati.risposte);
   if (!esito.ok) {
@@ -482,8 +483,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
       return NextResponse.json({ error: 'upload_foto_fallito' }, { status: 502 });
     }
 
-    // Etichetta dal template effettivo se nota, altrimenti la chiave (mai scartare).
-    const etichetta = etichettaSlotFoto(chiave, campiEffettivi);
+    // Etichetta cercata PRIMA nel cancello: le chiavi arrivate sono le sue, e cercarle nel solo
+    // flusso — che le chiama diversamente — farebbe finire la chiave grezza in `slot_etichetta`
+    // e nel nome del file consegnato al committente.
+    const etichetta = etichettaSlotFoto(chiave, campiEtichettaFoto(campiGate, campiEffettivi));
     pathCaricati.push(storagePath);
     fotoCaricate.push({
       storagePath,

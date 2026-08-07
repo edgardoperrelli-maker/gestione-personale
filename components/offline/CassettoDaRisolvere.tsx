@@ -82,9 +82,13 @@ export function CassettoDaRisolvere({
               >
                 Riprova
               </Button>
+              {/* Disabilitato finché un rientro è in volo — anche di un'ALTRA riga: la sync
+                  lavora su uno snapshot della coda, e cancellare qui in mezzo farebbe riscrivere
+                  l'elemento appena rimosso con i suoi blob foto ormai eliminati. */}
               <Button
                 variant="outline"
                 size="touch"
+                disabled={riprovando !== null}
                 onClick={async () => { await rimuoviItemEBlob(it); onRimosso(); }}
               >
                 Rimuovi
@@ -104,6 +108,7 @@ export function CassettoDaRisolvere({
       <Button
         variant="outline"
         size="touch"
+        disabled={riprovando !== null}
         onClick={() => setConfermaRipristino(true)}
         className="mt-3 w-full text-[var(--danger)]"
       >

@@ -201,6 +201,10 @@ export function ModaleInterventoManuale({
   const azioni =
     step === 2 && !passoCerca ? (
       <>
+        {/* Il motivo del rifiuto va MOSTRATO anche qui: da questo passo parte l'invio dei
+            committenti "solo richiesta", e senza questa riga il bottone sembrava non fare
+            nulla — l'operatore lo ripremeva senza sapere cosa mancava. */}
+        {errore && <p className="w-full text-sm font-medium text-[var(--danger)]">Errore: {errore}</p>}
         <Button size="touch" variant="outline" className="shrink-0" onClick={() => setStep(1)}>
           Indietro
         </Button>
@@ -221,6 +225,7 @@ export function ModaleInterventoManuale({
       </>
     ) : step === 3 ? (
       <>
+        {errore && <p className="w-full text-sm font-medium text-[var(--danger)]">Errore: {errore}</p>}
         <Button size="touch" variant="outline" className="shrink-0" disabled={inviando} onClick={() => setStep(2)}>
           Indietro
         </Button>
