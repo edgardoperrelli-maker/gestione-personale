@@ -14,6 +14,7 @@ import { join } from 'node:path';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { campiFoto, validaFotoObbligatorie } from './validaFotoObbligatorie';
 import { risolviCampiManuali } from './risolviCampiManuali';
+import { isSoloRichiesta } from './soloRichiesta';
 
 /** Modello del "+" per lim_massive (solo_manuale): è quello che la modale usa come override. */
 const TEMPLATE_PIU: TemplateCampo[] = [
@@ -75,14 +76,36 @@ describe('cancello foto del "+" — chiavi divergenti fra modello manuale e flus
   });
 });
 
+// AcquaLatina non ha un modello "+" proprio (nessun template con `committente = 'acqualatina'`):
+// eredita quello del RAPPORTINO. Su un rapportino con foto obbligatorie — «RAPPORTINO LIMITAZIONI
+// MASSIVE» o «RESINE» ne hanno 4 a testa — far ricadere lì il cancello significherebbe chiedere
+// foto a un flusso che si ferma all'anagrafica e non ne raccoglie nessuna: 422 eterno, di nuovo.
+describe('committenti "solo richiesta": il cancello foto deve restare vuoto', () => {
+  const gate = (committente: string, override: TemplateCampo[], standard: TemplateCampo[]) =>
+    isSoloRichiesta(committente) ? [] : risolviCampiManuali(override, standard);
+
+  it('acqualatina su un rapportino con 4 foto obbligatorie: nessun obbligo, la richiesta passa', () => {
+    const campi = gate('acqualatina', [], TEMPLATE_FLUSSO);
+    expect(campiFoto(campi)).toEqual([]);
+    expect(validaFotoObbligatorie(campi, {}, {})).toEqual({ ok: true, mancanti: [] });
+  });
+
+  it('lim_massive sullo stesso rapportino resta invece soggetto agli obblighi', () => {
+    const campi = gate('lim_massive', TEMPLATE_PIU, TEMPLATE_FLUSSO);
+    expect(validaFotoObbligatorie(campi, {}, {}).ok).toBe(false);
+  });
+});
+
 describe('guardia: la route valida le foto sui campi del "+", non sul flusso', () => {
   const sorgente = readFileSync(
     join(process.cwd(), 'app', 'api', 'r', '[token]', 'intervento-manuale', 'route.ts'),
     'utf8',
   );
 
-  it('costruisce il cancello dall\'eredità override→standard', () => {
-    expect(sorgente).toMatch(/const campiGateFoto = risolviCampiManuali\(overrideCampi, standardCampi\)/);
+  it('costruisce il cancello dall\'eredità override→standard, vuoto sui "solo richiesta"', () => {
+    expect(sorgente).toMatch(
+      /const campiGateFoto = isSoloRichiesta\(committente\) \? \[\] : risolviCampiManuali\(overrideCampi, standardCampi\)/,
+    );
     expect(sorgente).toMatch(/const slotFoto = campiFoto\(campiGateFoto\)/);
   });
 

@@ -7,7 +7,8 @@ import { risolviTemplateCommittente, type TemplateRow } from '@/lib/interventi/m
 import { caricaTemplateManuali } from '@/lib/interventi/manuali/caricaTemplateManuali';
 import { buildVoceManuale } from '@/lib/interventi/manuali/buildVoceManuale';
 import type { DatiInterventoManuale, CommittenteManuale } from '@/lib/interventi/manuali/types';
-import { anagraficaValida } from '@/lib/interventi/manuali/anagraficaValida';
+import { anagraficaValida, dettaglioAnagraficaMancante } from '@/lib/interventi/manuali/anagraficaValida';
+import { isSoloRichiesta } from '@/lib/interventi/manuali/soloRichiesta';
 import { esitoPositivoDefault } from '@/lib/interventi/manuali/esitoPositivoDefault';
 import { attivitaDefaultManuale } from '@/lib/interventi/manuali/attivitaPerCommittente';
 import { caricaTassonomia } from '@/lib/attivita/caricaTassonomia';
@@ -135,10 +136,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
 
   const anagrafica = rawDati.anagrafica ?? {};
   if (!anagraficaValida(anagrafica, committente)) {
-    const dettaglio = committente === 'lim_massive'
-      ? 'Indicare almeno un identificativo (matricola, PDR o ODL).'
-      : 'Indicare almeno un identificativo (PDR, ODL o matricola) e almeno un campo indirizzo (via o comune).';
-    return NextResponse.json({ error: 'campi_mancanti', dettaglio }, { status: 422 });
+    // La frase viene da dove sta la regola: `acqualatina` non chiede l'indirizzo come
+    // `lim_massive`, e qui prima glielo nominava lo stesso.
+    return NextResponse.json(
+      { error: 'campi_mancanti', dettaglio: dettaglioAnagraficaMancante(committente) },
+      { status: 422 },
+    );
   }
 
   // Attività di default per committente (es. lim_massive → "LIMITAZIONI MASSIVE"): il personale
@@ -376,7 +379,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   // pratica mai arrivata). Un obbligo che il campo non può soddisfare non protegge nulla:
   // fa solo perdere il lavoro già fatto. `campiEffettivi` resta il flusso per tutto il
   // resto, che è la fonte giusta per la STRUTTURA della voce.
-  const campiGateFoto = risolviCampiManuali(overrideCampi, standardCampi);
+  //
+  // E per i committenti "solo richiesta" (AcquaLatina) il cancello è VUOTO: lì la modale si
+  // ferma all'anagrafica e non raccoglie nemmeno una foto, quindi qualunque obbligo sarebbe
+  // insoddisfacibile. Non è teoria: AcquaLatina non ha un modello "+" proprio, quindi eredita
+  // il template del RAPPORTINO — e su un rapportino «RAPPORTINO LIMITAZIONI MASSIVE» o «RESINE»
+  // (4 foto obbligatorie a testa) ogni richiesta di assegnazione morirebbe con un 422 eterno.
+  const campiGateFoto = isSoloRichiesta(committente) ? [] : risolviCampiManuali(overrideCampi, standardCampi);
   const slotFoto = campiFoto(campiGateFoto);
 
   // Gli interventi dal "+" sono sempre a esito positivo: se non valorizzato, imposta
