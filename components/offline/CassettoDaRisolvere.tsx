@@ -4,7 +4,8 @@
 import { useState } from 'react';
 import Button from '@/components/Button';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
-import { rimuoviItemEBlob, ripristinaApp } from '@/lib/offline/ripristino';
+import { rimuoviItemEBlob, ripristinaApp, riprovaItem } from '@/lib/offline/ripristino';
+import { sincronizzaToken } from '@/lib/offline/sync';
 import type { OutboxItem } from '@/lib/offline/types';
 
 const ETICHETTA: Record<OutboxItem['type'], string> = {
@@ -30,6 +31,8 @@ export function CassettoDaRisolvere({
   /** Conferma del ripristino "come navigazione anonima" (era un window.confirm bloccante). */
   const [confermaRipristino, setConfermaRipristino] = useState(false);
   const [ripristinando, setRipristinando] = useState(false);
+  /** Id dell'elemento in corso di rientro: tiene il suo «Riprova» in caricamento, non tutti. */
+  const [riprovando, setRiprovando] = useState<string | null>(null);
 
   // Parte SOLO dalla conferma della ConfirmDialog.
   const eseguiRipristino = async () => {
@@ -57,14 +60,40 @@ export function CassettoDaRisolvere({
               <div className="text-sm font-semibold text-[var(--brand-text-main)]">{ETICHETTA[it.type]}</div>
               <div className="text-xs text-[var(--brand-text-muted)]">{it.ultimoErrore ?? 'Non sincronizzabile'}</div>
             </div>
-            <Button
-              variant="outline"
-              size="touch"
-              onClick={async () => { await rimuoviItemEBlob(it); onRimosso(); }}
-              className="shrink-0"
-            >
-              Rimuovi
-            </Button>
+            <div className="flex shrink-0 gap-2">
+              {/* «Riprova» prima di «Rimuovi», e per primo: quando il blocco dipendeva dal server
+                  (non dalla pratica), rimuovere significa buttare un lavoro già fatto — foto
+                  comprese — e mandare l'operatore a rifarlo sul posto. */}
+              <Button
+                variant="outline"
+                size="touch"
+                disabled={riprovando === it.id}
+                loading={riprovando === it.id}
+                onClick={async () => {
+                  setRiprovando(it.id);
+                  try {
+                    await riprovaItem(it);
+                    await sincronizzaToken(it.token);
+                  } finally {
+                    setRiprovando(null);
+                    onRimosso();
+                  }
+                }}
+              >
+                Riprova
+              </Button>
+              {/* Disabilitato finché un rientro è in volo — anche di un'ALTRA riga: la sync
+                  lavora su uno snapshot della coda, e cancellare qui in mezzo farebbe riscrivere
+                  l'elemento appena rimosso con i suoi blob foto ormai eliminati. */}
+              <Button
+                variant="outline"
+                size="touch"
+                disabled={riprovando !== null}
+                onClick={async () => { await rimuoviItemEBlob(it); onRimosso(); }}
+              >
+                Rimuovi
+              </Button>
+            </div>
           </li>
         ))}
       </ul>
@@ -79,6 +108,7 @@ export function CassettoDaRisolvere({
       <Button
         variant="outline"
         size="touch"
+        disabled={riprovando !== null}
         onClick={() => setConfermaRipristino(true)}
         className="mt-3 w-full text-[var(--danger)]"
       >

@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { validaManualeClient } from './validateManuale';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 
@@ -56,5 +58,72 @@ describe('validaManualeClient', () => {
       risposte: { sostituzione_valvola: 'SI' },
     });
     expect(con.ok).toBe(true);
+  });
+});
+
+// Regressione: il messaggio nominava sempre via/comune, anche per i committenti che l'indirizzo
+// non lo chiedono. Mandava l'operatore a compilare un campo che nessuno gli stava domandando.
+describe('validaManualeClient — il motivo descrive la regola applicata', () => {
+  it('lim_massive: chiede solo un identificativo, e non nomina l\'indirizzo', () => {
+    const r = validaManualeClient({ anagrafica: {}, campiTemplate: [], slotFotoPresenti: {}, committente: 'lim_massive' });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.motivo).toMatch(/identificativo/i);
+      expect(r.motivo).not.toMatch(/indirizzo|via|comune/i);
+    }
+  });
+  it('lim_massive con la sola matricola: passa (l\'indirizzo lo completa l\'ufficio)', () => {
+    expect(validaManualeClient({
+      anagrafica: { matricola: '202015276676' }, campiTemplate: [], slotFotoPresenti: {}, committente: 'lim_massive',
+    }).ok).toBe(true);
+  });
+  it('committente ordinario: il messaggio continua a chiedere anche l\'indirizzo', () => {
+    const r = validaManualeClient({ anagrafica: { pdr: '123' }, campiTemplate: campi, slotFotoPresenti: {}, committente: 'italgas' });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.motivo).toMatch(/indirizzo/i);
+  });
+});
+
+// AcquaLatina: la modale si ferma all'anagrafica e non raccoglie foto. Preteserle qui bloccherebbe
+// l'invio con un errore che dal telefono non si può togliere.
+describe('validaManualeClient — committenti "solo richiesta"', () => {
+  it('acqualatina: nessuna foto pretesa, anche con un template che le dichiara obbligatorie', () => {
+    expect(validaManualeClient({
+      anagrafica: { matricola: 'AL26A0012345' },
+      campiTemplate: campi,
+      slotFotoPresenti: { foto_contatore: false },
+      committente: 'acqualatina',
+    }).ok).toBe(true);
+  });
+  it("acqualatina senza identificativo resta però respinta: l'anagrafica vale per tutti", () => {
+    expect(validaManualeClient({
+      anagrafica: {}, campiTemplate: campi, slotFotoPresenti: {}, committente: 'acqualatina',
+    }).ok).toBe(false);
+  });
+  it('lim_massive, che NON è "solo richiesta", continua a esigere la foto obbligatoria', () => {
+    expect(validaManualeClient({
+      anagrafica: { matricola: '1' }, campiTemplate: campi, slotFotoPresenti: { foto_contatore: false }, committente: 'lim_massive',
+    }).ok).toBe(false);
+  });
+});
+
+// Questa funzione è nata come difesa contro i 422 al sync (design del 10/06/2026) ma per mesi
+// non è stata chiamata da nessuno: esisteva il test, non l'uso. Una difesa che nessuno esegue è
+// peggio di nessuna difesa, perché la si dà per attiva. La guardia fissa il collegamento.
+describe('guardia: la modale la chiama davvero, prima di accodare', () => {
+  const modale = readFileSync(
+    join(process.cwd(), 'components', 'modules', 'rapportini', 'ModaleInterventoManuale.tsx'),
+    'utf8',
+  );
+
+  it('importa e invoca validaManualeClient', () => {
+    expect(modale).toMatch(/import \{ validaManualeClient \} from '@\/lib\/offline\/validateManuale'/);
+    expect(modale).toMatch(/const pre = validaManualeClient\(\{/);
+    expect(modale).toMatch(/if \(!pre\.ok\) \{/);
+  });
+
+  it("la chiama PRIMA di accodaManuale: dopo, l'elemento è già in coda e non torna indietro", () => {
+    expect(modale.indexOf('validaManualeClient({')).toBeGreaterThan(-1);
+    expect(modale.indexOf('validaManualeClient({')).toBeLessThan(modale.indexOf('await accodaManuale('));
   });
 });

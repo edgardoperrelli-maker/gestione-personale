@@ -1,5 +1,5 @@
 import { dbOutbox, dbBlob, dbLavoro, indexedDbDisponibile } from './db';
-import { ordineInvio, classificaEsito, modoInvioManuale, esitoInvioManuale, motivoManuale400 } from './syncPlan';
+import { ordineInvio, classificaEsito, modoInvioManuale, esitoInvioManuale, motivoManuale400, motivoManuale422 } from './syncPlan';
 import { esitoErroreRete } from './outboxModel';
 import { idOutboxVoce } from './ids';
 import { inviaRitentabile } from './inviaRitentabile';
@@ -123,12 +123,15 @@ async function inviaElemento(item: OutboxItem): Promise<{ status: number; ritent
         return { status: r.status, differita: true };
       }
       if (esito.tipo === 'ritenta') return { status: r.status === 0 ? 0 : r.status, ritentabile: true };
-      // bloccato: sul 400 leggi il body — alcuni codici hanno un messaggio amichevole dedicato
-      // al posto del generico "riapri il link" (che qui sarebbe fuorviante). Il corpo è ancora
-      // integro: sopra si legge solo `if (r.ok)`, e un 400 non lo è.
-      if (r.status === 400) {
-        const j = (await r.json().catch(() => null)) as { error?: string; messaggio?: string; dettaglio?: string } | null;
-        const motivo = motivoManuale400(j);
+      // bloccato: su 400 e 422 leggi il body — porta un messaggio amichevole dedicato al posto
+      // dei generici "riapri il link" / "Dati non validi", che qui sarebbero fuorvianti (sul 422
+      // il body dice ESATTAMENTE cosa manca, ed è l'unica cosa che permette all'operatore di
+      // rimediare invece di cancellare). Il corpo è ancora integro: sopra si legge solo
+      // `if (r.ok)`, e un 400/422 non lo è.
+      if (r.status === 400 || r.status === 422) {
+        const j = (await r.json().catch(() => null)) as
+          { error?: string; messaggio?: string; dettaglio?: string; mancanti?: string[] } | null;
+        const motivo = r.status === 422 ? motivoManuale422(j) : motivoManuale400(j);
         if (motivo) return { status: r.status, motivo };
       }
       return { status: r.status };

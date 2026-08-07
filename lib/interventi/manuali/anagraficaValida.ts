@@ -17,3 +17,15 @@ export function anagraficaValida(a: AnagraficaManuale, committente?: string): bo
   const hasAddr = nv(a.via) || nv(a.comune);
   return hasId && hasAddr;
 }
+
+/**
+ * Cosa manca, detto all'operatore. Sta accanto alla regola che decide, e non in ognuno dei due
+ * chiamanti, perché la frase deve descrivere la regola APPLICATA: su `lim_massive` e
+ * `acqualatina` l'indirizzo non serve, e nominarlo manderebbe l'operatore a cercare un campo che
+ * nessuno gli sta chiedendo (il messaggio del client lo faceva).
+ */
+export function dettaglioAnagraficaMancante(committente?: string): string {
+  return committente === 'lim_massive' || committente === 'acqualatina'
+    ? 'Indicare almeno un identificativo (matricola, PDR o ODL).'
+    : 'Indicare almeno un identificativo (PDR, ODL o matricola) e almeno un campo indirizzo (via o comune).';
+}

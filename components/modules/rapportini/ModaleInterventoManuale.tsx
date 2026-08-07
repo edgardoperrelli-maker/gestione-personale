@@ -23,7 +23,9 @@ import { CercaMatricolaLimitazione } from './limitazione/CercaMatricolaLimitazio
 import { CercaMatricolaAcqualatina } from './acqualatina/CercaMatricolaAcqualatina';
 import { autofillAnagrafica } from '@/lib/limitazione/autofillAnagrafica';
 import type { VoceMatricola } from '@/lib/limitazione/matchVociMatricola';
+import { isSoloRichiesta } from '@/lib/interventi/manuali/soloRichiesta';
 import { accodaManuale } from '@/lib/offline/persistManuale';
+import { validaManualeClient } from '@/lib/offline/validateManuale';
 import { sincronizzaToken } from '@/lib/offline/sync';
 import { maiuscoloDigitando } from '@/lib/testo/maiuscolo';
 import type { TassonomiaRiga } from '@/lib/attivita/tassonomia';
@@ -121,7 +123,7 @@ export function ModaleInterventoManuale({
   // quel misuratore. L'operatore e' sul posto e senza il task sul tablet non puo' iniziare:
   // manda la richiesta, l'ufficio assegna, e solo allora compila esito e foto sul task vero.
   // Quindi qui ci si ferma all'anagrafica: niente passo 3 (esito) e 4 (foto).
-  const soloRichiesta = committente === 'acqualatina';
+  const soloRichiesta = isSoloRichiesta(committente);
 
   const handleInvia = async () => {
     if (!committente) return;
@@ -132,6 +134,21 @@ export function ModaleInterventoManuale({
     }
     if (!String(anagrafica.attivita ?? '').trim()) {
       setErrore('Scegli la descrizione attività: è obbligatoria.');
+      return;
+    }
+    // Ultimo controllo prima della coda, con le stesse regole del server. Senza, un "+" privo di
+    // identificativo (o senza una foto obbligatoria) veniva accodato lo stesso e respinto al
+    // sync con un 422: da lì non torna più indietro da solo, e all'operatore resta solo
+    // «Rimuovi». Qui invece la modale è ancora aperta e si rimedia in un tocco.
+    const pre = validaManualeClient({
+      anagrafica,
+      campiTemplate: campiEsito,
+      slotFotoPresenti: Object.fromEntries(slotFoto.map((c) => [c.chiave, foto[c.chiave] != null])),
+      risposte,
+      committente,
+    });
+    if (!pre.ok) {
+      setErrore(pre.motivo);
       return;
     }
     setInviando(true);
@@ -184,6 +201,10 @@ export function ModaleInterventoManuale({
   const azioni =
     step === 2 && !passoCerca ? (
       <>
+        {/* Il motivo del rifiuto va MOSTRATO anche qui: da questo passo parte l'invio dei
+            committenti "solo richiesta", e senza questa riga il bottone sembrava non fare
+            nulla — l'operatore lo ripremeva senza sapere cosa mancava. */}
+        {errore && <p className="w-full text-sm font-medium text-[var(--danger)]">Errore: {errore}</p>}
         <Button size="touch" variant="outline" className="shrink-0" onClick={() => setStep(1)}>
           Indietro
         </Button>
@@ -204,6 +225,7 @@ export function ModaleInterventoManuale({
       </>
     ) : step === 3 ? (
       <>
+        {errore && <p className="w-full text-sm font-medium text-[var(--danger)]">Errore: {errore}</p>}
         <Button size="touch" variant="outline" className="shrink-0" disabled={inviando} onClick={() => setStep(2)}>
           Indietro
         </Button>
