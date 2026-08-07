@@ -4,8 +4,8 @@ import {
   dataIsoCella, eColonnaData, valoreCella, type DefColonna, type RigaTabella,
 } from '@/lib/acea/colonneTabella';
 import {
-  FORMATO_DATA_EXCEL, PER_PAGINA_EXPORT, pagineExport, serialeExcel, tracciatoRichiesta,
-  type CampoRichiesta,
+  FORMATO_DATA_EXCEL, PER_PAGINA_EXPORT, dedupRigheExport, pagineExport, serialeExcel,
+  tracciatoRichiesta, type CampoRichiesta,
 } from '@/lib/acea/exportVista';
 import type { SaraFiltro } from '@/lib/acea/filtriOrdini';
 
@@ -62,8 +62,8 @@ export async function esportaVista(
   colonne: readonly DefColonna[],
   nomeFile: string,
   nomeFoglio: string,
-): Promise<void> {
-  await scriviXlsx(righe, colonne, nomeFile, nomeFoglio);
+): Promise<EsitoExport> {
+  return scriviXlsx(righe, colonne, nomeFile, nomeFoglio);
 }
 
 /**
@@ -78,14 +78,23 @@ export async function esportaRichiestaAcea(
   righe: readonly RigaTabella[],
   nomeFile: string,
   sara: SaraFiltro,
-): Promise<void> {
-  await scriviXlsx(
+): Promise<EsitoExport> {
+  return scriviXlsx(
     righe,
     tracciatoRichiesta(sara),
     nomeFile,
     sara === 'da_esitare' ? 'Da esitare' : 'Richiesta saracinesche',
   );
 }
+
+/**
+ * Cosa è finito nel file.
+ *
+ * `scartate` esiste per essere DETTO: la deduplica è una rete di sicurezza, e una rete che scatta
+ * senza farlo sapere trasforma un difetto in un file più corto di quello che ci si aspetta, senza
+ * niente da cui accorgersene. Se è > 0 il chiamante lo mostra.
+ */
+export type EsitoExport = { scritte: number; scartate: number };
 
 /**
  * Il pezzo comune a tutti gli export: dalle righe al file scaricato.
@@ -101,10 +110,13 @@ async function scriviXlsx(
   colonne: ReadonlyArray<CampoRichiesta | DefColonna>,
   nomeFile: string,
   nomeFoglio: string,
-): Promise<void> {
+): Promise<EsitoExport> {
   const XLSX = await import('xlsx');
+  // Ultima difesa prima della scrittura: la stessa riga non finisce due volte nel foglio, da
+  // qualunque delle due strade arrivi (righe riscaricate o array già in memoria).
+  const { righe: uniche, scartate } = dedupRigheExport(righe);
   const intestazione = colonne.map((c) => c.intestazione);
-  const corpo = righe.map((r) => colonne.map((c) => {
+  const corpo = uniche.map((r) => colonne.map((c) => {
     const seriale = serialeExcel(dataIsoCella(r, c.chiave));
     if (seriale !== null) return seriale;
     const v = valoreCella(r, c.chiave);
@@ -147,4 +159,5 @@ async function scriviXlsx(
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+  return { scritte: uniche.length, scartate };
 }

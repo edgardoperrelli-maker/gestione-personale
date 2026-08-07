@@ -25,6 +25,41 @@ export const PER_PAGINA_EXPORT = 500;
  */
 export const MAX_RIGHE_EXPORT = 20_000;
 
+/**
+ * Toglie dal foglio la stessa riga comparsa due volte, tenendo la PRIMA.
+ *
+ * Ultima difesa prima della scrittura, e sta qui perché il foglio esce dal browser e vive per
+ * conto suo: chi lo riapre fra un mese conta le righe e ci costruisce sopra una pivot, senza
+ * niente che lo avverta che due sono la stessa. È lo stesso motivo per cui l'export ripercorre
+ * la query fino in fondo — un file che sembra completo e non lo è è peggio di un export che manca.
+ *
+ * Serve perché una delle due strade dell'export NON ripassa dal server: quando le righe sono già
+ * tutte in memoria si scrive quell'array, che «Carica altre» fa crescere per accodamento. Il
+ * server l'ho verificato pulito (4.205 righe, 4.205 chiavi distinte, il 07/08/2026); l'array in
+ * memoria è l'unico punto in cui una pagina può finirci due volte, e da lì andrebbe dritta nel file.
+ *
+ * La chiave è la stessa della tabella (`chiaveRiga`: ODL + numero operazione) — un ODL può avere
+ * più operazioni, e deduplicare sul solo ODL cancellerebbe lavoro vero.
+ *
+ * Righe SENZA identità (entrambi i campi vuoti) si tengono tutte: non potendo dire se sono la
+ * stessa, scartarle sarebbe esattamente il troncamento silenzioso che questa funzione evita.
+ */
+export function dedupRigheExport<T extends { odl?: unknown; numero_operazione?: unknown }>(
+  righe: readonly T[],
+): { righe: T[]; scartate: number } {
+  const viste = new Set<string>();
+  const tenute: T[] = [];
+  for (const r of righe) {
+    const chiave = `${String(r?.odl ?? '').trim()}|${String(r?.numero_operazione ?? '').trim()}`;
+    if (chiave !== '|') {
+      if (viste.has(chiave)) continue;
+      viste.add(chiave);
+    }
+    tenute.push(r);
+  }
+  return { righe: tenute, scartate: righe.length - tenute.length };
+}
+
 /** Numeri di pagina (1-based) da chiedere per coprire `totale` righe. */
 export function pagineExport(totale: number, perPagina: number = PER_PAGINA_EXPORT): number[] {
   if (!Number.isFinite(totale) || totale <= 0 || perPagina <= 0) return [];
