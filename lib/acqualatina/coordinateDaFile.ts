@@ -13,6 +13,7 @@
 
 import { parseLatLng } from '@/utils/routing/parseCoordinate';
 import { normHeader } from '@/lib/attivita/masterUpload';
+import { numeroIt } from '@/utils/numero-it';
 import { normMatricola } from './ordiniDaMaster';
 
 /** Una riga del file ridotta a ciò che serve: come si aggancia, e cosa porta. */
@@ -122,7 +123,7 @@ export function parseCoordinateFile(rows: unknown[][]): ParseCoordinateResult {
   // si può sapere se sotto ce n'erano altri. Meglio fermarsi che importarne una parte in silenzio.
   if (dataRows.length >= LIMITE_RIGHE_FOGLIO - 1) {
     throw new Error(
-      `Il file supera le ${LIMITE_RIGHE_FOGLIO.toLocaleString('it-IT')} righe leggibili in un colpo: dividilo per comune e caricalo in più volte.`,
+      `Il file supera le ${numeroIt(LIMITE_RIGHE_FOGLIO)} righe leggibili in un colpo: dividilo per comune e caricalo in più volte.`,
     );
   }
   const righe: RigaCoordinata[] = [];

@@ -28,6 +28,7 @@ import { FiltriLista, RigaVoceCard, type Filtro, type RigaVoce } from '@/compone
 import { IntestazioneRiepilogo } from '@/components/modules/rapportini/IntestazioneRiepilogo';
 import type { RiepilogoRapportino, StatoVoce } from '@/utils/rapportini/riepilogo';
 import { SAMPLE_VOCE_INFO, SAMPLE_VOCI_LISTA, sampleRisposte } from '@/utils/rapportini/sampleVoce';
+import { numeroIt } from '@/utils/numero-it';
 import SezioneAccordion from './SezioneAccordion';
 import { erroreCommittenteManuale } from '@/lib/rapportini/templateScheda';
 import { chiaveTassonomia } from '@/lib/attivita/tassonomia';
@@ -731,7 +732,7 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
       showFeedback(
         'success',
         agganciate > 0
-          ? `Flusso creato · ${agganciate.toLocaleString('it-IT')} voci di rapportini già aperti ora usano queste azioni`
+          ? `Flusso creato · ${numeroIt(agganciate)} voci di rapportini già aperti ora usano queste azioni`
           : 'Flusso creato',
       );
       await reloadTemplates();
@@ -808,7 +809,7 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
         // Solo quando è successo davvero qualcosa di invisibile: delle voci già generate sono
         // passate a questo flusso. Il salvataggio normale resta silenzioso (basta la pill).
         if (res.ok && typeof json.riagganciate === 'number' && json.riagganciate > 0) {
-          showFeedback('success', `${json.riagganciate.toLocaleString('it-IT')} voci di rapportini già aperti ora usano queste azioni`);
+          showFeedback('success', `${numeroIt(json.riagganciate)} voci di rapportini già aperti ora usano queste azioni`);
         }
         setAutoState(res.ok ? 'saved' : 'error');
         if (res.ok) await reloadTemplates(); // il rail e la panoramica seguono le modifiche

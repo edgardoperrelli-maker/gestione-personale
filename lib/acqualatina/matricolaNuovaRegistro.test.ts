@@ -78,6 +78,14 @@ describe('la colonna «Matricola nuova» nel registro AcquaLatina', () => {
 describe('la chiave della risposta è la stessa da capo a fondo', () => {
   const MIGRAZIONE = leggi('supabase/migrations/20260803160000_acqualatina_matricola_nuova.sql');
   const ROUTE = leggi('app/api/acea/ordini/route.ts');
+  /*
+    La select principale NON sta più nella route: è stata estratta in `lib/acea/selezioneRegistro.ts`
+    (il `const COLONNE` è migrato lì integro, `.join(', ')` compreso). La guardia sotto cercava il
+    blocco nella route e da allora trovava stringa vuota, cioè falliva sul proprio stesso messaggio
+    «la regex è da aggiornare, non silenziare» — che è esattamente quello che si voleva succedesse
+    invece di lasciar passare un controllo diventato cieco. Qui si riaggancia al file nuovo.
+  */
+  const SELEZIONE = leggi('lib/acea/selezioneRegistro.ts');
 
   it('l\'azione del flusso e la lettura del registro usano la stessa chiave', () => {
     // LA guardia di questo file: due file scritti a distanza, una sola parola in comune.
@@ -102,7 +110,7 @@ describe('la chiave della risposta è la stessa da capo a fondo', () => {
     dice esplicitamente): una colonna nata da poco si legge A PARTE, mai nella select principale.
   */
   it('NON sta nella COLONNE principale: una migration non ancora applicata non deve spegnere il registro', () => {
-    const blocco = /const COLONNE = \[([\s\S]*?)\]\.join\(', '\);/.exec(ROUTE)?.[1] ?? '';
+    const blocco = /const COLONNE = \[([\s\S]*?)\]\.join\(', '\);/.exec(SELEZIONE)?.[1] ?? '';
     expect(blocco, 'blocco COLONNE non trovato: la regex è da aggiornare, non silenziare').not.toBe('');
     expect(blocco).not.toMatch(/['"]matricola_nuova['"]/);
   });
