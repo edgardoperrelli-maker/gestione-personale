@@ -310,32 +310,92 @@ describe('sincronizzaRapportini — risoluzione automatica del modello (senza te
     expect(tables.rapportini.find((r) => r.id === 'rap1')?.template_id).toBe('tpl1');
   });
 
-  it('piano nuovo senza rapportini → primo attivo non-manuale per nome (is_default ritirato e ignorato)', async () => {
+  it('giro non classificabile → rapportino SENZA modello (mai il primo per nome)', async () => {
     const { db, tables } = makeFakeDb(seedBase({
       rapportino_template: [
         { id: 'tpl-manuale', nome: 'AAA MANUALE', campi: [], info_campi: [], active: true, is_default: true, solo_manuale: true },
-        { id: 'tpl-a', nome: 'AAA', campi: [], info_campi: [], active: true },
+        { id: 'tpl-a', nome: 'AAA', campi: [{ chiave: 'x', etichetta: 'X', tipo: 'testo', ordine: 1 }], info_campi: [], active: true, gruppo_committente: 'acqualatina', gruppi_attivita: ['SOSTITUZIONE MISURATORI'] },
         { id: 'tpl-def', nome: 'ZZZ DEFAULT', campi: [], info_campi: [], active: true, is_default: true },
       ],
-      mappa_piani_operatori: [OP_BASE],
+      mappa_piani_operatori: [OP_BASE], // task senza attività: non dice a quale flusso appartiene
     }));
     const res = await sincronizzaRapportini(db, 'p1', {});
     expect(res.ok).toBe(true);
-    // is_default (anche se ancora presente nel DB) non conta più: vince AAA per nome.
-    expect(tables.rapportini.find((r) => r.staff_id === 's1')?.template_id).toBe('tpl-a');
+    // Il ripiego alfabetico avrebbe dato 'tpl-a' (AAA), cioè il modulo AcquaLatina a un giro
+    // che non è suo: è l'incidente del 2026-08. Meglio nessun modulo.
+    const rap = tables.rapportini.find((r) => r.staff_id === 's1');
+    expect(rap?.template_id).toBeNull();
+    expect(rap?.campi_snapshot).toEqual([]);
   });
 
-  it('primo template attivo non-manuale in ordine nome', async () => {
+  it('modello del rapportino = flusso PREVALENTE del giro (non l’ordine alfabetico)', async () => {
     const { db, tables } = makeFakeDb(seedBase({
-      rapportino_template: [
-        { id: 'tpl-b', nome: 'BBB', campi: [], info_campi: [], active: true },
-        { id: 'tpl-a', nome: 'AAA', campi: [], info_campi: [], active: true },
+      attivita_tassonomia: [
+        { committente: 'acqualatina', descrizione: 'Sostituzione misuratore', descrizione_norm: 'SOSTITUZIONE MISURATORE', gruppo: 'SOSTITUZIONE MISURATORI', attivo: true },
+        { committente: 'italgas', descrizione: 'S-PR-004 A', descrizione_norm: 'S-PR-004 A', gruppo: "ATTIVITA' ALLA CLIENTELA", attivo: true },
       ],
-      mappa_piani_operatori: [OP_BASE],
+      rapportino_template: [
+        { id: 'tpl-acqua', nome: 'AAA ACQUALATINA', campi: [{ chiave: 'matricola_nuova', etichetta: 'MATRICOLA NUOVO MISURATORE', tipo: 'matricola', ordine: 1 }], info_campi: [], active: true, gruppo_committente: 'acqualatina', gruppi_attivita: ['SOSTITUZIONE MISURATORI'] },
+        { id: 'tpl-italgas', nome: 'ZZZ ITALGAS', campi: [{ chiave: 'eseguito', etichetta: 'ESEGUITO', tipo: 'select', ordine: 1 }], info_campi: [], active: true, gruppo_committente: 'italgas', gruppi_attivita: ["ATTIVITA' ALLA CLIENTELA"] },
+      ],
+      mappa_piani_operatori: [{
+        piano_id: 'p1', staff_id: 's1', staff_name: 'Mario',
+        tasks: [
+          { id: 't1', odl: 'ODL1', attivita: 'S-PR-004 A' },
+          { id: 't2', odl: 'ODL2', attivita: 'S-PR-004 A' },
+          { id: 't3', odl: 'ODL3', attivita: 'Sostituzione misuratore' },
+        ],
+      }],
     }));
     const res = await sincronizzaRapportini(db, 'p1', {});
     expect(res.ok).toBe(true);
-    expect(tables.rapportini.find((r) => r.staff_id === 's1')?.template_id).toBe('tpl-a');
+    expect(tables.rapportini.find((r) => r.staff_id === 's1')?.template_id).toBe('tpl-italgas');
+  });
+
+  it('voce senza intervento: il flusso arriva dal TASK (tassonomia dell’attività)', async () => {
+    const { db, tables } = makeFakeDb(seedBase({
+      attivita_tassonomia: [
+        { committente: 'acea', descrizione: 'Regolarizzazione flusso idrico', descrizione_norm: 'REGOLARIZZAZIONE FLUSSO IDRICO', gruppo: 'DUNNING', attivo: true },
+        { committente: 'acqualatina', descrizione: 'Sostituzione misuratore', descrizione_norm: 'SOSTITUZIONE MISURATORE', gruppo: 'SOSTITUZIONE MISURATORI', attivo: true },
+      ],
+      rapportino_template: [
+        { id: 'tpl-acqua', nome: 'AAA ACQUALATINA', campi: [{ chiave: 'matricola_nuova', etichetta: 'MATRICOLA NUOVO MISURATORE', tipo: 'matricola', ordine: 1, obbligatoria: true }], info_campi: [], active: true, gruppo_committente: 'acqualatina', gruppi_attivita: ['SOSTITUZIONE MISURATORI'] },
+        { id: 'tpl-dunning', nome: 'LIMITAZIONI/SOSPENSIONI', campi: [{ chiave: 'eseguito', etichetta: 'ESEGUITO', tipo: 'select', ordine: 1 }], info_campi: [], active: true, gruppo_committente: 'acea', gruppi_attivita: ['DUNNING'] },
+      ],
+      // Giro AcquaLatina (modello del rapportino) con dentro un task ACEA senza intervento:
+      // è esattamente il rapportino di SIKORA del 07/08/2026.
+      mappa_piani_operatori: [{
+        piano_id: 'p1', staff_id: 's1', staff_name: 'Mario',
+        tasks: [
+          { id: 't1', odl: 'ODL1', attivita: 'Sostituzione misuratore' },
+          { id: 't2', odl: 'ODL2', attivita: 'Regolarizzazione flusso idrico' },
+        ],
+      }],
+    }));
+    const res = await sincronizzaRapportini(db, 'p1', {});
+    expect(res.ok).toBe(true);
+    const voceAcea = tables.rapportino_voci.find((v) => v.task_id === 't2');
+    expect(voceAcea?.template_id).toBe('tpl-dunning');
+    expect((voceAcea?.campi_snapshot as Array<{ chiave: string }>).map((c) => c.chiave)).toEqual(['eseguito']);
+  });
+
+  it('task non classificabile → nessun flusso per la voce, e il motore lo segnala', async () => {
+    const { db, tables } = makeFakeDb(seedBase({
+      attivita_tassonomia: [
+        { committente: 'acea', descrizione: 'Regolarizzazione flusso idrico', descrizione_norm: 'REGOLARIZZAZIONE FLUSSO IDRICO', gruppo: 'DUNNING', attivo: true },
+      ],
+      rapportino_template: [
+        { id: 'tpl-dunning', nome: 'LIMITAZIONI/SOSPENSIONI', campi: [{ chiave: 'eseguito', etichetta: 'ESEGUITO', tipo: 'select', ordine: 1 }], info_campi: [], active: true, gruppo_committente: 'acea', gruppi_attivita: ['DUNNING'] },
+      ],
+      mappa_piani_operatori: [{
+        piano_id: 'p1', staff_id: 's1', staff_name: 'Mario',
+        tasks: [{ id: 't1', odl: 'ODL1', attivita: 'ATTIVITÀ FUORI CATALOGO' }],
+      }],
+    }));
+    const res = await sincronizzaRapportini(db, 'p1', {});
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.taskSenzaFlusso).toEqual(['ATTIVITÀ FUORI CATALOGO']);
+    expect(tables.rapportino_voci.find((v) => v.task_id === 't1')?.template_id).toBeNull();
   });
 
   it('piano con task RESINE → preferisce il template risanamento al primo per nome', async () => {
