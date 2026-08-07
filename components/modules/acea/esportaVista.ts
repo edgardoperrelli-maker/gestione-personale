@@ -1,10 +1,11 @@
 'use client';
 
 import {
-  valoreCella, type DefColonna, type RigaTabella,
+  dataIsoCella, eColonnaData, valoreCella, type DefColonna, type RigaTabella,
 } from '@/lib/acea/colonneTabella';
 import {
-  PER_PAGINA_EXPORT, pagineExport, tracciatoRichiesta, type CampoRichiesta,
+  FORMATO_DATA_EXCEL, PER_PAGINA_EXPORT, pagineExport, serialeExcel, tracciatoRichiesta,
+  type CampoRichiesta,
 } from '@/lib/acea/exportVista';
 import type { SaraFiltro } from '@/lib/acea/filtriOrdini';
 
@@ -86,7 +87,15 @@ export async function esportaRichiestaAcea(
   );
 }
 
-/** Il pezzo comune ai due export: dalle righe al file scaricato. */
+/**
+ * Il pezzo comune a tutti gli export: dalle righe al file scaricato.
+ *
+ * Le DATE escono come date, non come testo. `valoreCella` dà 'dd/MM/yyyy' — giusto a schermo,
+ * inservibile in un foglio: quel testo si ordina per carattere, e la colonna Scadenza ordinata
+ * mette gennaio 2027 prima di dicembre 2026. Chi esporta lo fa quasi sempre per ordinare o
+ * filtrare per data, cioè proprio la cosa che non funzionava. Qui la cella diventa il NUMERO di
+ * Excel col suo formato: si legge identica e si ordina per davvero.
+ */
 async function scriviXlsx(
   righe: readonly RigaTabella[],
   colonne: ReadonlyArray<CampoRichiesta | DefColonna>,
@@ -96,6 +105,8 @@ async function scriviXlsx(
   const XLSX = await import('xlsx');
   const intestazione = colonne.map((c) => c.intestazione);
   const corpo = righe.map((r) => colonne.map((c) => {
+    const seriale = serialeExcel(dataIsoCella(r, c.chiave));
+    if (seriale !== null) return seriale;
     const v = valoreCella(r, c.chiave);
     // Il trattino è il segnaposto della TABELLA, che deve mostrare una cella occupata. In un
     // foglio è un valore: una cella vuota si filtra e si somma, «—» no.
@@ -104,6 +115,23 @@ async function scriviXlsx(
 
   const ws = XLSX.utils.aoa_to_sheet([intestazione, ...corpo]);
   ws['!cols'] = colonne.map((c) => ({ wch: Math.max(10, Math.round(c.larghezza / 8)) }));
+
+  /*
+    Il formato si applica CELLA PER CELLA e non alla colonna: `!cols` in xlsx porta la larghezza,
+    non il formato numerico, e senza `z` un seriale si legge `46240`.
+
+    Si tocca solo quello che è davvero un numero: una data mancante è rimasta stringa vuota (il
+    trattino qui sopra), e darle un formato data la trasformerebbe nel 30/12/1899 — cioè un buco
+    travestito da giorno.
+  */
+  const intervallo = XLSX.utils.decode_range(ws['!ref'] ?? 'A1');
+  colonne.forEach((c, indice) => {
+    if (!eColonnaData(c.chiave)) return;
+    for (let riga = 1; riga <= intervallo.e.r; riga++) {
+      const cella = ws[XLSX.utils.encode_cell({ r: riga, c: indice })];
+      if (cella && cella.t === 'n') cella.z = FORMATO_DATA_EXCEL;
+    }
+  });
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, nomeFoglio);
 

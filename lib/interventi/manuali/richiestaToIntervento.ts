@@ -3,6 +3,7 @@
 // ma origine='manuale' e created_from_mappa=false. L'I/O (insert) sta nella route.
 import type { CommittenteManuale, DatiInterventoManuale } from './types';
 import { risolviGruppo, type TassonomiaRiga } from '@/lib/attivita/tassonomia';
+import { maiuscolo } from '@/lib/testo/maiuscolo';
 
 export type ContextInterventoManuale = {
   committente: CommittenteManuale;
@@ -56,7 +57,44 @@ export type InterventoManualeRecord = {
   created_from_mappa: false;
 };
 
-const trimOrNull = (v: string | null | undefined): string | null => {
+/**
+ * Trim + MAIUSCOLO: è la garanzia lato server della regola «dati sempre in MAIUSCOLO»
+ * (docs/superpowers/specs/2026-06-25-dati-maiuscolo-design.md).
+ *
+ * Il maiuscolo qui NON è un doppione di quello che fa il client mentre si digita: la spec lo
+ * mette su due livelli apposta, e questo è il secondo — quello che copre la coda offline
+ * ri-giocata e i client non aggiornati. Fino a oggi questa funzione si fermava al trim, e infatti
+ * il primo livello da solo non ha tenuto: su 2.802 interventi manuali erano rimasti minuscoli
+ * 329 `comune` e 335 `indirizzo`, mentre nominativo, matricola, ODL e PDR — che passano dagli
+ * stessi campi ma non dallo stesso widget — erano puliti al 100%.
+ *
+ * Il prezzo di quei 329: le schede e i filtri del registro confrontano il comune con un uguale
+ * secco su un valore che `lib/acea/comuniMassive.ts` produce già maiuscolo, quindi filtrare i
+ * «Chiusi» per ZAGAROLO ne perdeva 250 senza dirlo. Una maiuscola di differenza, righe che
+ * spariscono da un elenco con un conteggio che torna.
+ *
+ * `maiuscolo` e non `.toUpperCase()` diretto: la regola ha una sola implementazione, ed è quella.
+ * Tutti i campi che passano di qui sono anagrafica e codici — l'ambito esatto della spec; i
+ * campi tecnici (id, token, percorsi foto) non arrivano a questa funzione.
+ */
+const normalizza = (v: string | null | undefined): string | null => {
+  const s = maiuscolo((v ?? '').trim());
+  return s === '' ? null : s;
+};
+
+/**
+ * Trim e basta, per il solo `intervento_tipo`.
+ *
+ * Non è una dimenticanza: quello NON è anagrafica, è una CLASSIFICAZIONE. La forma canonica gliela
+ * dà la tassonomia (`risolviGruppo` → `ris.descrizione`), e questa riga è solo il ripiego per la
+ * coda offline che porta un'attività che la tassonomia non risolve. Maiuscolarla qui
+ * inventerebbe una TERZA forma della stessa attività — accanto a quella digitata e a quella
+ * canonica — cioè esattamente il difetto che `normalizza` esiste per chiudere.
+ *
+ * Restano 249 interventi manuali con `intervento_tipo` in forma mista: vanno riconciliati con la
+ * tassonomia, non maiuscolati, ed è un lavoro a sé.
+ */
+const soloTrim = (v: string | null | undefined): string | null => {
   const s = (v ?? '').trim();
   return s === '' ? null : s;
 };
@@ -85,22 +123,22 @@ export function richiestaToIntervento(
         const ris = indice ? risolviGruppo(ctx.committente, a.attivita, indice, { allinea: 'scrittura' }) : null;
         return {
           committente: ctx.committente as string,
-          intervento_tipo: ris ? ris.descrizione : trimOrNull(a.attivita),
+          intervento_tipo: ris ? ris.descrizione : soloTrim(a.attivita),
           gruppo_attivita: ris ? ris.gruppo : null,
         };
       })();
   return {
     committente: classificazione.committente,
-    odl: trimOrNull(a.odl),
-    pdr: trimOrNull(a.pdr),
-    nominativo: trimOrNull(a.nominativo),
-    indirizzo: trimOrNull(a.via),
-    comune: trimOrNull(a.comune),
-    cap: trimOrNull(a.cap),
+    odl: normalizza(a.odl),
+    pdr: normalizza(a.pdr),
+    nominativo: normalizza(a.nominativo),
+    indirizzo: normalizza(a.via),
+    comune: normalizza(a.comune),
+    cap: normalizza(a.cap),
     lat,
     lng,
-    fascia_oraria: trimOrNull(a.fascia_oraria),
-    matricola_contatore: trimOrNull(a.matricola),
+    fascia_oraria: normalizza(a.fascia_oraria),
+    matricola_contatore: normalizza(a.matricola),
     intervento_tipo: classificazione.intervento_tipo,
     gruppo_attivita: classificazione.gruppo_attivita,
     data: ctx.data,
