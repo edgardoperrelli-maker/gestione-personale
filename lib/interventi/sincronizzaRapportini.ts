@@ -15,7 +15,8 @@ import { filtraTaskRendicontati, tuttiTaskRendicontatiAltrove, type VoceAltrui }
 import type { PositivoDettaglio } from '@/lib/interventi/caricaOdlPositivi';
 import { isTaskVia } from '@/lib/interventi/manuali/taskVia';
 import { risolviFlussoPerGruppo } from '@/lib/rapportini/flussiGruppo';
-import { committenteEquivalente } from '@/lib/attivita/tassonomia';
+import { risolviFlussoDaTask, type TaskClassificabile } from '@/lib/rapportini/flussoDaTask';
+import { buildTassonomiaIndex, committenteEquivalente, type TassonomiaRiga } from '@/lib/attivita/tassonomia';
 import { pickTemplateId } from '@/lib/interventi/templatePiano';
 import { pianoHaRisanamento, risolviTemplateRisanamento } from '@/lib/risanamento/templateRisanamento';
 import { registraAzione, type AttoreAudit } from '@/lib/audit/registra';
@@ -57,6 +58,12 @@ export type SincronizzaResult =
       odlBloccati?: string[];
       /** dettagli (data/esecutore del positivo originale) per i messaggi "già positivo il …". */
       odlBloccatiDettagli?: OdlBloccatoDettaglio[];
+      /**
+       * Task che non hanno saputo dire a quale flusso appartengono (né dall'intervento né
+       * dalla tassonomia della loro attività): le loro voci nascono SENZA campi. Si segnala
+       * invece di prestargli il modulo di un altro committente — vedi `flussoDaTask`.
+       */
+      taskSenzaFlusso?: string[];
     }
   | { ok: false; status: number; error?: string; conflicts?: unknown[] };
 
@@ -98,10 +105,32 @@ export async function sincronizzaRapportini(
     templatesAttivi = qBase.error ? [] : (((qBase.data ?? []) as unknown) as TemplateAttivoRow[]);
   }
 
+  // Flussi collegati (committente + gruppo attività) e tassonomia: servono sia alla risoluzione
+  // per-voce sia al fallback del rapportino, che da qui in poi NON è più una scelta arbitraria.
+  const flussi = templatesAttivi.filter((f) => Boolean(f.gruppo_committente));
+  const { data: tassRighe } = await db
+    .from('attivita_tassonomia')
+    .select('committente, descrizione, descrizione_norm, gruppo, attivo');
+  const tassIndex = buildTassonomiaIndex(
+    (((tassRighe ?? []) as Array<{ committente: string; descrizione: string; descrizione_norm: string; gruppo: string; attivo: boolean }>)
+      .map((r) => ({
+        committente: r.committente, descrizione: r.descrizione,
+        descrizioneNorm: r.descrizione_norm, gruppo: r.gruppo, attivo: r.attivo,
+      })) as TassonomiaRiga[]),
+  );
+  const tasksPiano = (ops ?? []).flatMap((o) => ((o.tasks as TaskClassificabile[]) ?? []));
+
   // Modello del rapportino (fallback per le voci senza flusso): esplicito dal chiamante,
   // altrimenti quello già stabilito dai rapportini esistenti del piano (riaperture: stesso
-  // modello, niente churn di link), poi risanamento se il piano ha task RESINE, poi il
-  // primo attivo non-manuale (ordine nome IT, deterministico). is_default è ritirato.
+  // modello, niente churn di link), poi risanamento se il piano ha task RESINE, poi il flusso
+  // PREVALENTE fra quelli dei task del giro.
+  //
+  // Qui c'era «il primo attivo non-manuale in ordine di nome»: una scelta alfabetica, cioè
+  // casuale rispetto al lavoro. Ha retto finché il primo in ordine era innocuo, poi il flusso
+  // «ACQUALATINA SOSTITUZIONE MISURATORI» (creato il 27/07/2026) è diventato il primo e ha
+  // messo «MATRICOLA NUOVO MISURATORE» obbligatoria addosso ai giri ACEA e Italgas. Un modulo
+  // non si eredita per ordine alfabetico: o lo dice il giro, o il rapportino nasce SENZA
+  // modello (`template_id` null, snapshot vuoto) e sono le voci a portare il proprio.
   let templateId = opts.templateId ?? null;
   if (!templateId) {
     const { data: rapsPiano } = await db.from('rapportini').select('template_id').eq('piano_id', pianoId);
@@ -112,17 +141,31 @@ export async function sincronizzaRapportini(
       .filter((t) => !t.solo_manuale)
       .map((t) => ({ id: t.id, nome: t.nome ?? '', tipo: t.tipo ?? undefined }))
       .sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
-    const tasksPiano = (ops ?? []).flatMap((o) => ((o.tasks as Array<{ attivita?: string | null }>) ?? []));
-    templateId =
-      (pianoHaRisanamento(tasksPiano) ? risolviTemplateRisanamento(candidati) : null)
-      ?? candidati[0]?.id
-      ?? null;
+    templateId = pianoHaRisanamento(tasksPiano) ? risolviTemplateRisanamento(candidati) : null;
   }
   if (!templateId) {
+    // Flusso prevalente del giro: si contano i task che sanno classificarsi. A pari merito
+    // decide l'id, per determinismo (stesso criterio del motore ACEA).
+    const conteggi = new Map<string, number>();
+    for (const t of tasksPiano) {
+      const f = risolviFlussoDaTask(t, tassIndex, flussi);
+      if (f) conteggi.set(f.id, (conteggi.get(f.id) ?? 0) + 1);
+    }
+    templateId = [...conteggi.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] ?? null;
+  }
+  // Azioni operatori davvero vuoto (nessun flusso collegato E nessun modello non-manuale):
+  // non c'è niente con cui compilare, né a livello di rapportino né di voce. Resta un errore.
+  if (!templateId && flussi.length === 0 && templatesAttivi.every((t) => t.solo_manuale)) {
     return { ok: false, status: 422, error: 'Nessun flusso attivo in Azioni operatori: impossibile generare i rapportini.' };
   }
-  const { data: tpl } = await db.from('rapportino_template').select('id, campi, info_campi, tipo').eq('id', templateId).single();
-  if (!tpl) return { ok: false, status: 404, error: 'Template non trovato' };
+  // Nessun modello risolto ma i flussi esistono: il rapportino nasce senza modulo e le voci
+  // (dal proprio flusso o dal "+") portano i campi. Meglio vuoto che con quello di un altro.
+  let tpl: { campi: unknown; info_campi?: unknown; tipo?: string | null } = { campi: [], info_campi: [], tipo: 'standard' };
+  if (templateId) {
+    const { data: tplRow } = await db.from('rapportino_template').select('id, campi, info_campi, tipo').eq('id', templateId).single();
+    if (!tplRow) return { ok: false, status: 404, error: 'Template non trovato' };
+    tpl = tplRow as typeof tpl;
+  }
 
   const operatoriPiano = (ops ?? []).map((o) => ({ staff_id: String(o.staff_id), staff_name: (o.staff_name as string | null) ?? null }));
 
@@ -330,19 +373,33 @@ export async function sincronizzaRapportini(
   }
 
   // Rapportino per-attività: ogni voce prende le azioni dal flusso del GRUPPO ATTIVITA' del suo
-  // intervento (collegamento su rapportino_template); il modello risolto sopra resta il
-  // fallback per interventi senza gruppo o gruppi senza flusso.
-  const flussi = templatesAttivi.filter((f) => Boolean(f.gruppo_committente));
+  // intervento (collegamento su rapportino_template). Se l'intervento non c'è — import del file
+  // template ODL, aggancio per ODL/matricola non riuscito, intervento nato su un altro piano —
+  // si classifica il TASK con i suoi dati (committente dichiarato o tassonomia dell'attività):
+  // è il motivo per cui le voci ACEA di un giro misto non ereditano più il modulo del rapportino.
   const gruppoByIntervento = new Map(
     ((intRows ?? []) as Array<{ id: string; committente?: string | null; gruppo_attivita?: string | null }>)
       .map((i) => [i.id, { committente: i.committente ?? null, gruppo: i.gruppo_attivita ?? null }]),
   );
-  const flussoPerVoce = (interventoId: string | null): { template_id: string; campi_snapshot: TemplateCampo[] } | null => {
-    if (!interventoId || flussi.length === 0) return null;
-    const int = gruppoByIntervento.get(interventoId);
-    if (!int) return null;
-    const flusso = risolviFlussoPerGruppo(committenteEquivalente(int.committente), int.gruppo, flussi);
-    if (!flusso || !Array.isArray(flusso.campi) || flusso.campi.length === 0) return null;
+  const taskSenzaFlusso = new Set<string>();
+  const flussoPerVoce = (
+    interventoId: string | null,
+    task?: TaskClassificabile | null,
+  ): { template_id: string; campi_snapshot: TemplateCampo[] } | null => {
+    if (flussi.length === 0) return null;
+    const int = interventoId ? gruppoByIntervento.get(interventoId) : null;
+    const flusso = int
+      ? risolviFlussoPerGruppo(committenteEquivalente(int.committente), int.gruppo, flussi)
+      : risolviFlussoDaTask(task, tassIndex, flussi);
+    if (!flusso || !Array.isArray(flusso.campi) || flusso.campi.length === 0) {
+      // Solo i task: un intervento senza flusso è già coperto dal fallback del rapportino, che
+      // per lui è il modulo del suo committente. Qui invece non sappiamo di chi sia il lavoro.
+      if (!int) {
+        const eti = String(task?.attivita ?? '').trim();
+        if (eti) taskSenzaFlusso.add(eti);
+      }
+      return null;
+    }
     return { template_id: flusso.id, campi_snapshot: flusso.campi as TemplateCampo[] };
   };
 
@@ -519,10 +576,13 @@ export async function sincronizzaRapportini(
         });
         const nuovo = existingTaskIds.has(v.task_id) ? (prevNuovoByTask.get(v.task_id) ?? false) : rapPreesisteva;
         const raw_json = { ...(v.raw_json && typeof v.raw_json === 'object' ? v.raw_json : {}), _nuovo: nuovo, _annullato: Boolean(annullato) };
-        // Voce per-attività: azioni dal flusso del gruppo del suo intervento (null = fallback
-        // rapportino). Le chiavi si scrivono solo se la select dei flussi è passata: così una
-        // migration voci non ancora applicata non fa fallire l'insert.
-        const flussoVoce = flussi.length > 0 ? flussoPerVoce(intervento_id) : null;
+        // Voce per-attività: azioni dal flusso del gruppo del suo intervento, o — se l'intervento
+        // manca — dalla classificazione del task stesso (`raw_json` è il task originale, con
+        // committente e attività). Le chiavi si scrivono solo se la select dei flussi è passata:
+        // così una migration voci non ancora applicata non fa fallire l'insert.
+        const flussoVoce = flussi.length > 0
+          ? flussoPerVoce(intervento_id, raw_json as TaskClassificabile)
+          : null;
         return {
           rapportino_id: rapId, intervento_id, ...v, raw_json,
           ...(flussi.length > 0 ? { template_id: flussoVoce?.template_id ?? null, campi_snapshot: flussoVoce?.campi_snapshot ?? null } : {}),
@@ -598,5 +658,6 @@ export async function sincronizzaRapportini(
           odlBloccatiDettagli: dettagliOdlBloccati([...odlBloccatiVoci], positiviInfo),
         }
       : {}),
+    ...(taskSenzaFlusso.size > 0 ? { taskSenzaFlusso: [...taskSenzaFlusso] } : {}),
   };
 }

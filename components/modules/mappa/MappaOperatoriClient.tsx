@@ -805,6 +805,11 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   // Template file states
   const [templateTasks, setTemplateTasks] = useState<Task[]>([]);
   const [templateGeocoding, setTemplateGeocoding] = useState<{done:number;total:number}|null>(null);
+  // Committente del file template: si chiede PRIMA di aprire il file picker. In ref perché il
+  // change dell'input arriva senza passare da un render (la scelta e il click sono lo stesso giro).
+  const [templateCommittenteOpen, setTemplateCommittenteOpen] = useState(false);
+  const [templateCommittenteScelto, setTemplateCommittenteScelto] = useState('');
+  const templateCommittenteRef = useRef<string>('');
   const fileTemplateInputRef = useRef<HTMLInputElement|null>(null);
 
   // Appointments fetch controller
@@ -1632,6 +1637,11 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   const handleTemplateFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    // Committente scelto nel passo precedente (mai vuoto: il file picker si apre solo dopo).
+    // È il dato che mancava: senza, i task del template arrivavano in rapportino non
+    // classificati e la loro voce ereditava il modulo di ripiego — quello di un altro
+    // committente. Il "+" manuale lo pretende da sempre; ora anche l'import.
+    const committenteFile = templateCommittenteRef.current || 'altro';
 
     // SOLO il template UFFICIALE è importabile (stessa regola del caricamento principale).
     if (!(await isFileTemplateUfficiale(file))) {
@@ -1654,7 +1664,9 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
           const r = await fetch('/api/attivita-tassonomia');
           if (!r.ok) throw new Error(`tassonomia HTTP ${r.status}`);
           const { righe } = (await r.json()) as { righe: TassonomiaRiga[] };
-          const esito = validaImport(parsed, 'altro', buildTassonomiaIndex(righe));
+          // Validazione sul committente DICHIARATO, non più su 'altro' (che accetta qualsiasi
+          // attività di chiunque): un file ACEA caricato come Italgas ora viene rifiutato.
+          const esito = validaImport(parsed, committenteFile, buildTassonomiaIndex(righe));
           if (!esito.ok) { setErroriImport(esito.errori); setTemplateGeocoding(null); return; } // file RIFIUTATO: niente task nel piano
         } catch {
           // Tassonomia non validabile → NON importare (come il caricamento principale).
@@ -1672,7 +1684,13 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       // Assegna ID univoci con prefisso stabile: evita collisioni con i task
       // row-{i} dell'import principale qualora si carichino entrambi.
       const prefix = `tpl-${Date.now()}`;
-      const tasks: Task[] = parsed.map((t, idx) => ({ ...t, id: `${prefix}-${idx}` }));
+      // Il committente viaggia CON il task: da qui arriva in `mappa_piani_operatori.tasks` e,
+      // alla generazione, decide il flusso della voce anche quando l'intervento non c'è.
+      const tasks: Task[] = parsed.map((t, idx) => ({
+        ...t,
+        id: `${prefix}-${idx}`,
+        committente: t.committente || committenteFile,
+      }));
 
       setTemplateGeocoding({ done: 0, total: tasks.length });
       const geocoded: Task[] = [];
@@ -2984,7 +3002,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                 { label: 'Carica Excel',                    onClick: () => fileInputRef.current?.click(),          hidden: excelMode },
                 { label: 'Carica interventi del giorno',    onClick: caricaInterventiDelGiorno,                    hidden: excelMode },
                 { label: 'Scarica Template',                onClick: downloadTemplate,                             hidden: excelMode },
-                { label: '+ Aggiungi attività da template', onClick: () => fileTemplateInputRef.current?.click(),  hidden: !(excelMode && distribution) },
+                { label: '+ Aggiungi attività da template', onClick: () => { setTemplateCommittenteScelto(defaultCommittenteManuale); setTemplateCommittenteOpen(true); }, hidden: !(excelMode && distribution) },
                 { label: '+ Aggiungi manuale',              onClick: () => setManualModalOpen(true),               hidden: !(excelMode && distribution) },
                 { label: 'Chiudi Excel',                    onClick: clearExcel,                                   hidden: !excelMode },
               ] satisfies MenuItem[]}
@@ -4210,6 +4228,41 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
         onChangeManualiLiberi={setOperatorFreeLane}
         onDistribute={() => { setAssignModalOpen(false); distributeToOps(); }}
       />
+      {templateCommittenteOpen && (
+        <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/40 p-4" onClick={() => setTemplateCommittenteOpen(false)}>
+          <div className="w-full max-w-sm rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-5" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-semibold text-[var(--brand-text-main)]">Attività da template</h3>
+            <p className="mt-1 text-sm text-[var(--brand-text-muted)]">
+              Di quale committente sono le attività di questo file? Decide il modulo che vedrà
+              l’operatore e la validazione delle attività contro il catalogo.
+            </p>
+            <label className="mt-4 block">
+              <span className="mb-1 block text-xs font-semibold text-[var(--brand-text-muted)]">Committente *</span>
+              <select
+                className="w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm"
+                value={templateCommittenteScelto}
+                onChange={(e) => setTemplateCommittenteScelto(e.target.value)}
+              >
+                <option value="" disabled>— Seleziona committente —</option>
+                {committenti.map((c) => (<option key={c.value} value={c.value}>{c.label}</option>))}
+              </select>
+            </label>
+            <div className="mt-5 flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setTemplateCommittenteOpen(false)}>Annulla</Button>
+              <Button
+                disabled={!templateCommittenteScelto}
+                onClick={() => {
+                  templateCommittenteRef.current = templateCommittenteScelto;
+                  setTemplateCommittenteOpen(false);
+                  fileTemplateInputRef.current?.click();
+                }}
+              >
+                Scegli il file
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
       {manualModalOpen && (
         <ManualTaskModal
           operators={

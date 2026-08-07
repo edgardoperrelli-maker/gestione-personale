@@ -310,8 +310,11 @@ export async function sincronizzaRapportiniAcea(
   };
 
   // Modello del rapportino creato da zero: quello indicato, altrimenti il flusso ACEA più
-  // ricorrente del giorno (così il rapportino nasce già con le azioni giuste), altrimenti il primo
-  // attivo non-manuale in ordine di nome — deterministico.
+  // ricorrente del giorno (così il rapportino nasce già con le azioni giuste). Se nessun
+  // intervento del giorno risolve un flusso non si ripiega sul primo attivo in ordine di nome:
+  // era un criterio alfabetico, cioè casuale rispetto al lavoro, e il giorno in cui il primo è
+  // diventato «ACQUALATINA SOSTITUZIONE MISURATORI» ha messo la matricola del misuratore nuovo
+  // addosso ai giri di altri committenti. Meglio fermarsi e dirlo (422 dal chiamante).
   const risolviTemplateBase = (miei: InterventoDaVoce[]): TemplateRow | null => {
     if (opts.templateId) return templates.find((t) => t.id === opts.templateId) ?? null;
     const conteggi = new Map<string, number>();
@@ -322,12 +325,7 @@ export async function sincronizzaRapportiniAcea(
     const vincente = [...conteggi.entries()].sort(
       (a, b) => b[1] - a[1] || a[0].localeCompare(b[0]),
     )[0];
-    if (vincente) return templates.find((t) => t.id === vincente[0]) ?? null;
-    return (
-      templates
-        .filter((t) => !t.solo_manuale)
-        .sort((a, b) => String(a.nome ?? '').localeCompare(String(b.nome ?? ''), 'it'))[0] ?? null
-    );
+    return vincente ? (templates.find((t) => t.id === vincente[0]) ?? null) : null;
   };
 
   // ---- 5. Nomi operatore ----------------------------------------------------------------------

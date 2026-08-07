@@ -102,7 +102,23 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
       const patch = patchInterventoLiveDaVoce(merged as Record<string, unknown>, campi);
       // La matricola del misuratore INSTALLATO, se l'operatore l'ha appena scritta o
       // scansionata: viaggia nello stesso update, come pdr/nominativo alla pianificazione.
-      const matricolaNuova = valoreMatricolaNuova((merged as Record<string, unknown>)['matricola_nuova']);
+      //
+      // Ma è un dato AcquaLatina, e si scrive sull'intervento SOLO se il lavoro è suo: è la
+      // gemella della guardia che già protegge il registro (`propagaMatricolaNuovaARegistro`).
+      // Qui mancava, e quando il modulo AcquaLatina è finito per ripiego sui giri ACEA e Italgas
+      // (fallback alfabetico del rapportino, 07/2026) i valori digitati dagli operatori per
+      // superare il campo obbligatorio — «0», «-», perfino matricole di contatori GAS — sono
+      // atterrati su interventi di altri committenti, da dove l'export interventi li avrebbe
+      // portati in un report del committente sbagliato.
+      const matricolaNuovaRisposta = valoreMatricolaNuova((merged as Record<string, unknown>)['matricola_nuova']);
+      let matricolaNuova: string | null = null;
+      if (matricolaNuovaRisposta) {
+        const { data: intRow } = await supabaseAdmin
+          .from('interventi').select('committente').eq('id', interventoId).maybeSingle();
+        const committente = (intRow as { committente: string | null } | null)?.committente ?? null;
+        if (committente === 'acqualatina') matricolaNuova = matricolaNuovaRisposta;
+        else console.warn('[r/voce] matricola_nuova ignorata: intervento non AcquaLatina', { interventoId, committente });
+      }
       // 'completa' chiude l'intervento (qualsiasi stato tranne annullato).
       // 'riapri' annulla SOLO una nostra precedente chiusura: tocca l'intervento
       // solo se è 'completato', così non declassa stati intermedi gestiti da altri flussi.
