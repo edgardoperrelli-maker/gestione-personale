@@ -126,6 +126,21 @@ describe('parseImportMisuratori', () => {
     expect(parseImportMisuratori([['Matricola']]).records).toEqual([]);
   });
 
+  // Il 07/08/2026 un'estrazione per comune ha portato 101 matricole col suffisso «ENT»/«ENTE»
+  // incollato in coda: entrate in anagrafica non combaciavano più con l'ordine ACEA, e da lì si
+  // sono propagate a interventi e rapportini perché è la riga che l'operatore sceglie.
+  it('toglie il suffisso ENT/ENTE dalla matricola importata', () => {
+    const rows = [
+      ['Matricola', 'Indirizzo'],
+      ['14223205ENT', 'Via A'],
+      ['124381AENTE', 'Via B'],
+      ['202015210663', 'Via C'],
+    ];
+    const res = parseImportMisuratori(rows);
+    expect(res.records.map((r) => r.matricola)).toEqual(['14223205', '124381A', '202015210663']);
+    expect(res.scartate).toBe(0);
+  });
+
   it('converte valori numerici (da Excel) in stringa', () => {
     const rows = [['Matricola', 'CAP'], [12345678, 80100]];
     const res = parseImportMisuratori(rows);

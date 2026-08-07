@@ -1,3 +1,5 @@
+import { matricolaSenzaEnte } from '@/lib/limitazione/matricoleSimili';
+
 /** Un misuratore di riferimento pronto per l'insert in risanamento_misuratori_ref. */
 export type MisuratoreRefInput = {
   indirizzo: string;
@@ -95,7 +97,10 @@ export function parseImportMisuratori(rows: unknown[][]): ParseResult {
   let scartate = 0;
 
   for (const row of dataRows) {
-    const matricola = get(row, 'matricola');
+    // Il suffisso «ENT»/«ENTE» di certe estrazioni per comune si toglie QUI, all'ingresso:
+    // entrato in anagrafica si propaga da solo a rapportini e interventi, perché è la riga che
+    // l'operatore poi sceglie cercando il misuratore (vedi `matricolaSenzaEnte`).
+    const matricola = matricolaSenzaEnte(get(row, 'matricola'));
     if (!matricola) { scartate++; continue; }
     records.push({
       indirizzo: get(row, 'indirizzo'),
