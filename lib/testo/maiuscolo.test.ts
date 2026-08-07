@@ -1,4 +1,41 @@
 import { describe, it, expect } from 'vitest';
+import { testoPulito } from './maiuscolo';
+
+describe('testoPulito', () => {
+  it('MAIUSCOLO, spazi doppi schiacciati, bordi tolti', () => {
+    expect(testoPulito('  Sul  Posto ')).toBe('SUL POSTO');
+    expect(testoPulito('Limitazione del flusso idrico')).toBe('LIMITAZIONE DEL FLUSSO IDRICO');
+  });
+
+  it('schiaccia anche le tabulazioni', () => {
+    expect(testoPulito('VIA\tROMA\t\t12')).toBe('VIA ROMA 12');
+  });
+
+  /*
+    Il caso che vale il test: 307 righe di `testo_ordine`/`testo_conferma` portano il testo di ACEA
+    su più righe. Con `\s+` i newline sarebbero collassati e l'ordine diventerebbe un paragrafo
+    unico — un danno irreversibile e invisibile finché qualcuno non rilegge quell'ordine.
+  */
+  it('TIENE gli a capo: il testo dell’ordine non si appiattisce', () => {
+    expect(testoPulito('prima riga\nseconda  riga')).toBe('PRIMA RIGA\nSECONDA RIGA');
+    expect(testoPulito('  a \n  b  ')).toBe('A \n B');
+  });
+
+  it('vuoto e soli spazi diventano null: una cella vuota resta vuota', () => {
+    expect(testoPulito('')).toBeNull();
+    expect(testoPulito('   ')).toBeNull();
+    expect(testoPulito('\t \t')).toBeNull();
+  });
+
+  it('null e undefined passano indenni', () => {
+    expect(testoPulito(null)).toBeNull();
+    expect(testoPulito(undefined)).toBeNull();
+  });
+
+  it('quello che è già pulito non cambia', () => {
+    expect(testoPulito('SOSTITUZIONE MISURATORE')).toBe('SOSTITUZIONE MISURATORE');
+  });
+});
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { maiuscolo, maiuscolaStringhe, maiuscolaRisposteTesto, maiuscolaEtichette, maiuscoloDigitando } from './maiuscolo';
 

@@ -7,7 +7,9 @@ describe('attivitaDefaultManuale', () => {
     expect(attivitaDefaultManuale('lim_massive')).toBe('LIMITAZIONI MASSIVE');
   });
   it('acqualatina → la DESCRIZIONE, al singolare (non il gruppo)', () => {
-    expect(attivitaDefaultManuale('acqualatina')).toBe('Sostituzione misuratore');
+    // MAIUSCOLA dal 07/08/2026 come tutti i dati; il singolare resta il punto del test — è la
+    // DESCRIZIONE dell'attività, non il gruppo «SOSTITUZIONE MISURATORI».
+    expect(attivitaDefaultManuale('acqualatina')).toBe('SOSTITUZIONE MISURATORE');
   });
   it('altri committenti → undefined (il personale la sceglie)', () => {
     expect(attivitaDefaultManuale('acea')).toBeUndefined();

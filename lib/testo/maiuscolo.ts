@@ -15,6 +15,28 @@ export function maiuscolo<T>(v: T): T {
 }
 
 /**
+ * La cella pulita: MAIUSCOLO, spazi doppi schiacciati, bordi tolti.
+ *
+ * `maiuscolo` da sola non basta per una tabella leggibile: il 07/08/2026 il registro ACEA e quello
+ * AcquaLatina mostravano «Sul Posto» accanto a «SUL POSTO» e celle con spazi doppi dentro, tutto
+ * arrivato così dagli export del committente. Sono 15.085 righe bonificate a mano: perché la
+ * bonifica valga, il testo va normalizzato quando ENTRA.
+ *
+ * GLI A CAPO SI TENGONO, e questa è la parte che si sbaglia scrivendo `\s+`: 307 righe di
+ * `testo_ordine`/`testo_conferma` portano un testo ACEA su più righe, e collassare anche i newline
+ * lo appiattirebbe in un paragrafo unico — irreversibile, e per giunta invisibile finché qualcuno
+ * non va a rileggere quell'ordine. Si schiacciano solo spazi e tabulazioni.
+ *
+ * Come `maiuscolo`, NON va usata sui campi tecnici: `famiglia` (`dunning`/`massive`), gli hash di
+ * riga, gli enum di esito. Sono interruttori, non dati — vedi l'avvertenza in testa al file.
+ */
+export function testoPulito(v: string | null | undefined): string | null {
+  if (v === null || v === undefined) return null;
+  const pulito = v.replace(/[ \t]+/g, ' ').trim();
+  return pulito === '' ? null : pulito.toUpperCase();
+}
+
+/**
  * MAIUSCOLO "IME-safe" per gli input controllati, da usare nell'`onChange`.
  *
  * Bug Android (GBoard): un input controllato React che fa `value.toUpperCase()` ad OGNI

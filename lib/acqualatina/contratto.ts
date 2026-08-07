@@ -23,7 +23,11 @@ export const GRUPPO_SOSTITUZIONE_MISURATORI = 'SOSTITUZIONE MISURATORI';
  * Su ACEA l'equivoco non si vede perché lì la descrizione è OMONIMA del gruppo
  * («LIMITAZIONI MASSIVE» è entrambe le cose), e il default per gruppo funziona per caso.
  */
-export const ATTIVITA_SOSTITUZIONE_MISURATORE = 'Sostituzione misuratore';
+// MAIUSCOLA come tutto il resto dei dati (regola di casa, vedi lib/testo/maiuscolo.ts): finisce in
+// `acqualatina_ordini.attivita` e in `interventi.intervento_tipo`, cioè in due colonne che si
+// leggono a tabella. L'aggancio alla tassonomia non se ne accorge — passa da `chiaveTassonomia`,
+// che la chiave la calcola già maiuscola e senza doppi spazi.
+export const ATTIVITA_SOSTITUZIONE_MISURATORE = 'SOSTITUZIONE MISURATORE';
 
 /**
  * Calibro di capitolato quando la colonna CALIBRO del file di pianificazione è vuota.

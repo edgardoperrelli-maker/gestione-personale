@@ -187,10 +187,10 @@ export type GruppoChiusura = {
  * voci del suo imbuto — averli sparsi fra la route del sync e questa significherebbe scoprire da
  * un filtro che uno dei tre si scrive in un altro modo.
  */
-export const STATO_APERTA = 'Aperta';
+export const STATO_APERTA = 'APERTA';
 
 /** Riga chiusa col lavoro FATTO: l'unico stato definitivo della commessa. */
-export const STATO_CHIUSA_ESEGUITA = 'Chiusa — eseguita';
+export const STATO_CHIUSA_ESEGUITA = 'CHIUSA — ESEGUITA';
 
 /**
  * Riga ancora APERTA, con l'ultima uscita andata a vuoto.
@@ -200,7 +200,7 @@ export const STATO_CHIUSA_ESEGUITA = 'Chiusa — eseguita';
  * dare all'ufficio la coda «da ripassare» in un clic, ed è il motivo per cui la vista AcquaLatina
  * non ricompone l'etichetta a schermo come fa con gli stati di ACEA.
  */
-export const STATO_APERTA_NON_ESEGUITA = 'Aperta — non eseguita';
+export const STATO_APERTA_NON_ESEGUITA = 'APERTA — NON ESEGUITA';
 
 /**
  * Riga CHIUSA senza che il lavoro sia stato fatto: l'esito `NO` della commessa.
@@ -209,7 +209,7 @@ export const STATO_APERTA_NON_ESEGUITA = 'Aperta — non eseguita';
  * rifiuta — quindi non c'è niente da ripianificare e tenere la riga in coda è rumore. È lo stato
  * che mancava: prima una riga o era fatta, o era ancora da fare.
  */
-export const STATO_CHIUSA_NON_ESEGUITA = 'Chiusa — non eseguita';
+export const STATO_CHIUSA_NON_ESEGUITA = 'CHIUSA — NON ESEGUITA';
 
 /**
  * Il `NO` chiude solo dalle uscite di questo giorno in poi.
