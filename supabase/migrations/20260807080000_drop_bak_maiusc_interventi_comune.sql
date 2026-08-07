@@ -1,0 +1,25 @@
+-- Via il backup della bonifica del comune: l'esito è confermato.
+--
+-- `bak_maiusc_interventi_comune` (330 righe, `id` + `comune`) era la rete della migration
+-- 20260806210000: `upper()` è irreversibile, e finché l'esito non era verificato il rollback doveva
+-- restare una riga di SQL. Ora è verificato — e una tabella di appoggio senza scadenza è il modo in
+-- cui un database si riempie di reperti che nessuno osa più toccare, perché nessuno sa più dire se
+-- servono ancora.
+--
+-- Le tre verifiche fatte PRIMA di droppare, in quest'ordine:
+--
+--   1. nessun comune fuori forma rimasto su `interventi`: zero righe con
+--      `comune <> upper(btrim(regexp_replace(comune, '\s+', ' ', 'g')))`, su tutti i committenti;
+--   2. tutte e 330 le righe del backup ritrovate vive, e ciascuna col comune esattamente uguale a
+--      `upper(btrim(<valore di backup>))`. È la verifica che conta davvero: dice che la
+--      trasformazione è stata QUELLA DICHIARATA, su QUELLE righe e su nessun'altra, e che nessuna
+--      riga è sparita per strada. Un conteggio soltanto non l'avrebbe detto;
+--   3. il sintomo che ha motivato la bonifica è chiuso: filtrare i «Chiusi» delle massive per
+--      ZAGAROLO torna 2.738 righe, cioè il totale vero, contro le 2.488 di prima.
+--
+-- Il seguito NON è coperto da qui, ed è scritto nella PR: restano fuori le 335 righe con
+-- `indirizzo` fuori forma (stesso difetto, stessa riga di codice, ma è testo che l'utente legge e
+-- la bonifica è irreversibile) e le 249 con `intervento_tipo` misto, che non è anagrafica ma una
+-- classificazione da riconciliare con la tassonomia.
+
+drop table if exists public.bak_maiusc_interventi_comune;
