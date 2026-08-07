@@ -14,6 +14,7 @@ import { famigliaDaTipoOrdine } from './famiglia';
 import { isAperto, isStatoNoto, normalizzaStato } from './statiOrdine';
 import { scadenzaOrdine } from './scadenza';
 import { rigaHash } from './rigaHash';
+import { testoPulito } from '@/lib/testo/maiuscolo';
 import {
   FOGLIO_ATTESO, validaIntestazione, validaProvenienza, type EsitoValidazione,
 } from './colonneExport';
@@ -58,10 +59,22 @@ function isoDaData(d: Date): string {
   return `${y}-${m}-${g}`;
 }
 
-const t = (s: string): string | null => {
-  const v = s.trim();
-  return v === '' ? null : v;
-};
+/**
+ * Ogni cella di testo dell'export entra MAIUSCOLA e con gli spazi a posto.
+ *
+ * Passa di qui tutto il testo dell'ordine, quindi è l'unico punto da toccare perché il registro
+ * resti pulito: prima l'export di ACEA portava dentro «Sul Posto» accanto a «SUL POSTO», e la
+ * stessa attività in tre grafie diverse diventava tre voci nell'imbuto di colonna.
+ *
+ * `famiglia`, `stato` e `riga_hash` NON passano da qui — sono variabili a parte, ed è giusto così:
+ * il primo è un interruttore del codice (`dunning`/`massive`), l'ultimo un hash esadecimale.
+ *
+ * CONSEGUENZA NOTA: `riga_hash` si calcola DAI valori della riga, quindi il primo import dopo
+ * questa modifica vede tutte le righe come cambiate e le riscrive una volta. Innocuo — i valori
+ * coincidono già con quelli bonificati il 07/08/2026 — ma il conteggio «modificate» di quel giro
+ * sarà pari al registro intero, e vale la pena saperlo prima di leggerlo come un allarme.
+ */
+const t = (s: string): string | null => testoPulito(s);
 
 /** Numero da cella: null se vuota o non numerica. */
 function numero(s: string): number | null {

@@ -66,7 +66,8 @@ describe('parseExportAcea — classificazione', () => {
   it('le saracinesche sono massive (ASTR) nonostante l\'attività diversa', () => {
     const s = trova('912353785');
     expect(s.famiglia).toBe('massive');
-    expect(s.attivita).toBe('Sostituzione saracinesca o valvola');
+    // MAIUSCOLA dal 07/08/2026: il testo dell'export entra normalizzato (vedi `testoPulito`).
+    expect(s.attivita).toBe('SOSTITUZIONE SARACINESCA O VALVOLA');
     expect(s.valore_netto).toBe(91.12);
   });
 
@@ -119,7 +120,7 @@ describe('parseExportAcea — misuratore', () => {
 
   it('copre tutte le righe tranne le rimozioni abusive senza impianto', () => {
     const senza = righe.filter((r) => !r.impianto && !r.matricola);
-    expect(senza.every((r) => r.attivita === 'Rimozione impianto abusivo')).toBe(true);
+    expect(senza.every((r) => r.attivita === 'RIMOZIONE IMPIANTO ABUSIVO')).toBe(true);
     expect(righe.length - senza.length).toBeGreaterThanOrEqual(38);
   });
 });
@@ -201,7 +202,7 @@ describe('parseExportAcea — avvisi non bloccanti', () => {
     // dove la matricola non serve e spesso non esiste ("SCISSIONE_ODL_PADRE", "RICERCA FRODE…").
     const assenti = esito.ok ? esito.avvisi.filter((a) => a.tipo === 'misuratore_assente') : [];
     for (const a of assenti) {
-      expect(trova(a.odl, a.numero_operazione).attivita).toBe('Rimozione impianto abusivo');
+      expect(trova(a.odl, a.numero_operazione).attivita).toBe('RIMOZIONE IMPIANTO ABUSIVO');
     }
   });
 });
