@@ -76,6 +76,14 @@
 	<string>L'accesso alle foto serve per allegare ai rapportini immagini già scattate sul posto.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>La posizione serve per mostrare sulla mappa dove ti trovi rispetto agli interventi che ti sono stati assegnati.</string>
+	<!-- Richiesta da Apple con ITMS-90683 sul build 1.0(4): @capacitor/geolocation
+	     collega CoreLocation, e il binario referenzia ANCHE l'autorizzazione
+	     «always» — l'analisi statica la pretende benché noi chiediamo solo il
+	     when-in-use (lib/dispositivo/posizione.ts passa `permissions: ['location']`).
+	     La stringa dice esplicitamente che non c'è tracciamento in background:
+	     senza, App Review chiede conto di un permesso che l'app non usa. -->
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>La posizione serve per mostrare sulla mappa dove ti trovi rispetto agli interventi che ti sono stati assegnati. Viene richiesta solo mentre usi l'app: i tuoi spostamenti non sono tracciati in background.</string>
 	<!-- App-Bound Domains: senza, WKWebView non fa girare i service worker e
 	     l'avvio offline a freddo su iPhone resta alla pagina di fallback della
 	     shell. Vincola la NAVIGAZIONE della WebView a questi domini (i fetch/XHR
