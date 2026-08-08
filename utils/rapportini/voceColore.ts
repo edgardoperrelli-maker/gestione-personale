@@ -23,9 +23,18 @@ const ESITO_SELECT_NAME = /esegu|esito/i;
 /** Pattern per i campi "note": obbligatori SOLO con esito negativo. */
 const NOTE_FIELD = /^note/i;
 
-function nomeNegativo(c: TemplateCampo): boolean {
+/**
+ * Campo il cui NOME dichiara un esito negativo (assente / non eseguito / negativo / ko).
+ * Esportata perché il PDF deve escludere questi campi dalle "lavorazioni svolte": marcare
+ * «Cliente assente» non è una lavorazione prodotta, è il motivo per cui non se n'è prodotta.
+ * Unica fonte di verità: prima il PDF ne aveva una copia più stretta (solo /assent/i), che
+ * lasciava passare come lavorazione i campi chiamati «NON ESEGUITO» o «NEGATIVO».
+ */
+export function isNomeNegativo(c: TemplateCampo): boolean {
   return NEG_NAME.test(`${c.chiave} ${c.etichetta}`);
 }
+
+const nomeNegativo = isNomeNegativo;
 
 /** True se il SELECT rappresenta l'ESITO della voce (Eseguito / Esito): l'unico su cui "NO" è un esito negativo. */
 export function isEsitoSelect(c: TemplateCampo): boolean {

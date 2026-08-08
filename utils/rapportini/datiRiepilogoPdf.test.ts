@@ -125,10 +125,13 @@ describe('costruisciDatiPdf — blindatura barra "Eseguito" voci manuali (regres
   it('stato: le manuali sono eseguite anche senza il campo `eseguito` salvato', () => {
     expect(dati.stats).toEqual({ totali: 4, eseguiti: 3, nonEseguiti: 1 });
   });
-  it('la barra "Eseguito" conta TUTTE le eseguite (= stats.eseguiti), non solo quelle col campo valorizzato', () => {
-    const eseguito = dati.lavorazioni.find((l) => l.etichetta === 'Eseguito');
-    expect(eseguito?.count).toBe(3);
-    expect(eseguito?.count).toBe(dati.stats.eseguiti);
+  // AGGIORNATO 08/08/2026 — l'ESITO non è una lavorazione e non sta più fra le `lavorazioni`.
+  // Prima ci finiva, e il blocco produzione mostrava una riga «Eseguito N» sempre identica al
+  // riquadro ESEGUITI: informazione duplicata che rubava la riga alle lavorazioni vere.
+  // La regressione PLENZICH (45 ≠ 32) resta presidiata dalle altre due asserzioni di questo
+  // describe: `stats.eseguiti === 3` qui sopra e la cella "X" della manuale qui sotto.
+  it('l\'esito NON è una lavorazione; le lavorazioni vere contano solo dove svolte', () => {
+    expect(dati.lavorazioni.find((l) => l.etichetta === 'Eseguito')).toBeUndefined();
     // SOSTITUZIONE VALVOLA non deve gonfiarsi con le manuali: conta solo dove davvero svolta.
     expect(dati.lavorazioni.find((l) => l.etichetta === 'SOSTITUZIONE VALVOLA')?.count).toBe(1);
   });
@@ -141,14 +144,16 @@ describe('costruisciDatiPdf — blindatura barra "Eseguito" voci manuali (regres
 
   it('le voci RIFIUTATE sono scartate da stats, liste e lavorazioni', () => {
     const vociR = [
-      { matricola: 'A', via: 'V', manuale: true, approvazione_stato: 'approvato', risposte: { eseguito: 'SI' } },
+      { matricola: 'A', via: 'V', manuale: true, approvazione_stato: 'approvato', risposte: { eseguito: 'SI', sostituzione_valvola: 'SI' } },
       { matricola: 'B', via: 'V', manuale: true, approvazione_stato: 'rifiutato', risposte: {} },
-      { matricola: 'C', via: 'V', manuale: true, approvazione_stato: 'rifiutato', risposte: { eseguito: 'SI' } },
+      { matricola: 'C', via: 'V', manuale: true, approvazione_stato: 'rifiutato', risposte: { eseguito: 'SI', sostituzione_valvola: 'SI' } },
     ];
     const d = costruisciDatiPdf({ staffName: 'X', dataLabel: 'd', voci: vociR, campi: campiP, infoCampi: null });
     expect(d.stats).toEqual({ totali: 1, eseguiti: 1, nonEseguiti: 0 });
     expect(d.eseguiti.length).toBe(1);
-    expect(d.lavorazioni.find((l) => l.etichetta === 'Eseguito')?.count).toBe(1);
+    // La lavorazione della voce rifiutata NON deve entrare nel conteggio (prima si verificava
+    // sulla barra "Eseguito", che non esiste più: l'esito non è una lavorazione).
+    expect(d.lavorazioni.find((l) => l.etichetta === 'SOSTITUZIONE VALVOLA')?.count).toBe(1);
   });
 });
 
@@ -354,5 +359,121 @@ describe('costruisciDatiPdf — esito sui campi DELLA voce (flusso per gruppo at
   it('le sezioni combaciano con i totali dell\'intestazione', () => {
     expect(dati.eseguiti.length).toBe(dati.stats.eseguiti);
     expect(dati.nonEseguiti.length).toBe(dati.stats.nonEseguiti);
+  });
+});
+
+describe('costruisciDatiPdf — quantità di produzione per ATTIVITÀ', () => {
+  // Il caso che ha reso necessario questo blocco: il rapportino GIOSI del 07/08/2026, 24
+  // interventi tutti eseguiti su un template AcquaLatina SENZA nessuna crocetta. `lavorazioni`
+  // resta vuoto e il rapportino più pieno della giornata mostrava produzione zero.
+  const campiSoloEsito: TemplateCampo[] = [
+    { chiave: 'eseguito', etichetta: 'ESEGUITO', tipo: 'select', opzioni: ['SI', 'NO'], ordine: 1 },
+  ];
+
+  it('conta le attività anche quando il template non ha nessuna crocetta', () => {
+    const voci = Array.from({ length: 3 }, (_, i) => ({
+      matricola: `M${i}`, via: 'Via 1', attivita: 'SOSTITUZIONE MISURATORE', risposte: { eseguito: 'SI' },
+    }));
+    const d = costruisciDatiPdf({ staffName: 'X', dataLabel: 'd', voci, campi: campiSoloEsito, infoCampi: null });
+    expect(d.lavorazioni).toEqual([]);
+    expect(d.attivita).toEqual([{ etichetta: 'SOSTITUZIONE MISURATORE', count: 3 }]);
+  });
+
+  it('accorpa le attività che differiscono solo per maiuscole, accenti o spazi', () => {
+    const voci = [
+      { matricola: 'A', via: 'V', attivita: 'Riattivazione fornitura', risposte: { eseguito: 'SI' } },
+      { matricola: 'B', via: 'V', attivita: 'RIATTIVAZIONE  FORNITURA', risposte: { eseguito: 'SI' } },
+    ];
+    const d = costruisciDatiPdf({ staffName: 'X', dataLabel: 'd', voci, campi: campiSoloEsito, infoCampi: null });
+    expect(d.attivita).toHaveLength(1);
+    expect(d.attivita?.[0].count).toBe(2);
+  });
+
+  it('le voci senza attività finiscono in un bucket esplicito: la somma torna sempre', () => {
+    // `rapportino_voci.attivita` è nullable: senza bucket quelle voci sparirebbero dal conteggio
+    // e nessuno se ne accorgerebbe, perché il totale non è stampato accanto alle attività.
+    const voci = [
+      { matricola: 'A', via: 'V', attivita: 'Bonifiche extra', risposte: { eseguito: 'SI' } },
+      { matricola: 'B', via: 'V', risposte: { eseguito: 'SI' } },
+      { matricola: 'C', via: 'V', attivita: '', risposte: { eseguito: 'NO' } },
+    ];
+    const d = costruisciDatiPdf({ staffName: 'X', dataLabel: 'd', voci, campi: campiSoloEsito, infoCampi: null });
+    expect(d.attivita?.find((a) => a.etichetta === 'SENZA ATTIVITÀ')?.count).toBe(2);
+    const somma = (d.attivita ?? []).reduce((s, a) => s + a.count, 0);
+    expect(somma).toBe(d.stats.totali);
+  });
+
+  it('le voci RIFIUTATE non entrano nel conteggio delle attività', () => {
+    const voci = [
+      { matricola: 'A', via: 'V', attivita: 'Sonda', approvazione_stato: 'approvato', risposte: { eseguito: 'SI' } },
+      { matricola: 'B', via: 'V', attivita: 'Sonda', approvazione_stato: 'rifiutato', risposte: { eseguito: 'SI' } },
+    ];
+    const d = costruisciDatiPdf({ staffName: 'X', dataLabel: 'd', voci, campi: campiSoloEsito, infoCampi: null });
+    expect(d.attivita).toEqual([{ etichetta: 'Sonda', count: 1 }]);
+  });
+});
+
+describe('costruisciDatiPdf — note, colonne e committenti per il PDF a due livelli', () => {
+  const campiNote: TemplateCampo[] = [
+    { chiave: 'eseguito', etichetta: 'ESEGUITO', tipo: 'select', opzioni: ['SI', 'NO'], ordine: 1 },
+    { chiave: 'cambio', etichetta: 'CAMBIO', tipo: 'crocetta', ordine: 2 },
+    { chiave: 'codoli', etichetta: 'CODOLI', tipo: 'testo', ordine: 3 },
+    { chiave: 'note', etichetta: 'Note', tipo: 'testo', ordine: 4 },
+  ];
+  const voci = [
+    { matricola: 'A', via: 'Via 1', risposte: { eseguito: 'SI', cambio: true, note: 'Cane in cortile' } },
+    { matricola: 'B', via: 'Via 2', risposte: { eseguito: 'NO', note: 'Assente' } },
+  ];
+  const d = costruisciDatiPdf({
+    staffName: 'X', dataLabel: 'd', voci, campi: campiNote, infoCampi: null, committenti: ['Acea', 'Italgas'],
+  });
+
+  it('la nota della voce viaggia su RigaPdf, oltre a restare in colonna per l\'ufficio', () => {
+    expect(d.eseguiti[0].nota).toBe('Cane in cortile');
+    expect(d.nonEseguiti[0].nota).toBe('Assente');
+    // Resta anche come colonna: l'allineamento per indice fra `colonne` e `valori` è il contratto
+    // su cui poggia il livello ufficio, e la tabella completa la nota la vuole in tabella.
+    const idxNote = d.colonne.findIndex((c) => c.etichetta === 'Note');
+    expect(d.eseguiti[0].valori[idxNote]).toBe('Cane in cortile');
+  });
+
+  it('una voce senza nota non porta il campo: nessuna riga nota da stampare', () => {
+    const senza = costruisciDatiPdf({
+      staffName: 'X', dataLabel: 'd', campi: campiNote, infoCampi: null,
+      voci: [{ matricola: 'C', via: 'Via 3', risposte: { eseguito: 'SI' } }],
+    });
+    expect(senza.eseguiti[0].nota).toBeUndefined();
+  });
+
+  it('le colonne dichiarano chiave anagrafica, nota ed esito', () => {
+    const colNote = d.colonne.find((c) => c.etichetta === 'Note');
+    const colEsito = d.colonne.find((c) => c.etichetta === 'ESEGUITO');
+    const colVia = d.colonne.find((c) => c.etichetta === 'VIA');
+    expect(colNote?.nota).toBe(true);
+    expect(colEsito?.esito).toBe(true);
+    expect(colVia?.info).toBe('via');
+    // `campo` distingue i compilabili dall'anagrafica: il livello campo pesca per nome, non per indice.
+    expect(colNote?.campo).toBe('note');
+    expect(colVia?.campo).toBeUndefined();
+  });
+
+  it('maxLen misura il contenuto reale: 0 sulle colonne vuote ovunque', () => {
+    // È la misura con cui il livello ufficio pota. Su GIOSI 07/08 erano 5 colonne su 17.
+    const colCodoli = d.colonne.find((c) => c.etichetta === 'CODOLI');
+    const colVia = d.colonne.find((c) => c.etichetta === 'VIA');
+    expect(colCodoli?.maxLen).toBe(0);
+    expect(colVia?.maxLen).toBe('Via 1'.length);
+  });
+
+  it('i committenti sono un passacarte, senza euristiche', () => {
+    expect(d.committenti).toEqual(['Acea', 'Italgas']);
+    const senza = costruisciDatiPdf({ staffName: 'X', dataLabel: 'd', voci, campi: campiNote, infoCampi: null });
+    expect(senza.committenti).toEqual([]);
+  });
+
+  it('le tre liste coprono ogni voce: i riquadri del PDF tornano sempre', () => {
+    // Il renderer conta i riquadri dalle LISTE: questa è l'invariante che glielo consente.
+    const totaleRighe = d.eseguiti.length + d.nonEseguiti.length + d.daFare.length;
+    expect(totaleRighe).toBe(d.stats.totali);
   });
 });

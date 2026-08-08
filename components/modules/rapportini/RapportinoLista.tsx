@@ -209,6 +209,7 @@ export function RapportinoLista({
   taskVia,
   taskViaIbrido,
   mostraSaracinesche = false,
+  committenti = [],
 }: {
   staffName: string;
   /** Rotta di ritorno all'app (home «Il mio giorno»); null = arrivo da link, niente navigazione. */
@@ -236,6 +237,8 @@ export function RapportinoLista({
   taskViaIbrido?: boolean;
   /** Mostra il riepilogo "Saracinesche esitate" (template con campo valvola). */
   mostraSaracinesche?: boolean;
+  /** Committenti della giornata, già in etichetta leggibile: solo transito verso il PDF. */
+  committenti?: string[];
 }) {
   const righeCercate = righe.filter((r) => rigaMatchRicerca(r, ricerca));
   const [tentatoInvio, setTentatoInvio] = useState(false);
@@ -280,6 +283,7 @@ export function RapportinoLista({
               </p>
               <CondividiPdfButton
                 staffName={staffName}
+                committenti={committenti}
                 dataLabel={dataLabel}
                 dataIso={dataIso}
                 voci={voci}

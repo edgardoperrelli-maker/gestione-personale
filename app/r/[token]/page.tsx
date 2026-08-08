@@ -19,6 +19,7 @@ import RapportinoForm, {
   type Voce as FormVoce,
 } from '@/components/modules/rapportini/RapportinoForm';
 import type { CommittenteManuale } from '@/lib/interventi/manuali/types';
+import { etichettaCommittente } from '@/lib/interventi/manuali/etichettaCommittente';
 import { caricaTassonomia } from '@/lib/attivita/caricaTassonomia';
 import { caricaTemplateManuali } from '@/lib/interventi/manuali/caricaTemplateManuali';
 import { BrandHeader } from '@/components/brand/BrandHeader';
@@ -296,13 +297,17 @@ export default async function RapportinoPublicPage({
     .map((v) => (v as { richiesta_id?: string | null }).richiesta_id)
     .filter((x): x is string => Boolean(x));
   const motivoByRichiesta: Record<string, string | null> = {};
+  // `committente` viaggia sulla query che c'era già (nessuna query in più): copre le voci nate
+  // dal "+", che finché non sono approvate non hanno un `intervento_id` da cui risalire.
+  const committentiManuali: string[] = [];
   if (richiesteIds.length > 0) {
     const { data: reqRows } = await supabaseAdmin
       .from('interventi_manuali')
-      .select('id, motivo_rifiuto')
+      .select('id, motivo_rifiuto, committente')
       .in('id', richiesteIds);
-    for (const r of (reqRows ?? []) as Array<{ id: string; motivo_rifiuto: string | null }>) {
+    for (const r of (reqRows ?? []) as Array<{ id: string; motivo_rifiuto: string | null; committente?: string | null }>) {
       motivoByRichiesta[r.id] = r.motivo_rifiuto;
+      if (r.committente) committentiManuali.push(r.committente);
     }
   }
 
@@ -396,20 +401,34 @@ export default async function RapportinoPublicPage({
   // domanda di `rapportinoAcqualatina`, sugli id che abbiamo già caricato con le voci).
   // Rapportino senza interventi collegati (tutto manuale): non si decide nulla, il gate resta —
   // è proprio il caso in cui il master serve per cercare la matricola dal "+".
-  if (committenteCensimento) {
-    const idsInterventi = ((vociRows ?? []) as VoceRow[])
-      .map((v) => v.intervento_id)
-      .filter((id): id is string => Boolean(id));
-    if (idsInterventi.length > 0) {
-      const { data: suoi } = await supabaseAdmin
-        .from('interventi')
-        .select('id')
-        .eq('committente', committenteCensimento)
-        .in('id', idsInterventi)
-        .limit(1);
-      if ((suoi ?? []).length === 0) committenteCensimento = null;
+  //
+  // La stessa query serve due scopi, e per questo NON è più condizionata a `committenteCensimento`:
+  // oltre al gate del censimento (che vale solo per acea/acqualatina) fornisce l'elenco dei
+  // committenti da stampare nell'intestazione del PDF, che serve su OGNI flusso — italgas compreso.
+  // Restando dentro l'`if` di prima, la maggioranza dei rapportini sarebbe uscita senza committente.
+  const idsInterventi = ((vociRows ?? []) as VoceRow[])
+    .map((v) => v.intervento_id)
+    .filter((id): id is string => Boolean(id));
+  const committentiInterventi: string[] = [];
+  if (idsInterventi.length > 0) {
+    const { data: suoi } = await supabaseAdmin
+      .from('interventi')
+      .select('id, committente')
+      .in('id', idsInterventi);
+    const righeInt = (suoi ?? []) as Array<{ id: string; committente: string | null }>;
+    for (const r of righeInt) if (r.committente) committentiInterventi.push(r.committente);
+    // Gate del censimento: identico a prima («ha almeno un intervento di quel committente?»),
+    // solo ricalcolato in JS invece che con `.eq(...).limit(1)`.
+    if (committenteCensimento && !righeInt.some((r) => r.committente === committenteCensimento)) {
+      committenteCensimento = null;
     }
   }
+  // Le voci nate dal "+" spesso non hanno ancora un `intervento_id`: senza questa seconda fonte
+  // un rapportino tutto manuale uscirebbe senza committente in intestazione.
+  const committentiRapportino = [...new Set([...committentiInterventi, ...committentiManuali])]
+    .map(etichettaCommittente)
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b, 'it'));
 
   // Flag "task-via" del template (query separata e resiliente: default false se la colonna
   // non esiste ancora). I rapportini di un template task-via mostrano il contenitore + "+".
@@ -479,6 +498,7 @@ export default async function RapportinoPublicPage({
         tipo={(rap as { tipo?: 'standard' | 'risanamento' }).tipo ?? 'standard'}
         righe={righe}
         tassonomia={tassonomia}
+        committenti={committentiRapportino}
         committenteCensimento={committenteCensimento}
       />
       <OperatoreAssistenza sessionId={assistSessionId(token)} staff={rap.staff_name} data={rap.data} />
