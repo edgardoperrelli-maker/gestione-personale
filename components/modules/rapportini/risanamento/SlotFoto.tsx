@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import { Camera, Check, Images } from 'lucide-react';
 import Button from '@/components/Button';
 import { comprimiImmagine } from '../CampoFoto';
+import { acquisisciFotoNativa, fotocameraNativaDisponibile, type SorgenteFoto } from '@/lib/dispositivo/foto';
 
 /** Uno slot foto: scatta/libreria → comprime → carica via foto-campo → onUploaded(path). */
 export function SlotFoto({
@@ -32,6 +33,17 @@ export function SlotFoto({
     } catch { setErr(true); onUploaded(null); } finally { setBusy(false); }
   };
 
+  /* Nativo dove c'è, input file sul web. Annullare in nativo non ricade
+     sull'input: riaprirebbe un picker appena chiuso. */
+  const apriSorgente = async (sorgente: SorgenteFoto, apriFallback: () => void) => {
+    if (fotocameraNativaDisponibile()) {
+      const f = await acquisisciFotoNativa(sorgente);
+      if (f) await handle(f);
+      return;
+    }
+    apriFallback();
+  };
+
   return (
     <div className="rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3">
       <div className="mb-1 flex items-center justify-between gap-2">
@@ -56,11 +68,11 @@ export function SlotFoto({
       {/* I due comandi più premuti del portale: taglia `touch` (48px) obbligata (DESIGN.md §7quater). */}
       {!disabilitato && (
         <div className="flex gap-2">
-          <Button variant="outline" size="touch" disabled={busy} onClick={() => camRef.current?.click()} className="flex-1">
+          <Button variant="outline" size="touch" disabled={busy} onClick={() => void apriSorgente('fotocamera', () => camRef.current?.click())} className="flex-1">
             <Camera className="h-5 w-5 shrink-0" strokeWidth={1.8} aria-hidden />
             {busy ? 'Carico…' : 'Scatta'}
           </Button>
-          <Button variant="outline" size="touch" disabled={busy} onClick={() => libRef.current?.click()} className="flex-1">
+          <Button variant="outline" size="touch" disabled={busy} onClick={() => void apriSorgente('libreria', () => libRef.current?.click())} className="flex-1">
             <Images className="h-5 w-5 shrink-0" strokeWidth={1.8} aria-hidden />
             Libreria
           </Button>

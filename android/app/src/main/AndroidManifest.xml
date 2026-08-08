@@ -38,4 +38,16 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Fotocamera: foto dei rapportini e lettura matricole (@capacitor/camera). -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Posizione: mappa operatori (@capacitor/geolocation). Solo approssimata e
+         precisa in uso, nessun tracciamento in background. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+
+    <!-- La fotocamera non è requisito d'installazione: su un tablet senza
+         obiettivo l'app resta usabile e il picker ricade sulla libreria. -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
 </manifest>

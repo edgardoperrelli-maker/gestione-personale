@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Camera, Images } from 'lucide-react';
 import Button from '@/components/Button';
 import { dimensioniTarget, TENTATIVI_COMPRESSIONE, MAX_FOTO_BYTES } from '@/lib/interventi/manuali/compressioneFoto';
+import { acquisisciFotoNativa, fotocameraNativaDisponibile, type SorgenteFoto } from '@/lib/dispositivo/foto';
 
 /** Ricodifica il canvas in JPEG alla qualità data (Promise-wrapper di `toBlob`). */
 function canvasToJpeg(canvas: HTMLCanvasElement, qualita: number): Promise<Blob | null> {
@@ -81,15 +82,32 @@ export function CampoFoto({
     return () => URL.revokeObjectURL(url);
   }, [file]);
 
-  async function handleFiles(list: FileList | null) {
-    const f = list?.[0];
-    if (!f) return;
+  async function handleFile(f: File) {
     setElaboro(true);
     try {
       onChange(await comprimiImmagine(f));
     } finally {
       setElaboro(false);
     }
+  }
+
+  function handleFiles(list: FileList | null) {
+    const f = list?.[0];
+    if (f) void handleFile(f);
+  }
+
+  /**
+   * Nella shell nativa passa dal plugin, sul web apre l'input di sempre.
+   * Annullare in nativo NON ricade sull'input: aprirebbe un secondo picker
+   * subito dopo che l'utente ha appena chiuso il primo.
+   */
+  async function apriSorgente(sorgente: SorgenteFoto, apriFallback: () => void) {
+    if (fotocameraNativaDisponibile()) {
+      const f = await acquisisciFotoNativa(sorgente);
+      if (f) await handleFile(f);
+      return;
+    }
+    apriFallback();
   }
 
   return (
@@ -144,7 +162,7 @@ export function CampoFoto({
           variant="primary"
           size="touch"
           disabled={disabilitato || elaboro}
-          onClick={() => scattoRef.current?.click()}
+          onClick={() => void apriSorgente('fotocamera', () => scattoRef.current?.click())}
         >
           <Camera className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
           {preview ? 'Rifai scatto' : 'Scatta'}
@@ -153,7 +171,7 @@ export function CampoFoto({
           variant="outline"
           size="touch"
           disabled={disabilitato || elaboro}
-          onClick={() => libreriaRef.current?.click()}
+          onClick={() => void apriSorgente('libreria', () => libreriaRef.current?.click())}
         >
           <Images className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
           Libreria
