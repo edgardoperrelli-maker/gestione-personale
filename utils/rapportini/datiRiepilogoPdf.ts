@@ -1,10 +1,13 @@
 // utils/rapportini/datiRiepilogoPdf.ts
 import { riepilogoRapportino, statoVoceEffettivo } from './riepilogo';
-import { resolveInfoCampi, valoreInfo, type VoceInfo, type TemplateInfoCampo } from './infoCampi';
+import { resolveInfoCampi, valoreInfo, type InfoChiave, type VoceInfo, type TemplateInfoCampo } from './infoCampi';
 import { campiDiVoce } from './campiDiVoce';
 import { campiEsportabili, type TemplateCampo } from './buildVoci';
+import { isCampoNota } from './voceMancante';
+import { isEsitoSelect, isNomeNegativo } from './voceColore';
 import { esitoPositivoDefault } from '@/lib/interventi/manuali/esitoPositivoDefault';
 import { isTaskVia } from '@/lib/interventi/manuali/taskVia';
+import { normalizzaAttivita } from '@/lib/produzione/normalizzaAttivita';
 
 export interface VoceRiepilogo extends VoceInfo {
   risposte: Record<string, unknown>;
@@ -21,12 +24,28 @@ export interface ColonnaPdf {
   etichetta: string;
   /** true se è una crocetta del template → cella stretta e centrata ("X"). */
   crocetta: boolean;
+  /** Chiave anagrafica, se la colonna viene da `info_snapshot`. Serve al livello CAMPO del PDF
+   *  per pescare ODS/ODL, matricola, PDR e indirizzo per NOME invece che per posizione: le
+   *  colonne sono dinamiche per template, e indicizzarle a mano è come contare le dita. */
+  info?: InfoChiave;
+  /** Chiave del campo template, se la colonna è un campo compilabile. */
+  campo?: string;
+  /** Campo NOTE: il livello CAMPO lo stampa come riga a tutta larghezza sotto l'intervento,
+   *  non come colonna (in colonna la nota mandava a capo la riga e sfalsava la griglia). */
+  nota?: boolean;
+  /** Campo ESITO (o marcatore negativo): non è una lavorazione prodotta. */
+  esito?: boolean;
+  /** Lunghezza massima del valore renderizzato su TUTTE le righe. 0 = colonna vuota ovunque,
+   *  che il livello UFFICIO pota per restituire larghezza agli indirizzi. */
+  maxLen?: number;
 }
 
 export interface RigaPdf {
   n: number;
   /** Valori allineati per indice a DatiRiepilogoPdf.colonne. */
   valori: string[];
+  /** Note della voce, unite da " · ". Assente = nessuna riga nota da stampare. */
+  nota?: string;
 }
 
 export interface DatiRiepilogoPdf {
@@ -34,6 +53,14 @@ export interface DatiRiepilogoPdf {
   dataLabel: string;
   stats: { totali: number; eseguiti: number; nonEseguiti: number };
   lavorazioni: { etichetta: string; count: number }[];
+  /** Quantità di produzione per ATTIVITÀ. Serve perché su alcuni flussi (es. SOSTITUZIONE
+   *  MISURATORE di AcquaLatina) il template non ha nessuna crocetta: `lavorazioni` resta vuoto
+   *  e il rapportino più pieno della giornata mostrerebbe zero produzione. La somma dei count
+   *  è sempre `stats.totali`: le voci senza attività finiscono nel bucket "SENZA ATTIVITÀ". */
+  attivita?: { etichetta: string; count: number }[];
+  /** Committenti degli interventi della giornata, già in forma leggibile. Più di uno sui giri
+   *  misti; vuoto se non ricavabile → l'intestazione salta la riga. */
+  committenti?: string[];
   /** Colonne dinamiche: anagrafica (da info_snapshot) + campi compilabili (da campi_snapshot). */
   colonne: ColonnaPdf[];
   eseguiti: RigaPdf[];
@@ -46,9 +73,19 @@ export interface DatiRiepilogoPdf {
 /** Valori di un select che indicano "non fatto" (allineato a voceColore, incl. "NESSUN PASSAGGIO"). */
 const NEG_SELECT = /^(no|assente|negativ\w*|ko|nessun[\s_-]*passagg\w*)$/i;
 
-/** Marcatori negativi (es. "assente") non sono "lavorazioni svolte". */
-function isMarcatoreAssente(chiave: string, etichetta: string): boolean {
-  return /assent/i.test(`${chiave} ${etichetta}`);
+/**
+ * Il campo NON è una lavorazione prodotta: o è l'ESITO della voce, o è un marcatore negativo
+ * («Cliente assente», «Non eseguito»). Contarlo gonfiava il blocco produzione con una riga
+ * «ESEGUITO N» sempre uguale al riquadro ESEGUITI — informazione duplicata, zero contenuto.
+ *
+ * Riusa le due funzioni di `voceColore` invece di una regex propria: il PDF ne aveva una più
+ * stretta (solo /assent/i) che lasciava passare i campi chiamati «NON ESEGUITO» o «NEGATIVO».
+ * Il vincolo `tipo === 'select'` su `isEsitoSelect` replica come lo usa voceColore stesso
+ * (lì è sempre dentro il ramo select): su una crocetta decide il nome negativo.
+ */
+function isCampoEsito(c: TemplateCampo): boolean {
+  if (c.tipo === 'select' && isEsitoSelect(c)) return true;
+  return isNomeNegativo(c);
 }
 
 /**
@@ -92,8 +129,12 @@ export function costruisciDatiPdf(params: {
    * vengono scartati in base all'ATTIVITÀ a prescindere dal flag (coerente con il form). Mantenuto
    * nella firma per retro-compatibilità dei chiamanti. */
   taskViaIbrido?: boolean;
+  /** Committenti già in forma leggibile, calcolati a monte (server). Qui è solo un passacarte:
+   *  nessuna euristica, perché indovinare il committente dai dati della voce è come indovinare
+   *  il proprietario di una casa dal colore della porta. */
+  committenti?: string[];
 }): DatiRiepilogoPdf {
-  const { staffName, dataLabel, voci: vociInput, campi, infoCampi, taskVia } = params;
+  const { staffName, dataLabel, voci: vociInput, campi, infoCampi, taskVia, committenti } = params;
   // Le voci RIFIUTATE dall'ufficio sono scartate dal PDF: non sono interventi validi → fuori da
   // stats, lavorazioni e liste (coerente con `riepilogoRapportino`). Tutto il resto usa `voci`.
   let voci = vociInput.filter((v) => v.approvazione_stato !== 'rifiutato');
@@ -123,9 +164,19 @@ export function costruisciDatiPdf(params: {
   const info = resolveInfoCampi(infoCampi);
   const campiOrd = campiEsportabili(campi).sort((a, b) => (a.ordine ?? 0) - (b.ordine ?? 0));
   const colonne: ColonnaPdf[] = [
-    ...info.map((c) => ({ etichetta: c.etichetta, crocetta: false })),
-    ...campiOrd.map((c) => ({ etichetta: c.etichetta, crocetta: c.tipo === 'crocetta' })),
+    ...info.map((c) => ({ etichetta: c.etichetta, crocetta: false, info: c.chiave })),
+    ...campiOrd.map((c) => ({
+      etichetta: c.etichetta,
+      crocetta: c.tipo === 'crocetta',
+      campo: c.chiave,
+      nota: isCampoNota(c),
+      esito: isCampoEsito(c),
+    })),
   ];
+  // I campi nota restano una COLONNA del contratto dati (l'ufficio la vuole in tabella, e
+  // l'allineamento per indice fra `colonne` e `RigaPdf.valori` è ciò su cui poggiano i test):
+  // è il renderer del livello CAMPO a stamparli come riga a tutta larghezza.
+  const campiNota = campiOrd.filter(isCampoNota);
 
   // Blindatura del campo esecutivo "eseguito" per le voci manuali (dal "+"): una voce manuale è
   // SEMPRE a esito positivo (vedi `riepilogoRapportino` e lo `stato` qui sotto). Se però il campo
@@ -154,10 +205,28 @@ export function costruisciDatiPdf(params: {
     (v, i) => statoVoceEffettivo({ risposte: risposteVoce[i], manuale: v.manuale }, campiVoce[i]) === 'eseguito',
   );
 
+  // Quantità di produzione per ATTIVITÀ, sulle STESSE voci già filtrate qui sopra (rifiutate e
+  // contenitori task-via esclusi): così la somma dei gruppi è sempre `stats.totali`. La chiave di
+  // raggruppamento passa da `normalizzaAttivita` — maiuscolo, senza accenti, spazi collassati —
+  // altrimenti «Riattivazione fornitura» e «RIATTIVAZIONE FORNITURA» diventano due voci distinte.
+  // Il bucket del vuoto è esplicito: `rapportino_voci.attivita` è nullable e senza bucket quelle
+  // voci sparirebbero dal conteggio senza che nessuno se ne accorga.
+  const gruppiAttivita = new Map<string, { etichetta: string; count: number }>();
+  for (const v of voci) {
+    const norm = normalizzaAttivita(v.attivita);
+    const chiave = norm?.key ?? '';
+    const g = gruppiAttivita.get(chiave);
+    if (g) g.count += 1;
+    else gruppiAttivita.set(chiave, { etichetta: norm?.etichetta ?? 'SENZA ATTIVITÀ', count: 1 });
+  }
+  const attivita = [...gruppiAttivita.values()].sort(
+    (a, b) => b.count - a.count || a.etichetta.localeCompare(b.etichetta, 'it'),
+  );
+
   // Barre "Lavorazioni svolte": crocette spuntate + select positivi (es. saracinesca "SI"),
-  // escludendo i marcatori "assente" e contando solo sugli interventi eseguiti.
+  // escludendo esiti e marcatori negativi e contando solo sugli interventi eseguiti.
   const lavorazioni = campiOrd
-    .filter((c) => (c.tipo === 'crocetta' || c.tipo === 'select') && !isMarcatoreAssente(c.chiave, c.etichetta))
+    .filter((c) => (c.tipo === 'crocetta' || c.tipo === 'select') && !isCampoEsito(c))
     .map((c) => ({
       etichetta: c.etichetta,
       count: risposteVoce.filter((r, i) => vociEseguite[i] && lavorazioneFatta(c, r[c.chiave])).length,
@@ -174,7 +243,13 @@ export function costruisciDatiPdf(params: {
       ...info.map((c) => valoreInfo(v, c.chiave)),
       ...campiOrd.map((c) => valoreCampo(rsp, c)),
     ];
-    const riga: RigaPdf = { n: i + 1, valori };
+    // Le note viaggiano anche fuori dalle colonne: il livello CAMPO le stampa a tutta larghezza
+    // sotto l'intervento. Più campi nota nello stesso template si uniscono con " · ".
+    const nota = campiNota
+      .map((c) => (typeof rsp[c.chiave] === 'string' ? String(rsp[c.chiave]).trim() : ''))
+      .filter(Boolean)
+      .join(' · ');
+    const riga: RigaPdf = nota ? { n: i + 1, valori, nota } : { n: i + 1, valori };
     // Stessa regola di riepilogo e lista: una voce dal "+" senza esito dichiarato è "Eseguiti"
     // (le sue chiavi sono quelle del template manuale, non del pianificato: senza la scorciatoia
     // dava 'da_fare' e la riga spariva dal PDF pur essendo conteggiata nei totali), ma un esito
@@ -188,11 +263,22 @@ export function costruisciDatiPdf(params: {
     else daFare.push(riga);
   });
 
+  // Larghezza reale di ogni colonna, misurata sui valori DAVVERO renderizzati (`valoreCampo` dà
+  // già '' per crocette non spuntate e per i null). maxLen === 0 significa colonna vuota su tutte
+  // le righe: nel PDF di GIOSI del 07/08 erano 5 colonne su 17 — 65 mm rubati agli indirizzi, che
+  // per starci venivano spezzati a metà parola («VIA FRAN CESCO D OMENICO GUERRA ZZI»).
+  const tutteLeRighe = [...eseguiti, ...nonEseguiti, ...daFare];
+  colonne.forEach((c, k) => {
+    c.maxLen = tutteLeRighe.reduce((m, r) => Math.max(m, (r.valori[k] ?? '').length), 0);
+  });
+
   return {
     staffName,
     dataLabel,
     stats: { totali: riep.totali, eseguiti: riep.eseguiti, nonEseguiti: riep.nonEseguiti },
     lavorazioni,
+    attivita,
+    committenti: committenti ?? [],
     colonne,
     eseguiti,
     nonEseguiti,

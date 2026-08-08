@@ -22,6 +22,7 @@ export function CondividiPdfButton({
   infoCampi,
   taskVia,
   taskViaIbrido,
+  committenti,
 }: {
   staffName: string;
   dataLabel: string;
@@ -33,6 +34,8 @@ export function CondividiPdfButton({
   taskVia?: boolean;
   /** Template ibrido: il PDF tiene le voci classiche e scarta solo i contenitori BONIFICHE EXTRA. */
   taskViaIbrido?: boolean;
+  /** Committenti della giornata, in etichetta leggibile: finiscono nell'intestazione del PDF. */
+  committenti?: string[];
 }) {
   const [stato, setStato] = useState<Stato>('idle');
 
@@ -40,7 +43,7 @@ export function CondividiPdfButton({
     if (stato === 'lavoro') return;
     setStato('lavoro');
     try {
-      const dati = costruisciDatiPdf({ staffName, dataLabel, voci, campi, infoCampi, taskVia, taskViaIbrido });
+      const dati = costruisciDatiPdf({ staffName, dataLabel, voci, campi, infoCampi, taskVia, taskViaIbrido, committenti });
       const blob = await generaRiepilogoPdfBlob(dati);
       const esito = await condividiOScarica({
         blob,

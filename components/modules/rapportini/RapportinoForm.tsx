@@ -128,6 +128,9 @@ type Props = {
   tassonomia?: TassonomiaRiga[];
   /** Committente del censimento da tenere in cache per la ricerca per matricola, dedotto dal
    *  flusso del rapportino. null = questo flusso non ne ha uno e non si scarica niente. */
+  /** Committenti degli interventi della giornata, già in etichetta leggibile. Solo transito:
+   *  serve all'intestazione del PDF, che senza di essi non saprebbe per chi si è lavorato. */
+  committenti?: string[];
   committenteCensimento?: CommittenteCensimento | null;
   /** Rotta di ritorno quando si arriva dall'app (home «Il mio giorno»); null = mondo-link, nessuna navigazione. */
   tornaA?: string | null;
@@ -178,6 +181,7 @@ export default function RapportinoForm({
   tipo,
   righe: righeRisanamento,
   tassonomia,
+  committenti = [],
   committenteCensimento = null,
 }: Props) {
   const campi = useMemo(() => campiSnapshot.slice().sort((a, b) => a.ordine - b.ordine), [campiSnapshot]);
@@ -662,6 +666,7 @@ export default function RapportinoForm({
         <RapportinoLista
           staffName={rapportino.staff_name}
           tornaA={tornaA}
+          committenti={committenti}
           dataLabel={dataLabel}
           dataIso={rapportino.data}
           voci={voci}
