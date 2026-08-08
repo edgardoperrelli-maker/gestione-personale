@@ -21,7 +21,8 @@ describe('generaRiepilogoPdfBlob', () => {
     dataLabel: '04/06/2026',
     stats: { totali: 3, eseguiti: 1, nonEseguiti: 1 },
     lavorazioni: [{ etichetta: 'CAMBIO', count: 1 }],
-    attivita: [{ etichetta: 'Sostituzione misuratore', count: 3 }],
+    // Attività distribuite (2 su 3 = 67%, sotto la soglia di dominanza): il blocco si vede.
+    attivita: [{ etichetta: 'Sostituzione misuratore', count: 2 }, { etichetta: 'Riattivazione fornitura', count: 1 }],
     committenti: ['Acea', 'Italgas'],
     colonne: [
       { etichetta: 'NOMINATIVO', crocetta: false, info: 'nominativo', maxLen: 13 },
@@ -63,6 +64,35 @@ describe('generaRiepilogoPdfBlob', () => {
     // con l'etichetta in maiuscoletto disegnata carattere per carattere (vedi nota sopra).
     const t = await testoPdf();
     expect(t).toContain('Sostituzione misuratore');
+  });
+
+  // Un'attività che copre quasi tutta la giornata non distingue più niente fra un intervento e
+  // l'altro: se le card delle lavorazioni dicono già le quantità, la riga ripete l'ovvio.
+  // Caso reale: COMMERSO 07/08/2026, «BONIFICHE EXTRA 5» su 6 accanto alla card da 5.
+  describe('attività dominante', () => {
+    const testo = async (d: DatiRiepilogoPdf) =>
+      Buffer.from(await (await generaRiepilogoPdfBlob(d)).arrayBuffer()).toString('latin1');
+
+    it('sparisce quando una sola attività copre quasi tutto E ci sono le card', async () => {
+      const t = await testo({ ...dati, attivita: [{ etichetta: 'Bonifiche extra', count: 3 }] });
+      expect(t).not.toContain('Bonifiche extra');
+    });
+
+    it('RESTA quando non ci sono lavorazioni: è l\'unica produzione stampata', async () => {
+      // Il caso GIOSI 07/08/2026: template AcquaLatina senza crocette, 24 interventi tutti
+      // «SOSTITUZIONE MISURATORE». Nasconderla qui riporterebbe al blocco produzione vuoto.
+      const t = await testo({ ...dati, lavorazioni: [], attivita: [{ etichetta: 'Bonifiche extra', count: 3 }] });
+      expect(t).toContain('Bonifiche extra');
+    });
+
+    it('RESTA quando le attività sono distribuite, anche con le card', async () => {
+      const t = await testo({
+        ...dati,
+        attivita: [{ etichetta: 'Bonifiche extra', count: 2 }, { etichetta: 'Riattivazione fornitura', count: 1 }],
+      });
+      expect(t).toContain('Bonifiche extra');
+      expect(t).toContain('Riattivazione fornitura');
+    });
   });
 
   it('le card delle lavorazioni reggono un\'etichetta lunghissima senza rompersi', async () => {

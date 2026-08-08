@@ -229,13 +229,34 @@ function cardLavorazioni(doc: Doc, dati: DatiRiepilogoPdf, y: number): number {
 }
 
 /**
+ * Quota oltre la quale un'attività è "dominante": copre quasi tutta la giornata e quindi non
+ * distingue più niente fra un intervento e l'altro. Il caso da cui nasce è COMMERSO 07/08/2026,
+ * dove «BONIFICHE EXTRA 5» su 6 interventi ripeteva da un'altra angolazione lo stesso 5 già
+ * scritto nella card «MINIBAG/RG STOP BONIFICA SEMPLICE».
+ */
+const QUOTA_ATTIVITA_DOMINANTE = 0.8;
+
+/**
  * Le ATTIVITÀ, in linea con a capo automatico. Restano testo e non card perché sono molte di più
  * (fino a sette in un giro misto) e non sono la quantità che si cerca per prima: sono il dettaglio
  * di che tipo di lavoro ha prodotto quei numeri.
+ *
+ * Il blocco sparisce quando un'attività sola copre quasi tutto E le card delle lavorazioni sono
+ * già lì a dire le quantità: in quel caso la riga ripete l'ovvio. La condizione sulle card non è
+ * un dettaglio ma il cuore della regola — sui template senza crocette (AcquaLatina SOSTITUZIONE
+ * MISURATORE, 24 interventi tutti uguali) le attività sono l'UNICA produzione stampata, e
+ * nasconderle riporterebbe esattamente al blocco vuoto che si voleva togliere di mezzo.
+ * L'attività resta comunque in colonna nell'appendice ufficio, riga per riga.
  */
 function bloccoProduzione(doc: Doc, dati: DatiRiepilogoPdf, y: number): number {
   const voci = dati.attivita ?? [];
   if (voci.length === 0) return y;
+
+  const totale = voci.reduce((s, a) => s + a.count, 0);
+  const dominante = voci.reduce((m, a) => Math.max(m, a.count), 0);
+  if (dati.lavorazioni.length > 0 && totale > 0 && dominante / totale >= QUOTA_ATTIVITA_DOMINANTE) {
+    return y;
+  }
 
   font(doc, 'bold', 6.2, MUTED);
   tracked(doc, 'ATTIVITÀ', ML, y);
