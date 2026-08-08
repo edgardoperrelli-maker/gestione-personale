@@ -172,26 +172,79 @@ function riquadriEsiti(doc: Doc, dati: DatiRiepilogoPdf, y: number): number {
 }
 
 /**
- * Le quantità di produzione: ATTIVITÀ e LAVORAZIONI, in linea con a capo automatico.
- * In linea e non a riquadri perché le etichette arrivano dal template e possono essere
- * lunghissime (nei rapportini reali: «MINIBAG/RG STOP BONIFICA SEMPLICE»): un riquadro a
- * larghezza fissa si romperebbe, una riga di testo no.
+ * Le LAVORAZIONI — mini bag, RG stop, sostituzione valvola e compagnia — sono le quantità che
+ * il capisquadra cerca per prime, perché sono quelle che vanno a produzione. Stanno in card
+ * accanto ai riquadri esiti, non in una riga di testo più in basso.
+ *
+ * Card e non semplici riquadri a larghezza fissa perché le etichette arrivano dal template e
+ * possono essere lunghe (nei rapportini reali: «MINIBAG/RG STOP BONIFICA SEMPLICE»): l'etichetta
+ * va a capo dentro la card e l'altezza si adatta alla più alta della riga. Massimo quattro per
+ * riga: sotto i ~45 mm l'etichetta si spezzerebbe in troppe righe.
+ */
+function cardLavorazioni(doc: Doc, dati: DatiRiepilogoPdf, y: number): number {
+  const voci = dati.lavorazioni;
+  if (voci.length === 0) return y;
+
+  const gap = 3.5;
+  const padSx = 5;
+  const padDx = 5;
+  const maxCard = 58;
+
+  // Ogni card è larga quanto la sua etichetta, non quanto una cella di griglia: con due sole
+  // lavorazioni due card stirate a mezza pagina si leggono come riquadri rimasti a metà.
+  font(doc, 'bold', 5.7, MUTED);
+  const etichette = voci.map((v) => doc.splitTextToSize(v.etichetta.toUpperCase(), maxCard - padSx - padDx) as string[]);
+  const larghezze = etichette.map((righe, i) => {
+    const wLab = righe.reduce((m, r) => Math.max(m, trackedW(doc, r, 0.3)), 0);
+    font(doc, 'bold', 15, CYAN);
+    const wNum = doc.getTextWidth(String(voci[i].count));
+    font(doc, 'bold', 5.7, MUTED);
+    return Math.max(24, Math.max(wLab, wNum) + padSx + padDx);
+  });
+  const maxRighe = etichette.reduce((m, e) => Math.max(m, e.length), 1);
+  const h = 13 + (maxRighe - 1) * 2.6;
+
+  let cy = y;
+  let cx = ML;
+  voci.forEach((v, i) => {
+    if (cx + larghezze[i] > ML + W && cx > ML) {
+      cx = ML;
+      cy += h + gap;
+    }
+    doc.setFillColor(...WASH);
+    doc.roundedRect(cx, cy, larghezze[i], h, 1.8, 1.8, 'F');
+    // Barretta cyan a sinistra: distingue a colpo d'occhio le lavorazioni dai riquadri esiti,
+    // che sono pieni di colore, senza aggiungere un quinto colore alla pagina.
+    doc.setFillColor(...CYAN);
+    doc.roundedRect(cx, cy, 1.6, h, 0.8, 0.8, 'F');
+    font(doc, 'bold', 15, CYAN);
+    doc.text(String(v.count), cx + padSx, cy + 8.6);
+    font(doc, 'bold', 5.7, MUTED);
+    etichette[i].forEach((riga, k) => {
+      tracked(doc, riga, cx + padSx, cy + 11.6 + k * 2.6, 0.3);
+    });
+    cx += larghezze[i] + gap;
+  });
+  return cy + h + 5;
+}
+
+/**
+ * Le ATTIVITÀ, in linea con a capo automatico. Restano testo e non card perché sono molte di più
+ * (fino a sette in un giro misto) e non sono la quantità che si cerca per prima: sono il dettaglio
+ * di che tipo di lavoro ha prodotto quei numeri.
  */
 function bloccoProduzione(doc: Doc, dati: DatiRiepilogoPdf, y: number): number {
-  const voci = [
-    ...(dati.attivita ?? []).map((a) => ({ ...a, forte: true })),
-    ...dati.lavorazioni.map((l) => ({ ...l, forte: false })),
-  ];
+  const voci = dati.attivita ?? [];
   if (voci.length === 0) return y;
 
   font(doc, 'bold', 6.2, MUTED);
-  tracked(doc, 'PRODUZIONE', ML, y);
+  tracked(doc, 'ATTIVITÀ', ML, y);
   let cy = y + 4.2;
   let cx = ML;
   for (const v of voci) {
     font(doc, 'normal', 8.5, INK);
     const wEtichetta = doc.getTextWidth(v.etichetta);
-    font(doc, 'bold', 10, v.forte ? INK : CYAN);
+    font(doc, 'bold', 10, INK);
     const larghezza = wEtichetta + 2.5 + doc.getTextWidth(String(v.count)) + 7;
     if (cx + larghezza > ML + W) {
       cx = ML;
@@ -199,7 +252,7 @@ function bloccoProduzione(doc: Doc, dati: DatiRiepilogoPdf, y: number): number {
     }
     font(doc, 'normal', 8.5, INK);
     doc.text(v.etichetta, cx, cy);
-    font(doc, 'bold', 10, v.forte ? INK : CYAN);
+    font(doc, 'bold', 10, INK);
     doc.text(String(v.count), cx + wEtichetta + 2.5, cy);
     cx += larghezza;
   }
@@ -521,6 +574,7 @@ export async function generaRiepilogoPdfBlob(dati: DatiRiepilogoPdf): Promise<Bl
 
   let y = intestazioneCampo(doc, dati, logo);
   y = riquadriEsiti(doc, dati, y);
+  y = cardLavorazioni(doc, dati, y);
   y = bloccoProduzione(doc, dati, y);
   tabellaCampo(doc, autoTable, dati, y);
 

@@ -95,10 +95,30 @@ const vociSikora: VoceRiepilogo[] = [
   { nominativo: '', matricola: '202415623658', pdr: '4000423454', odl: '957464576', via: 'VIA JUGOSLAVIA 3', comune: 'GUIDONIA MONTECELIO', cap: '00012', attivita: 'Regolarizzazione flusso idrico', risposte: { eseguito: 'SI' } },
 ];
 
+/* ── COMMERSO: etichette lunghissime nelle lavorazioni (stress delle card) ── */
+const campiCommerso: TemplateCampo[] = [
+  campo('eseguito', 'ESEGUITO', 'select', 1),
+  campo('cambio', 'CAMBIO', 'crocetta', 2),
+  campo('mini_bag', 'MINI BAG RG STOP', 'crocetta', 3),
+  campo('bonifica_semplice', 'MINIBAG/RG STOP BONIFICA SEMPLICE', 'crocetta', 4),
+  campo('sostituzione_valvola', 'SOSTITUZIONE VALVOLA', 'select', 5),
+  campo('sigillo', 'SIGILLO', 'crocetta', 6),
+  campo('note', 'NOTE', 'testo', 7),
+];
+const vociCommerso: VoceRiepilogo[] = [
+  { matricola: 'MIT0032014979393', odl: '20044615577', via: 'RACCORDO PERUGIA A1 44', comune: 'PASSIGNANO SUL TRASIMENO', cap: '06065', diametro: 'DN15', attivita: 'S-MR-002 A', risposte: { eseguito: 'SI', sostituzione_valvola: 'SI' } },
+  ...['SMGR034117412410', 'FIOR034422114907', 'MIT0032011422240', 'IGMB030250108234', 'SMGR034117413417'].map((m, i) => ({
+    matricola: m, odl: '', via: 'VIA SILVIO PELLICO 143', comune: 'CASTIGLIONE DEL LAGO', diametro: 'DN15',
+    attivita: 'BONIFICHE EXTRA', manuale: true, // ordini creati col "+": le voci-contenitore BONIFICHE EXTRA vengono scartate
+    risposte: { eseguito: 'SI', bonifica_semplice: true, ...(i < 2 ? { mini_bag: true } : {}), ...(i === 0 ? { cambio: true } : {}) },
+  })),
+];
+
 const CASI = [
   { staffName: 'GIOSI VITTORIO', dataLabel: '07 agosto 2026', dataIso: '2026-08-07', voci: vociGiosi, campi: campiGiosi, infoCampi: info(['matricola', 'diametro', 'odl', 'via', 'comune', 'cap', 'attivita']), committenti: ['AcquaLatina'] },
   { staffName: 'DE SANTIS ALESSANDRO', dataLabel: '06 agosto 2026', dataIso: '2026-08-06', voci: vociSantis, campi: campiSantis, infoCampi: info(['matricola', 'diametro', 'odl', 'via', 'comune', 'cap', 'attivita']), committenti: ['Italgas', 'Acea'] },
   { staffName: 'SIKORA ARTUR', dataLabel: '07 agosto 2026', dataIso: '2026-08-07', voci: vociSikora, campi: campiSikora, infoCampi: info(['nominativo', 'matricola', 'pdr', 'odl', 'via', 'comune', 'cap', 'attivita', 'fascia_oraria']), committenti: ['Italgas', 'Acea'] },
+  { staffName: 'COMMERSO GIAMMARIA', dataLabel: '07 agosto 2026', dataIso: '2026-08-07', voci: vociCommerso, campi: campiCommerso, infoCampi: info(['matricola', 'diametro', 'odl', 'via', 'comune', 'cap', 'attivita']), committenti: ['Italgas'] },
 ];
 
 async function main(): Promise<void> {

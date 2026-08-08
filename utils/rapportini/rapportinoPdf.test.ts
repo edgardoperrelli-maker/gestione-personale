@@ -58,10 +58,29 @@ describe('generaRiepilogoPdfBlob', () => {
     }
   });
 
-  it('il blocco produzione porta attività e lavorazioni con i loro conteggi', async () => {
+  it('il blocco attività porta le etichette con i loro conteggi', async () => {
+    // Le ATTIVITÀ sono testo normale e si cercano; le LAVORAZIONI stanno nelle card in cima,
+    // con l'etichetta in maiuscoletto disegnata carattere per carattere (vedi nota sopra).
     const t = await testoPdf();
     expect(t).toContain('Sostituzione misuratore');
-    expect(t).toContain('CAMBIO');
+  });
+
+  it('le card delle lavorazioni reggono un\'etichetta lunghissima senza rompersi', async () => {
+    // Caso reale COMMERSO 07/08/2026: «MINIBAG/RG STOP BONIFICA SEMPLICE». Una card a larghezza
+    // fissa si spaccherebbe; qui la larghezza viene dal contenuto e l'etichetta va a capo.
+    const lungo: DatiRiepilogoPdf = {
+      ...dati,
+      lavorazioni: [
+        { etichetta: 'MINIBAG/RG STOP BONIFICA SEMPLICE', count: 5 },
+        { etichetta: 'SOSTITUZIONE VALVOLA', count: 1 },
+        { etichetta: 'MINI BAG RG STOP', count: 2 },
+        { etichetta: 'CAMBIO', count: 1 },
+        { etichetta: 'SIGILLO', count: 3 },
+      ],
+    };
+    const blob = await generaRiepilogoPdfBlob(lungo);
+    expect(blob.type).toBe('application/pdf');
+    expect(blob.size).toBeGreaterThan(500);
   });
 
   it('le tre sezioni compaiono, SENZA ESITO inclusa', async () => {
