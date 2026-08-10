@@ -56,15 +56,18 @@ export async function POST(req: Request) {
   for (const item of voci) {
     const { data: voce } = await supabaseAdmin
       .from('rapportino_voci')
-      .select('id, intervento_id, risposte, campi_snapshot, raw_json, odl, matricola, pdr, via')
+      .select('id, intervento_id, risposte, campi_snapshot, raw_json, odl, matricola, pdr, via, approvazione_stato')
       .eq('id', item.voceId)
       .eq('rapportino_id', rapportinoId)
       .maybeSingle();
     if (!voce) continue;
+    // `approvazione_stato` viaggia fino ad `agganciaVoceOrfana`: una voce rifiutata non si
+    // aggancia a nessun intervento (regola in `buildVoceInterventoLinker`).
     const v = voce as {
       id: string; intervento_id: string | null; risposte: Record<string, unknown> | null;
       campi_snapshot?: unknown; raw_json?: unknown;
       odl: string | null; matricola: string | null; pdr: string | null; via: string | null;
+      approvazione_stato: string | null;
     };
     /*
       Voce scollegata: agganciala PRIMA di propagare, o la correzione d'ufficio finisce

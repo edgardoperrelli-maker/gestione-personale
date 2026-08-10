@@ -27,6 +27,8 @@ export type VoceLinkKey = {
   via?: string | null;
   /** La voce è un task-via (attività BONIFICHE EXTRA)? Abilita il match per via. */
   taskVia?: boolean;
+  /** Stato di approvazione della voce manuale: una `rifiutato` non si aggancia MAI (vedi sotto). */
+  approvazione_stato?: string | null;
 };
 
 const norm = (v: unknown): string => String(v ?? '').trim().toLowerCase();
@@ -76,6 +78,28 @@ export function buildVoceInterventoLinker(
   };
 
   return (voce) => {
+    // Una voce RIFIUTATA non si aggancia a niente, mai.
+    //
+    // Il rifiuto dice che quel lavoro non deve essere registrato: un intervento non gli spetta —
+    // è la stessa invariante che il DB impone già alla richiesta (CHECK
+    // `interventi_manuali_intervento_solo_deciso`: `intervento_id` solo su approvato/auto_liberi),
+    // e la voce va tenuta allineata.
+    //
+    // Senza questo guard il danno non è «un collegamento in più»: è il collegamento all'intervento
+    // DI UN ALTRO. Le chiavi qui sotto sono ODL → matricola → PDR, e il PDR è del PUNTO, non del
+    // contatore: due misuratori nello stesso stabile lo condividono. La voce rifiutata non trova
+    // né il proprio ODL né la propria matricola (l'intervento non è mai stato creato, è quello il
+    // senso del rifiuto), scivola sul PDR e aggancia l'intervento del contatore accanto — che è
+    // uno solo su quel PDR, quindi la regola di ambiguità qui sopra non scatta.
+    //
+    // Caso reale del 10/08/2026, VIA FOSSO DELLA CRETA 3, PDR 4000283762 (limitazioni massive):
+    // matricola 202015245108 approvata, matricola 202015276720 rifiutata per errore nove minuti
+    // dopo e agganciata all'intervento della prima. Da lì lo Storico legge «ESEGUITO SI» su una
+    // matricola che quell'intervento non ha, e `leggiVerdettoEsecuzione` dichiara il contatore
+    // già eseguito: la pratica non si può più né approvare né rifare — la voce rifiutata blocca
+    // il proprio rifacimento. Misurato sul prod lo stesso giorno: 9 voci rifiutate agganciate,
+    // 9 su 9 all'intervento di un'altra voce.
+    if (voce.approvazione_stato === 'rifiutato') return null;
     const s = voce.staff_id ?? null;
     const perId =
       get(byOdl, s, voce.odl) ??

@@ -11,7 +11,7 @@
  */
 
 import { Fragment, useCallback, useEffect, useMemo, useState, type ComponentProps } from 'react';
-import { ArrowRight, ChevronDown, ChevronRight, Download } from 'lucide-react';
+import { ArrowRight, ChevronDown, ChevronRight, Download, Undo2 } from 'lucide-react';
 import { filtraRegistro, type FiltriRegistro } from '@/lib/interventi/manuali/filtraRegistro';
 import { STATI_RICHIESTA } from '@/lib/interventi/manuali/types';
 import { etichettaCommittente } from '@/lib/interventi/manuali/etichettaCommittente';
@@ -28,8 +28,10 @@ import Button from '@/components/Button';
 import Input from '@/components/Input';
 import Select from '@/components/ui/Select';
 import Badge from '@/components/Badge';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { toast } from '@/components/ui/Toast';
 import { daAssegnare } from '@/lib/interventi/manuali/daAssegnare';
+import { riapribile } from '@/lib/interventi/manuali/riaperturaRifiuto';
 
 const labelCls = 'text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]';
 
@@ -140,6 +142,11 @@ export function RegistroAutorizzazioni({ campiPerCommittente }: { campiPerCommit
   const [soloDaAssegnare, setSoloDaAssegnare] = useState(false);
   const [selezione, setSelezione] = useState<Set<string>>(new Set());
   const [registrando, setRegistrando] = useState(false);
+  // Riga il cui rifiuto si sta annullando: la conferma sta qui perché è l'unico punto
+  // dell'app in cui una richiesta rifiutata è ancora raggiungibile (la coda mostra solo le
+  // `in_attesa`, e dopo il rifiuto la pratica esce di lì).
+  const [daRiaprire, setDaRiaprire] = useState<RigaRichiesta | null>(null);
+  const [riaprendo, setRiaprendo] = useState(false);
 
   const carica = useCallback(async () => {
     setLoading(true);
@@ -196,6 +203,29 @@ export function RegistroAutorizzazioni({ campiPerCommittente }: { campiPerCommit
       await carica();
     } finally {
       setRegistrando(false);
+    }
+  };
+
+  /** Annulla un rifiuto sbagliato: la richiesta torna in coda «in attesa», da approvare a mano. */
+  const riapri = async () => {
+    if (!daRiaprire) return;
+    setRiaprendo(true);
+    try {
+      const res = await fetch(`/api/admin/interventi-manuali/${daRiaprire.id}/riapri`, { method: 'POST' });
+      const j = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        // `gia_gestita` = qualcuno l'ha già rimessa in coda (o decisa) nel frattempo: il
+        // registro qui è una fotografia, e dirlo è meglio di un generico "non riuscito".
+        toast.error(j.error === 'gia_gestita'
+          ? 'Richiesta già ripresa da un altro utente: aggiorna il registro.'
+          : 'Riapertura non riuscita.');
+        return;
+      }
+      toast.success('Richiesta riaperta: è tornata in coda, in attesa di approvazione.');
+      setDaRiaprire(null);
+      await carica();
+    } finally {
+      setRiaprendo(false);
     }
   };
 
@@ -407,6 +437,19 @@ export function RegistroAutorizzazioni({ campiPerCommittente }: { campiPerCommit
                           {/* Derivato dal timestamp nullo, non un valore di `stato`: l'assegnazione
                               sul sistema del committente e' un fatto esterno, non una decisione. */}
                           {daAssegnare(r) && <Badge variant="warn">Da assegnare</Badge>}
+                          {/* Rifiutata per errore: qui accanto al verdetto, che è dove uno se ne
+                              accorge. `stopPropagation` perché la riga intera apre i dettagli. */}
+                          {riapribile(r.stato) && (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              animated={false}
+                              title="Annulla il rifiuto: la richiesta torna in coda"
+                              onClick={(e) => { e.stopPropagation(); setDaRiaprire(r); }}
+                            >
+                              <Undo2 size={14} aria-hidden /> Riapri
+                            </Button>
+                          )}
                         </span>
                       </td>
                       <td className="px-3 py-2">{r.deciso_da_name ?? '—'}</td>
@@ -438,6 +481,22 @@ export function RegistroAutorizzazioni({ campiPerCommittente }: { campiPerCommit
           </table>
         </div>
       )}
+
+      <ConfirmDialog
+        open={daRiaprire !== null}
+        title="Riaprire questa richiesta?"
+        message={
+          <>
+            Torna nella coda «Richieste manuali» come <b>in attesa</b>: il rifiuto e il suo motivo
+            vengono cancellati e la voce torna «sospesa» sul rapportino dell&apos;operatore, che non
+            deve rifare nulla. Da lì la approvi col flusso normale.
+          </>
+        }
+        confirmLabel="Riapri"
+        loading={riaprendo}
+        onConfirm={() => void riapri()}
+        onClose={() => setDaRiaprire(null)}
+      />
     </section>
   );
 }

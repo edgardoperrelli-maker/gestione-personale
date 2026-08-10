@@ -46,7 +46,7 @@ export async function POST(req: Request) {
       const campi = (rap.campi_snapshot ?? []) as TemplateCampo[];
       const { data: voci } = await supabaseAdmin
         .from('rapportino_voci')
-        .select('id, intervento_id, raw_json, risposte, updated_at, campi_snapshot, odl, matricola, pdr')
+        .select('id, intervento_id, raw_json, risposte, updated_at, campi_snapshot, odl, matricola, pdr, approvazione_stato')
         .eq('rapportino_id', rap.id);
 
       for (const v of (voci ?? []) as Array<{
@@ -59,6 +59,7 @@ export async function POST(req: Request) {
         odl: string | null;
         matricola: string | null;
         pdr: string | null;
+        approvazione_stato: string | null;
       }>) {
         let interventoId = v.intervento_id;
         if (!interventoId) {
@@ -71,6 +72,9 @@ export async function POST(req: Request) {
             odl: (raw.odl as string | null | undefined) ?? (raw.odsin as string | null | undefined) ?? v.odl,
             matricola: (raw.matricola as string | null | undefined) ?? v.matricola,
             pdr: (raw.pdr as string | null | undefined) ?? v.pdr,
+            // Il recupero massivo passa su TUTTE le voci del giorno, rifiutate comprese: senza
+            // questo campo rimetterebbe in piedi proprio i collegamenti che stiamo togliendo.
+            approvazione_stato: v.approvazione_stato,
           });
           if (found) {
             interventoId = found;
