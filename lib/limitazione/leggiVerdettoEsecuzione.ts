@@ -37,7 +37,7 @@ export async function leggiVerdettoEsecuzione(q: string): Promise<VerdettoEsecuz
       .eq('esito', 'eseguito_positivo')
       .ilike('matricola_contatore', like).limit(100),
     supabaseAdmin.from('rapportino_voci')
-      .select('odl, matricola, risposte, interventi(committente)')
+      .select('odl, matricola, risposte, approvazione_stato, interventi(committente)')
       .ilike('matricola', like).limit(100),
   ]);
 
@@ -45,11 +45,22 @@ export async function leggiVerdettoEsecuzione(q: string): Promise<VerdettoEsecuz
     odl: string | null; matricola_contatore: string | null; data: string | null;
   }>).map((r) => ({ odl: r.odl, matricola_contatore: r.matricola_contatore, data: r.data }));
 
-  // Una voce conta solo se l'intervento collegato è nello scope ACEA (committente via embedded FK).
+  // Una voce conta solo se l'intervento collegato è nello scope ACEA (committente via embedded FK)
+  // e se NON è stata rifiutata dall'ufficio.
+  //
+  // Il rifiuto è la dichiarazione che quel lavoro non è stato registrato: contarlo come «già
+  // eseguito» chiude in faccia all'operatore l'unica porta che gli resta dopo un rifiuto, cioè
+  // rifare la pratica — la ricerca in campo mostra «Intervento già eseguito su questo misuratore»
+  // senza «Procedi», e il POST del "+" risponde 409 `matricola_gia_eseguita`. Un rifiuto per errore
+  // diventa così definitivo (caso matricola 202015276720 del 10/08/2026). Il confronto è su
+  // `approvazione_stato`, non sulla presenza dell'intervento, ed è volutamente in JS: `.neq()` in
+  // SQL scarterebbe anche le voci normali, dove la colonna è NULL.
   const voci = ((vociRes.data ?? []) as Array<{
     odl: string | null; matricola: string | null; risposte: Record<string, unknown> | null;
+    approvazione_stato: string | null;
     interventi: { committente: string | null } | { committente: string | null }[] | null;
   }>)
+    .filter((v) => v.approvazione_stato !== 'rifiutato')
     .filter((v) => {
       const c = Array.isArray(v.interventi) ? v.interventi[0]?.committente : v.interventi?.committente;
       return typeof c === 'string' && COMMITTENTI_BLOCCO_ESECUZIONE.includes(c);

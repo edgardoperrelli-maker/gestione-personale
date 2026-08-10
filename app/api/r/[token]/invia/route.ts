@@ -130,7 +130,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ token:
   const campi = (rap.campi_snapshot ?? []) as TemplateCampo[];
   const { data: voci } = await supabaseAdmin
     .from('rapportino_voci')
-    .select('id, intervento_id, raw_json, risposte, updated_at, matricola, pdr, odl, via, comune, campi_snapshot')
+    .select('id, intervento_id, raw_json, risposte, updated_at, matricola, pdr, odl, via, comune, campi_snapshot, approvazione_stato')
     .eq('rapportino_id', rap.id);
   /*
     Aggancio d'ULTIMA ISTANZA: il loop qui sotto salta le voci senza intervento, quindi una voce
@@ -151,7 +151,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ token:
         .eq('data', rap.data)
         .neq('stato', 'annullato');
       const resolve = buildVoceInterventoLinker((cand ?? []) as InterventoLinkRow[]);
-      for (const v of (voci ?? []) as Array<{ id: string; intervento_id: string | null; raw_json: unknown; odl: string | null; matricola: string | null; pdr: string | null }>) {
+      for (const v of (voci ?? []) as Array<{ id: string; intervento_id: string | null; raw_json: unknown; odl: string | null; matricola: string | null; pdr: string | null; approvazione_stato: string | null }>) {
         if (v.intervento_id) continue;
         const raw = (v.raw_json ?? {}) as { odl?: unknown; odsin?: unknown; matricola?: unknown; pdr?: unknown };
         const found = resolve({
@@ -159,6 +159,9 @@ export async function POST(_req: Request, { params }: { params: Promise<{ token:
           odl: (raw.odl as string | null | undefined) ?? (raw.odsin as string | null | undefined) ?? v.odl,
           matricola: (raw.matricola as string | null | undefined) ?? v.matricola,
           pdr: (raw.pdr as string | null | undefined) ?? v.pdr,
+          // Il reinvio di un rapportino riaperto è il punto esatto in cui una voce rifiutata
+          // si prendeva l'intervento di un'altra: qui il rifiuto va detto al risolutore.
+          approvazione_stato: v.approvazione_stato,
         });
         if (found) {
           v.intervento_id = found;

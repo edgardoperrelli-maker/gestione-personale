@@ -47,10 +47,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!locked) return NextResponse.json({ error: 'gia_gestita' }, { status: 409 });
 
   // ── Aggiorna la voce (se presente) ──────────────────────────────────────────
+  // `intervento_id: null` come sulla richiesta, e per lo stesso motivo: il rifiuto dice che
+  // quel lavoro non va registrato, quindi la voce non deve restare appesa a un intervento.
+  // Mentre la richiesta era `in_attesa` la voce era agganciabile dall'auto-aggancio
+  // (salvataggio, invio, recupero d'ufficio), e un collegamento fatto per ODL su una commessa
+  // dove lo stesso ODL porta più misuratori è il collegamento all'intervento di un ALTRO
+  // contatore. Se resta lì, quella voce continua a dire «ESEGUITO SI» nello Storico per conto
+  // di un intervento che non è suo, e blocca la matricola come «già eseguita».
   if (richiesta.voce_id) {
     await supabaseAdmin
       .from('rapportino_voci')
-      .update({ approvazione_stato: 'rifiutato' })
+      .update({ approvazione_stato: 'rifiutato', intervento_id: null })
       .eq('id', richiesta.voce_id);
   }
 

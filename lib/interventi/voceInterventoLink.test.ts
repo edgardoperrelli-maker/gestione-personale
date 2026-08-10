@@ -51,6 +51,47 @@ describe('buildVoceInterventoLinker', () => {
     expect(link({ staff_id: 's1', matricola: 'NOPE' })).toBeNull();
   });
 
+  describe('voce rifiutata: non si aggancia mai', () => {
+    /*
+      Il caso del 10/08/2026, VIA FOSSO DELLA CRETA 3 (limitazioni massive). Due misuratori nello
+      stesso stabile, quindi stesso PDR 4000283762: il primo (matricola 202015245108) è approvato e
+      ha il suo intervento, il secondo (202015276720) viene rifiutato per errore. La voce rifiutata
+      non trova né il proprio ODL né la propria matricola — l'intervento non esiste, è il senso del
+      rifiuto — scivola sul PDR e si prende l'intervento del PRIMO contatore.
+    */
+    const linkPdrCondiviso = () => buildVoceInterventoLinker([
+      it_({ id: 'iPrimoMisuratore', odl: '912489431', matricola_contatore: '202015245108', pdr: '4000283762' }),
+    ]);
+    const voceRifiutata = {
+      staff_id: 's1', odl: '912489601', matricola: '202015276720', pdr: '4000283762',
+    };
+
+    it('rifiutata → null: il PDR condiviso non le passa più l\'intervento del vicino', () => {
+      expect(linkPdrCondiviso()({ ...voceRifiutata, approvazione_stato: 'rifiutato' })).toBeNull();
+    });
+
+    it('la stessa voce NON rifiutata si aggancia: il guard non tocca il flusso buono', () => {
+      expect(linkPdrCondiviso()({ ...voceRifiutata, approvazione_stato: 'in_attesa' })).toBe('iPrimoMisuratore');
+      expect(linkPdrCondiviso()({ ...voceRifiutata, approvazione_stato: 'approvato' })).toBe('iPrimoMisuratore');
+    });
+
+    it('voce normale (approvazione_stato assente o null) → si aggancia come sempre', () => {
+      expect(linkPdrCondiviso()(voceRifiutata)).toBe('iPrimoMisuratore');
+      expect(linkPdrCondiviso()({ ...voceRifiutata, approvazione_stato: null })).toBe('iPrimoMisuratore');
+    });
+
+    it('il rifiuto batte ogni chiave: ODL, matricola e via dei task-via comprese', () => {
+      const link = buildVoceInterventoLinker([
+        it_({ id: 'iOdl', odl: 'K1' }),
+        it_({ id: 'iMatr', matricola_contatore: 'M1' }),
+        it_({ id: 'iBE', indirizzo: 'Via Verdi 3', gruppo_attivita: 'BONIFICHE EXTRA' }),
+      ]);
+      expect(link({ staff_id: 's1', odl: 'K1', approvazione_stato: 'rifiutato' })).toBeNull();
+      expect(link({ staff_id: 's1', matricola: 'M1', approvazione_stato: 'rifiutato' })).toBeNull();
+      expect(link({ staff_id: 's1', via: 'Via Verdi 3', taskVia: true, approvazione_stato: 'rifiutato' })).toBeNull();
+    });
+  });
+
   describe('task-via (bonifiche extra): aggancio per via', () => {
     it('aggancia la voce task-via al suo intervento bonifiche-extra per (staff+via)', () => {
       const link = buildVoceInterventoLinker([

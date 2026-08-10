@@ -22,6 +22,8 @@ export interface VoceDaAgganciare {
   pdr?: string | null;
   via?: string | null;
   taskVia?: boolean;
+  /** Stato di approvazione: una voce `rifiutato` non si aggancia (regola di `buildVoceInterventoLinker`). */
+  approvazione_stato?: string | null;
 }
 
 /**
@@ -53,6 +55,7 @@ export async function agganciaVoceOrfana(
     pdr: (raw.pdr as string | null | undefined) ?? voce.pdr,
     via: voce.via,
     taskVia: voce.taskVia,
+    approvazione_stato: voce.approvazione_stato,
   });
   if (!trovato) return null;
 

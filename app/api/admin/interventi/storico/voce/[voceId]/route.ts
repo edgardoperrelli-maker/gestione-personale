@@ -215,14 +215,17 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ voceId
 
   const { data: voce } = await supabaseAdmin
     .from('rapportino_voci')
-    .select('id, intervento_id, rapportino_id, risposte, campi_snapshot, raw_json, odl, matricola, pdr, via')
+    .select('id, intervento_id, rapportino_id, risposte, campi_snapshot, raw_json, odl, matricola, pdr, via, approvazione_stato')
     .eq('id', voceId)
     .maybeSingle();
   if (!voce) return NextResponse.json({ error: 'Voce non trovata.' }, { status: 404 });
+  // `approvazione_stato` viaggia fino ad `agganciaVoceOrfana`: una voce rifiutata non si
+  // aggancia a nessun intervento (regola in `buildVoceInterventoLinker`).
   const v = voce as {
     id: string; intervento_id: string | null; rapportino_id: string;
     risposte: Record<string, unknown> | null; campi_snapshot?: unknown; raw_json?: unknown;
     odl: string | null; matricola: string | null; pdr: string | null; via: string | null;
+    approvazione_stato: string | null;
   };
 
   const { data: rap } = await supabaseAdmin
