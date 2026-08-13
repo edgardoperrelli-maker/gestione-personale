@@ -52,12 +52,22 @@ export function ContenutoGuida({ oggi, famiglia, anagraficaModificabile = false 
               punto</strong> — indirizzo, comune, CAP, {famiglia === 'acqualatina' ? 'cod. fornitura' : 'impianto'},
               nome utente, recapito: doppio click sulla cella. La correzione scende
               sull&apos;intervento e sulla voce di rapportino, anche se è già in mano
-              all&apos;operatore. <strong>ODL e matricola no</strong>: sono la chiave e
-              l&apos;identità della riga, una matricola diversa non è una correzione ma un altro
-              punto.{' '}
+              all&apos;operatore. <strong>L&apos;ODL no</strong>: è la chiave della riga, cambiarlo
+              non correggerebbe questa ma ne colpirebbe un&apos;altra.{' '}
               {famiglia === 'acqualatina'
                 ? 'Attenzione: il prossimo master del committente rimette il suo valore se è diverso.'
                 : 'Attenzione: il prossimo import dell’export ACEA rimette il suo valore se è diverso.'}
+            </li>
+          )}
+          {anagraficaModificabile && (
+            <li>
+              Anche la <strong>Matricola</strong> si corregge — è il caso della matricola arrivata
+              <strong> tronca</strong> dall&apos;export, che nessun import può riparare perché la
+              cifra mancante non sta in nessun file che riceviamo. È l&apos;identità della riga,
+              quindi <strong>non si può svuotare</strong>, e{' '}
+              {famiglia === 'acqualatina'
+                ? 'se su quell’ODL esiste già una riga con quella matricola il registro la rifiuta: sarebbe la stessa riga due volte.'
+                : 'la correzione segue anche gli interventi e i rapportini di quella riga.'}
             </li>
           )}
         </ul>

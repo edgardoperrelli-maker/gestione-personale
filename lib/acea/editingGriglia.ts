@@ -25,7 +25,10 @@ export type Intervallo = { da: Cella; a: Cella };
  *  si scrivono solo con l'utente Admin Plus (vedi `anagraficaCelle.ts` e `useEditingGriglia`). */
 export type ColonnaEditabile =
   | 'pianificato_a' | 'pianificato_il' | 'note' | 'matricola_nuova'
-  | ColonnaAnagrafica;
+  | ColonnaAnagrafica
+  // L'IDENTITÀ della riga, riservata come le anagrafiche e con regole sue: vedi
+  // `lib/acea/matricolaCella.ts`. Non si svuota, e il database può rifiutarla.
+  | 'matricola';
 
 export type Direzione = 'su' | 'giu' | 'sinistra' | 'destra';
 

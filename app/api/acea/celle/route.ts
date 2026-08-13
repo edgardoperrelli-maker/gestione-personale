@@ -7,6 +7,10 @@ import {
 } from '@/lib/acea/anagraficaCelle';
 import { propagaAnagraficaAInterventi } from '@/lib/acea/propagaAnagrafica';
 import {
+  eConflittoUnicita, motivoMatricolaDuplicata, patchRegistroMatricola, valoreMatricolaCella,
+} from '@/lib/acea/matricolaCella';
+import { propagaMatricolaAInterventi } from '@/lib/acea/propagaMatricolaRegistro';
+import {
   etichettaMotivo, pianoPianificazione,
   type InterventoEsistente, type OrdineDaPianificare,
 } from '@/lib/acea/pianificazione';
@@ -57,6 +61,13 @@ type Modifica = {
    * già scritto e senza la discesa l'operatore andrebbe all'indirizzo appena corretto.
    */
   anagrafica?: AnagraficaCelle;
+  /**
+   * La MATRICOLA della riga, corretta in cella. Riservata agli Admin Plus come l'anagrafica,
+   * ma con regole sue (`lib/acea/matricolaCella.ts`): non si svuota, viaggia in coppia con
+   * `matricola_norm`, e su AcquaLatina l'indice unico `(odl, matricola_norm)` può RIFIUTARLA —
+   * quel rifiuto è una risposta di dominio, non un guasto, e torna fra le `rifiutate`.
+   */
+  matricola?: string | null;
 };
 
 type Corpo = {
@@ -111,7 +122,8 @@ export async function POST(req: Request) {
       («anagrafica: { matricola: … }») non è una richiesta di modifica anagrafica, e negarla con
       un 403 manderebbe a cercare un permesso mancante al posto della chiave sbagliata.
     */
-    if (anagraficaPerChiave.size > 0) {
+    const conMatricola = lista.some((m) => m.matricola !== undefined);
+    if (anagraficaPerChiave.size > 0 || conMatricola) {
       const plus = await requireAdminPlus();
       if (plus instanceof NextResponse) return plus;
     }
@@ -197,15 +209,71 @@ export async function POST(req: Request) {
       }
     }
 
-    // Solo note/matricola nuova/anagrafica: non c'è pianificazione da toccare, e si evita di
-    // aprire un'operazione annullabile vuota che comparirebbe nello storico come se avesse
-    // spostato qualcosa.
+    /*
+      La MATRICOLA: l'identità della riga, quindi la sola cella che il DATABASE può rifiutare.
+
+      Su AcquaLatina `(odl, matricola_norm)` è unico — un contatore per ODL una volta sola — e
+      una correzione che ci finisce contro non è un guasto: è il registro che dice «quella
+      matricola su questo ODL c'è già». Va restituita fra le `rifiutate`, come un ordine chiuso
+      o un giorno fuori finestra, non fatta esplodere in un 500 che porterebbe giù anche le note
+      e la pianificazione dello stesso incolla.
+
+      Si legge PRIMA di scrivere per due motivi: saltare le correzioni che non cambiano niente
+      (un ri-incolla dello stesso valore), e conservare la matricola VECCHIA — è l'unica cosa
+      che lega a questa riga gli interventi non ancora agganciati (vedi `propagaMatricola…`).
+    */
+    let matricoleRiga = 0;
+    const rifiutate: Array<{ chiave: string; motivo: string }> = [];
+    /** Cose riuscite a metà, da dire: la riga è a posto ma qualcosa dietro non ha seguito. */
+    const avvisi: string[] = [];
+    for (const m of lista) {
+      if (m.matricola === undefined) continue;
+      const esito = valoreMatricolaCella(m.matricola);
+      if (!esito.ok) { rifiutate.push({ chiave: m.chiave, motivo: esito.motivo }); continue; }
+      const [odl, operazione] = m.chiave.split('|');
+
+      const { data: prima, error: eLettura } = await supabaseAdmin
+        .from(profilo.tabellaOrdini)
+        .select('id, matricola, matricola_norm')
+        .eq('odl', odl)
+        .eq('numero_operazione', operazione)
+        .maybeSingle();
+      if (eLettura) throw eLettura;
+      const riga = prima as { id: string; matricola: string | null; matricola_norm: string | null } | null;
+      if (!riga) { rifiutate.push({ chiave: m.chiave, motivo: 'ordine non trovato' }); continue; }
+      if ((riga.matricola_norm ?? '') === esito.norm) continue;   // già così: nulla da fare
+
+      const { error } = await supabaseAdmin
+        .from(profilo.tabellaOrdini)
+        .update(patchRegistroMatricola(esito))
+        .eq('odl', odl)
+        .eq('numero_operazione', operazione);
+      if (error) {
+        if (!eConflittoUnicita(error)) throw error;
+        rifiutate.push({ chiave: m.chiave, motivo: motivoMatricolaDuplicata(esito.matricola) });
+        continue;
+      }
+      matricoleRiga += 1;
+
+      const esitoProp = await propagaMatricolaAInterventi(
+        supabaseAdmin,
+        { id: riga.id, odl, matricolaVecchia: riga.matricola },
+        esito.matricola,
+        profilo,
+      );
+      if (esitoProp.avviso) avvisi.push(esitoProp.avviso);
+    }
+
+    // Solo note/matricola nuova/anagrafica/matricola: non c'è pianificazione da toccare, e si
+    // evita di aprire un'operazione annullabile vuota che comparirebbe nello storico come se
+    // avesse spostato qualcosa.
     if (lista.every((m) => m.staffId === undefined && m.data === undefined)) {
       return NextResponse.json({
         operazioneId: null,
         creati: 0,
-        aggiornati: noteScritte + matricoleScritte + anagraficheScritte,
-        rifiutate: [],
+        aggiornati: noteScritte + matricoleScritte + anagraficheScritte + matricoleRiga,
+        rifiutate,
+        avvisi,
         bozze: 0,
       });
     }
@@ -312,8 +380,10 @@ export async function POST(req: Request) {
       interventoPerOdl.set(k, [...(interventoPerOdl.get(k) ?? []), i]);
     }
 
+    // `rifiutate` è dichiarata più su, con la matricola: le due sorgenti di rifiuto — la cella
+    // che il registro non accetta e la riga che la pianificazione salta — sono la stessa cosa
+    // per chi legge la risposta, e tenerle in due liste le avrebbe fatte comparire a metà.
     const azioniLog: Array<Record<string, unknown>> = [];
-    const rifiutate: Array<{ chiave: string; motivo: string }> = [];
     let creati = 0;
     let aggiornati = 0;
 
@@ -561,7 +631,7 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json(
-      { operazioneId, creati, aggiornati, rifiutate, bozze },
+      { operazioneId, creati, aggiornati, rifiutate, avvisi, bozze },
       { headers: { 'Cache-Control': 'no-store' } },
     );
   } catch (e) {

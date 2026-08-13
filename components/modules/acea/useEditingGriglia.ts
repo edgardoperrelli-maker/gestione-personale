@@ -11,6 +11,7 @@ import {
   COLONNE_ANAGRAFICA, MAX_ANAGRAFICA, eColonnaAnagrafica, valoreAnagrafica,
   type AnagraficaCelle,
 } from '@/lib/acea/anagraficaCelle';
+import { MAX_MATRICOLA, valoreMatricolaCella } from '@/lib/acea/matricolaCella';
 import { incollaSuRighe, testoRighe } from '@/lib/acea/righeAppunti';
 import { MOTIVO_SOLO_ATTIVAZIONI, soloAttivazioni } from '@/lib/acea/giorniProgrammabili';
 import { eRiapertura } from '@/lib/acea/scadenza';
@@ -44,8 +45,20 @@ export const MAX_MATRICOLA_NUOVA = 100;
  * l'anagrafica davanti, un nome incollato su quaranta spunte sarebbe finito nell'indirizzo.
  */
 export const COLONNE_EDITABILI: ColonnaEditabile[] = [
-  'pianificato_a', 'pianificato_il', 'note', 'matricola_nuova', ...COLONNE_ANAGRAFICA,
+  'pianificato_a', 'pianificato_il', 'note', 'matricola_nuova', ...COLONNE_ANAGRAFICA, 'matricola',
 ];
+
+/**
+ * Le colonne RISERVATE agli Admin Plus: l'anagrafica del punto e la matricola.
+ *
+ * Un predicato solo per le due, perché il permesso è lo stesso e i posti che lo consultano sono
+ * tre (il cancello di `editabile`, il conteggio delle celle saltate in un incolla, la guida).
+ * Quel che cambia fra le due — la matricola non si svuota, e il database può rifiutarla — vive
+ * in `matricolaCella.ts`, non qui.
+ */
+export function eColonnaRiservata(chiave: string): boolean {
+  return chiave === 'matricola' || eColonnaAnagrafica(chiave);
+}
 
 /**
  * Le colonne il cui editor in cella è un `<input>` di TESTO LIBERO.
@@ -57,12 +70,13 @@ export const COLONNE_EDITABILI: ColonnaEditabile[] = [
  * col mouse — o il contrario.
  */
 export function eColonnaTesto(chiave: string): boolean {
-  return chiave === 'note' || chiave === 'matricola_nuova' || eColonnaAnagrafica(chiave);
+  return chiave === 'note' || chiave === 'matricola_nuova' || eColonnaRiservata(chiave);
 }
 
 /** Il tetto di caratteri della cella di testo, che è anche il `maxLength` dell'input. */
 export function maxTestoCella(chiave: string): number {
   if (chiave === 'matricola_nuova') return MAX_MATRICOLA_NUOVA;
+  if (chiave === 'matricola') return MAX_MATRICOLA;
   if (eColonnaAnagrafica(chiave)) return MAX_ANAGRAFICA[chiave];
   return MAX_NOTA;
 }
@@ -71,6 +85,8 @@ export function maxTestoCella(chiave: string): number {
 export type ValoreLocale = AnagraficaCelle & {
   pianificato_a?: string | null; pianificato_il?: string | null; note?: string | null;
   matricola_nuova?: string | null;
+  /** La matricola corretta e non ancora ricaricata. Mai `null`: non si svuota. */
+  matricola?: string;
 };
 
 type Props = {
@@ -204,15 +220,15 @@ export function useEditingGriglia({
     (chiave: string): chiave is ColonnaEditabile =>
       (COLONNE_EDITABILI as string[]).includes(chiave)
       /*
-        L'ANAGRAFICA del punto si scrive solo da Admin Plus.
+        L'ANAGRAFICA del punto e la MATRICOLA si scrivono solo da Admin Plus.
 
-        Non e` una colonna nostra come la nota: e` il dato del committente, quello su cui si
+        Non sono colonne nostre come la nota: sono il dato del committente, quello su cui si
         cerca l'ordine, si fattura e si discute al telefono con lui. Correggerlo e` un gesto
         d'ufficio raro e con conseguenze (scende sull'intervento e sulla voce di rapportino gia`
         in mano all'operatore), quindi vale lo stesso cancello della modifica dello Storico:
         `canManageUsers`, cioe` il solo `admin_plus`.
       */
-      && !(eColonnaAnagrafica(chiave) && !anagraficaModificabile)
+      && !(eColonnaRiservata(chiave) && !anagraficaModificabile)
       /*
         Sulle schede di ESTRAZIONE le due colonne della pianificazione non si scrivono.
 
@@ -256,14 +272,14 @@ export function useEditingGriglia({
 
     const perChiave = new Map<string, {
       staffId?: string; data?: string; nota?: string; matricolaNuova?: string;
-      anagrafica?: AnagraficaCelle;
+      anagrafica?: AnagraficaCelle; matricola?: string;
     }>();
     const nuoviLocali = new Map(locali);
     const errori: string[] = [];
 
     let saltate = 0;
     /**
-     * Celle di ANAGRAFICA saltate per mancanza di permesso, contate a parte.
+     * Celle RISERVATE (anagrafica, matricola) saltate per mancanza di permesso, contate a parte.
      *
      * «Non modificabili» sarebbe una mezza verita` sbagliata proprio dove conta: quelle celle
      * SONO modificabili, ma non da chi sta incollando. Detto cosi`, chi non e` Admin Plus sa
@@ -277,7 +293,7 @@ export function useEditingGriglia({
       // I campi del committente non si scrivono (tranne l'anagrafica, e solo da Admin Plus):
       // si contano e si dicono, invece di lasciar credere che l'incolla sia passato tutto.
       if (!colonna || !editabile(colonna)) {
-        if (colonna && eColonnaAnagrafica(colonna)) saltatePerRuolo += 1;
+        if (colonna && eColonnaRiservata(colonna)) saltatePerRuolo += 1;
         else saltate += 1;
         continue;
       }
@@ -308,6 +324,20 @@ export function useEditingGriglia({
         const testo = s.valore.slice(0, MAX_MATRICOLA_NUOVA);
         perChiave.set(chiave, { ...perChiave.get(chiave), matricolaNuova: testo });
         nuoviLocali.set(chiave, { ...nuoviLocali.get(chiave), matricola_nuova: testo });
+      } else if (colonna === 'matricola') {
+        /*
+          L'IDENTITÀ della riga, e l'unica cella di testo con una VALIDAZIONE vera: il vuoto si
+          rifiuta col motivo, come una data malformata, invece di essere scritto.
+
+          Il resto — «esiste già su questo ODL?» — non si può decidere qui: dipende dalle altre
+          righe del registro, non da quelle a schermo, e un controllo sulle 300 righe scese
+          direbbe «libera» su una matricola che il database poi rifiuta. Lo decide l'indice
+          unico, che è l'unico che vede tutto il registro, e la risposta torna fra le rifiutate.
+        */
+        const esito = valoreMatricolaCella(s.valore);
+        if (!esito.ok) { errori.push(esito.motivo); continue; }
+        perChiave.set(chiave, { ...perChiave.get(chiave), matricola: esito.matricola });
+        nuoviLocali.set(chiave, { ...nuoviLocali.get(chiave), matricola: esito.matricola });
       } else if (eColonnaAnagrafica(colonna)) {
         /*
           L'anagrafica del punto. Come la nota, nessuna validazione di dominio: un CAP di
@@ -367,8 +397,8 @@ export function useEditingGriglia({
     }
     if (saltatePerRuolo > 0) {
       toast.info(
-        `${saltatePerRuolo} ${saltatePerRuolo === 1 ? 'cella di anagrafica saltata' : 'celle di anagrafica saltate'}: `
-        + 'la correzione è riservata agli Admin Plus.',
+        `${saltatePerRuolo} ${saltatePerRuolo === 1 ? 'cella saltata' : 'celle saltate'} `
+        + 'su anagrafica o matricola: la correzione è riservata agli Admin Plus.',
       );
     }
     if (errori.length > 0) {
@@ -392,7 +422,8 @@ export function useEditingGriglia({
       });
       const body = (await res.json()) as {
         operazioneId: string | null; creati: number; aggiornati: number;
-        rifiutate: Array<{ chiave: string; motivo: string }>; bozze?: number; error?: string;
+        rifiutate: Array<{ chiave: string; motivo: string }>; avvisi?: string[];
+        bozze?: number; error?: string;
       };
       if (!res.ok) {
         setLocali(precedenti);   // rollback: il valore torna com'era
@@ -416,6 +447,15 @@ export function useEditingGriglia({
             : `${meta} righe salvate a metà: senza esecutore e data non generano il rapportino.`,
         );
       }
+      /*
+        Le cose riuscite A META`, dette per intero e senza contarle fra i successi.
+
+        Oggi ne esiste una sola: la matricola corretta a registro che un intervento non ha
+        potuto seguire (l'indice unico di `interventi` glielo impedisce). E` il caso in cui il
+        silenzio farebbe piu` danno — la cella cambia, quindi sembra tutto a posto, mentre il
+        modulo Interventi resta col contatore vecchio e nessuno lo va a guardare.
+      */
+      for (const avviso of body.avvisi ?? []) toast.info(avviso);
       if (body.rifiutate.length > 0) {
         const primi = body.rifiutate.slice(0, 2).map((r) => `${r.chiave.split('|')[0]} (${r.motivo})`);
         toast.info(
@@ -450,6 +490,7 @@ export function useEditingGriglia({
     // che si vede in cella. `?? ''` e non `??` sul solo undefined: una cella appena svuotata
     // esce vuota, che e` il valore che ha adesso.
     if (eColonnaAnagrafica(colonna) && loc && colonna in loc) return loc[colonna] ?? '';
+    if (colonna === 'matricola' && loc?.matricola) return loc.matricola;
     const v = valoreCella(r, colonna as ChiaveColonna);
     return v === '—' ? '' : v;
   }, [locali]);
@@ -696,6 +737,7 @@ export function useEditingGriglia({
     const loc = locali.get(`${r.odl}|${r.numero_operazione}`);
     if (chiave === 'note') return loc?.note ?? r.note ?? '';
     if (chiave === 'matricola_nuova') return loc?.matricola_nuova ?? r.matricola_nuova ?? '';
+    if (chiave === 'matricola') return loc?.matricola ?? r.matricola ?? '';
     if (chiave && eColonnaAnagrafica(chiave)) {
       // Il valore ancora in viaggio vince su quello a registro, e una cella appena SVUOTATA
       // (`null` fra i locali) riapre vuota — non ripescando il vecchio valore dalla riga.

@@ -358,6 +358,8 @@ export default function RegistroAcea({
     // il trattino dei vuoti — `?? '—'` e non `?? null`, che riesumerebbe il valore a registro
     // facendo sembrare la cancellazione non passata.
     if (eColonnaAnagrafica(chiave) && chiave in loc) return loc[chiave] ?? '—';
+    // La matricola non ha il caso «svuotata»: non si può. `?? null` basta.
+    if (chiave === 'matricola') return loc.matricola ?? null;
     return null;
   }, [editing.locali]);
 
