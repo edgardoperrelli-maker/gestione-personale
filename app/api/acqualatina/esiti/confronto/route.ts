@@ -75,11 +75,19 @@ export async function POST(req: Request) {
       console.error('[acqualatina/esiti/confronto] riconciliazione non riuscita:', e);
     });
 
+    /*
+      `order('id')` PRIMA di paginare, come già fa la scansione di ACEA: senza un ordinamento
+      totale, due `range()` consecutivi non vedono per forza la stessa sequenza, e una riga può
+      saltare la finestra fra una pagina e l'altra. Su un ODL multi-matricola la riga persa può
+      essere proprio quella chiusa positiva — l'ODL resterebbe accusato di «manca il nostro
+      esito» a lavoro consegnato, e il giro dopo tornerebbe a posto da solo.
+    */
     const registro: RigaRegistroPerConfronto[] = [];
     for (let offset = 0; ; offset += PAGINA) {
       const { data, error } = await supabaseAdmin
         .from('acqualatina_ordini')
         .select('odl, aperto, esito_positivo, stato_desc, data_completamento, impianto, nominativo, comune')
+        .order('id', { ascending: true })
         .range(offset, offset + PAGINA - 1);
       if (error) throw error;
       const blocco = (data ?? []) as RigaRegistroPerConfronto[];
@@ -103,6 +111,7 @@ export async function POST(req: Request) {
         .eq('data', oggi)
         .not('stato', 'in', '(completato,annullato)')
         .not('odl', 'is', null)
+        .order('id', { ascending: true })
         .range(offset, offset + PAGINA - 1);
       if (error) throw error;
       const blocco = (data ?? []) as Array<{ odl: string | null }>;
