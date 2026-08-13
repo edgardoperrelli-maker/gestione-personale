@@ -1,15 +1,19 @@
 // lib/acea/editingGriglia.ts
 // PURA: modello di selezione, incolla a blocchi e validazione per l'editing stile Excel.
 //
-// Perimetro deciso: si modificano SOLO `Esecutore` e `Data pianificata`. I campi ACEA sono
-// immutabili per principio (decisione 8 dello studio) e la griglia non offre nemmeno il focus su
-// quelle colonne.
+// Perimetro storico: si modificavano SOLO `Esecutore` e `Data pianificata` — i campi del
+// committente erano immutabili per principio (decisione 8 dello studio). Da allora si sono
+// aggiunte le nostre (`note`, `matricola_nuova`) e, per il solo Admin Plus, l'ANAGRAFICA del
+// punto (`anagraficaCelle.ts`): il registro resta lo specchio del file del committente, ma
+// quando quel file arriva storto l'ufficio deve poterlo correggere prima che l'operatore ci
+// vada. Chi può scrivere cosa lo decide `useEditingGriglia.editabile`, non questo elenco.
 //
 // Qui non c'è React e non c'è rete: solo le decisioni. Il motivo è che tutta la difficoltà
 // dell'editing a griglia sta in questi casi limite — un blocco incollato più alto delle righe
 // disponibili, una cella singola su un intervallo, una data in formato italiano, un nome
 // operatore che non esiste — e vanno risolti dove si possono provare.
 
+import type { ColonnaAnagrafica } from './anagraficaCelle';
 import { eProgrammabile, spiegaFinestra } from './giorniProgrammabili';
 
 export type Cella = { riga: number; colonna: number };
@@ -17,8 +21,11 @@ export type Cella = { riga: number; colonna: number };
 export type Intervallo = { da: Cella; a: Cella };
 
 /** Colonne modificabili, nell'ordine in cui compaiono nella vista. `matricola_nuova` esiste
- *  solo sulla vista AcquaLatina (la colonna non c'è nelle altre famiglie). */
-export type ColonnaEditabile = 'pianificato_a' | 'pianificato_il' | 'note' | 'matricola_nuova';
+ *  solo sulla vista AcquaLatina (la colonna non c'è nelle altre famiglie); le anagrafiche
+ *  si scrivono solo con l'utente Admin Plus (vedi `anagraficaCelle.ts` e `useEditingGriglia`). */
+export type ColonnaEditabile =
+  | 'pianificato_a' | 'pianificato_il' | 'note' | 'matricola_nuova'
+  | ColonnaAnagrafica;
 
 export type Direzione = 'su' | 'giu' | 'sinistra' | 'destra';
 

@@ -1,7 +1,11 @@
 import 'server-only';
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
-import { requireAdmin } from '@/lib/apiAuth';
+import { requireAdmin, requireAdminPlus } from '@/lib/apiAuth';
+import {
+  anagraficaCelleValida, patchRegistroAnagrafica, type AnagraficaCelle,
+} from '@/lib/acea/anagraficaCelle';
+import { propagaAnagraficaAInterventi } from '@/lib/acea/propagaAnagrafica';
 import {
   etichettaMotivo, pianoPianificazione,
   type InterventoEsistente, type OrdineDaPianificare,
@@ -42,6 +46,17 @@ type Modifica = {
    * questa non è un appunto: è lo stesso dato che il modulo Interventi mostra e corregge.
    */
   matricolaNuova?: string | null;
+  /**
+   * L'ANAGRAFICA del punto corretta in cella: indirizzo, comune, CAP, cod. fornitura/impianto,
+   * nome utente, recapito. Chiavi assenti = invariate, valore vuoto = svuotato.
+   *
+   * Riservata agli ADMIN PLUS (vedi il gate nella POST): a differenza di nota e matricola
+   * nuova, non è un dato nostro — è quello del committente, quello su cui si cerca l'ordine e
+   * si discute al telefono con lui. E come la matricola nuova non si ferma al registro: scende
+   * sull'intervento agganciato e sulla sua voce di rapportino, perché il rapportino di domani è
+   * già scritto e senza la discesa l'operatore andrebbe all'indirizzo appena corretto.
+   */
+  anagrafica?: AnagraficaCelle;
 };
 
 type Corpo = {
@@ -59,6 +74,11 @@ type Corpo = {
  * pura, così i due percorsi non possono divergere.
  *
  * Registra un'operazione annullabile come la pianificazione in blocco.
+ *
+ * `requireAdmin` è il cancello della rotta; l'ANAGRAFICA del punto ne ha uno secondo e più
+ * stretto (`requireAdminPlus`), acceso solo se la richiesta ne porta davvero una: un incolla
+ * misto di esecutore, note e anagrafica resta UNA richiesta — come l'utente lo vive — e il
+ * permesso in più si chiede per la parte che lo richiede, non per tutta la riga.
  */
 export async function POST(req: Request) {
   const auth = await requireAdmin();
@@ -72,6 +92,29 @@ export async function POST(req: Request) {
     }
     const famigliaVista = parseFamiglia(corpo.famiglia);
     const profilo = PROFILO_COMMESSA[famigliaVista];
+
+    /*
+      L'anagrafica si normalizza QUI, prima di ogni altra cosa, e non ci si fida di quel che
+      arriva: `anagraficaCelleValida` scarta le chiavi ignote e applica la stessa forma che la
+      griglia ha già mostrato in cella (MAIUSCOLO, spazi schiacciati, vuoto → null). Le chiavi
+      pericolose — `odl`, `matricola` — non sono nella whitelist, quindi non esiste un corpo che
+      possa farle passare da questa porta.
+    */
+    const anagraficaPerChiave = new Map<string, AnagraficaCelle>();
+    for (const m of lista) {
+      if (m.anagrafica === undefined) continue;
+      const valida = anagraficaCelleValida(m.anagrafica);
+      if (Object.keys(valida).length > 0) anagraficaPerChiave.set(m.chiave, valida);
+    }
+    /*
+      Il cancello, e sta DOPO la normalizzazione apposta: un corpo che porta solo chiavi ignote
+      («anagrafica: { matricola: … }») non è una richiesta di modifica anagrafica, e negarla con
+      un 403 manderebbe a cercare un permesso mancante al posto della chiave sbagliata.
+    */
+    if (anagraficaPerChiave.size > 0) {
+      const plus = await requireAdminPlus();
+      if (plus instanceof NextResponse) return plus;
+    }
 
     const odlTutti = [...new Set(lista.map((m) => m.chiave.split('|')[0]))];
 
@@ -129,12 +172,41 @@ export async function POST(req: Request) {
         }
       }
     }
-    // Solo note/matricola nuova: non c'è pianificazione da toccare, e si evita di aprire
-    // un'operazione annullabile vuota che comparirebbe nello storico come se avesse spostato
-    // qualcosa.
+    /*
+      L'ANAGRAFICA del punto, terza corsia accanto a nota e matricola nuova.
+
+      Come quelle si scrive subito e a parte dalla pianificazione — si corregge un indirizzo
+      MENTRE si guarda la riga, non dopo averla assegnata — e come la matricola nuova non si
+      ferma al registro: `propagaAnagraficaAInterventi` la porta sull'intervento agganciato e
+      sulla sua voce di rapportino. Senza quella discesa l'ufficio vedrebbe la cella cambiare e
+      l'operatore continuerebbe ad andare all'indirizzo vecchio, che è già nel suo rapportino.
+    */
+    let anagraficheScritte = 0;
+    for (const [chiave, anagrafica] of anagraficaPerChiave) {
+      const [odl, operazione] = chiave.split('|');
+      const { data: righeToccate, error } = await supabaseAdmin
+        .from(profilo.tabellaOrdini)
+        .update(patchRegistroAnagrafica(anagrafica))
+        .eq('odl', odl)
+        .eq('numero_operazione', operazione)
+        .select('id');
+      if (error) throw error;
+      anagraficheScritte += 1;
+      for (const r of (righeToccate ?? []) as Array<{ id: string }>) {
+        await propagaAnagraficaAInterventi(supabaseAdmin, r.id, anagrafica, profilo.committenti);
+      }
+    }
+
+    // Solo note/matricola nuova/anagrafica: non c'è pianificazione da toccare, e si evita di
+    // aprire un'operazione annullabile vuota che comparirebbe nello storico come se avesse
+    // spostato qualcosa.
     if (lista.every((m) => m.staffId === undefined && m.data === undefined)) {
       return NextResponse.json({
-        operazioneId: null, creati: 0, aggiornati: noteScritte + matricoleScritte, rifiutate: [], bozze: 0,
+        operazioneId: null,
+        creati: 0,
+        aggiornati: noteScritte + matricoleScritte + anagraficheScritte,
+        rifiutate: [],
+        bozze: 0,
       });
     }
 

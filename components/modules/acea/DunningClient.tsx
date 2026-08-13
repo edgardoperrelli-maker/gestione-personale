@@ -18,11 +18,14 @@ import RegistroAcea from './RegistroAcea';
  * `min-h-0` sull'anello intermedio: senza, un figlio flex non scende sotto l'altezza del proprio
  * contenuto, e la catena che porta l'altezza dello schermo fino alla tabella si spezza qui.
  */
-export default function DunningClient() {
+export default function DunningClient({ anagraficaModificabile = false }: {
+  /** `true` per gli Admin Plus: correggono l'anagrafica del punto in cella. Lo decide la pagina. */
+  anagraficaModificabile?: boolean;
+}) {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
       <ContatoriAcea famiglia="dunning" />
-      <RegistroAcea famiglia="dunning" />
+      <RegistroAcea famiglia="dunning" anagraficaModificabile={anagraficaModificabile} />
     </div>
   );
 }

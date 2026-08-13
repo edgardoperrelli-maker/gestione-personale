@@ -20,10 +20,17 @@ type PropsGuida = {
   oggi: string;
   /** La famiglia della vista: la guida nomina l'attività di tabellone giusta (DUNNING / MASSIVE). */
   famiglia: Famiglia;
+  /**
+   * `true` per gli Admin Plus, che scrivono anche l'anagrafica del punto.
+   *
+   * La riga compare solo a chi quel gesto ce l'ha: spiegarlo a chi non può farlo sarebbe
+   * descrivere un comando che non c'è, e la guida diventerebbe un elenco di cose da chiedere.
+   */
+  anagraficaModificabile?: boolean;
 };
 
 /** Contenuto della guida, esportato nudo: si prova con un render statico, senza stato né Dialog. */
-export function ContenutoGuida({ oggi, famiglia }: PropsGuida) {
+export function ContenutoGuida({ oggi, famiglia, anagraficaModificabile = false }: PropsGuida) {
   const { etichetta: attivita } = ATTIVITA_TABELLONE[famiglia];
   // Senza «oggi» (il server non ha ancora risposto) la frase resta vera ma senza date: meglio
   // generica che sbagliata, e sbagliata sarebbe se la calcolassimo sull'orologio del browser.
@@ -39,6 +46,20 @@ export function ContenutoGuida({ oggi, famiglia }: PropsGuida) {
           <li><strong>Doppio click sulla Data</strong> (o <kbd>Invio</kbd>) apre il calendario; la data si scrive anche a mano.</li>
           <li><strong>Click su una cella Esecutore vuota</strong> apre l&apos;elenco di chi ha l&apos;attività {attivita} in cronoprogramma, di qualunque territorio — si sceglie da lì, niente testo libero. Doppio click per cambiare un nome già scritto.</li>
           <li>La <strong>nota</strong> scritta qui arriva all&apos;operatore dentro il rapportino.</li>
+          {anagraficaModificabile && (
+            <li>
+              Come <strong>Admin Plus</strong> si corregge anche l&apos;<strong>anagrafica del
+              punto</strong> — indirizzo, comune, CAP, {famiglia === 'acqualatina' ? 'cod. fornitura' : 'impianto'},
+              nome utente, recapito: doppio click sulla cella. La correzione scende
+              sull&apos;intervento e sulla voce di rapportino, anche se è già in mano
+              all&apos;operatore. <strong>ODL e matricola no</strong>: sono la chiave e
+              l&apos;identità della riga, una matricola diversa non è una correzione ma un altro
+              punto.{' '}
+              {famiglia === 'acqualatina'
+                ? 'Attenzione: il prossimo master del committente rimette il suo valore se è diverso.'
+                : 'Attenzione: il prossimo import dell’export ACEA rimette il suo valore se è diverso.'}
+            </li>
+          )}
         </ul>
       </section>
 
@@ -96,7 +117,7 @@ export function ContenutoGuida({ oggi, famiglia }: PropsGuida) {
   );
 }
 
-export default function GuidaTabella({ oggi, famiglia }: PropsGuida) {
+export default function GuidaTabella({ oggi, famiglia, anagraficaModificabile }: PropsGuida) {
   const [aperta, setAperta] = useState(false);
   return (
     <>
@@ -119,7 +140,7 @@ export default function GuidaTabella({ oggi, famiglia }: PropsGuida) {
         <CircleHelp size={16} aria-hidden="true" />
       </Button>
       <Dialog open={aperta} onClose={() => setAperta(false)} title="Come si usa la tabella">
-        <ContenutoGuida oggi={oggi} famiglia={famiglia} />
+        <ContenutoGuida oggi={oggi} famiglia={famiglia} anagraficaModificabile={anagraficaModificabile} />
       </Dialog>
     </>
   );
