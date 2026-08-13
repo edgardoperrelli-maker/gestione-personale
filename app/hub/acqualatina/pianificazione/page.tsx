@@ -1,7 +1,9 @@
 import { cookies } from 'next/headers';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { redirect } from 'next/navigation';
-import { getAllowedModulesForUser, resolveUserRole } from '@/lib/moduleAccess';
+import {
+  canManageUsers, getAllowedModulesForUser, resolveAssignableRole, resolveUserRole,
+} from '@/lib/moduleAccess';
 import AuthGate from '@/components/AuthGate';
 import Breadcrumb from '@/components/ui/Breadcrumb';
 import RegistroAcea from '@/components/modules/acea/RegistroAcea';
@@ -28,6 +30,9 @@ export default async function AcqualatinaPianificazionePage() {
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
   const role = resolveUserRole(profile?.role, user.app_metadata?.role);
   if (!getAllowedModulesForUser(user.app_metadata, role).includes('acqualatina')) redirect('/hub');
+  // Il privilegio «in più» che apre le celle anagrafiche: `resolveUserRole` qui sopra appiattisce
+  // admin_plus su admin (è il ruolo di AUTORIZZAZIONE), quindi la distinzione va richiesta a parte.
+  const adminPlus = canManageUsers(resolveAssignableRole(profile?.role, user.app_metadata?.role));
 
   // Modulo a schermo pieno, come Dunning e Massive: la tabella prende l'altezza che avanza.
   return (
@@ -46,7 +51,7 @@ export default async function AcqualatinaPianificazionePage() {
             Sostituzione misuratori — Terracina
           </h1>
         </div>
-        <RegistroAcea famiglia="acqualatina" />
+        <RegistroAcea famiglia="acqualatina" anagraficaModificabile={adminPlus} />
       </div>
     </AuthGate>
   );

@@ -25,7 +25,7 @@ export const dynamic = 'force-dynamic';
 export default async function AceaMassivePage() {
   // PRIMA del dato, non dopo: leggere i comuni per poi rimandare via chi non può vederli
   // significa aver già interrogato il registro del committente per conto suo.
-  await gatePagina('/hub/acea/massive');
+  const { adminPlus } = await gatePagina('/hub/acea/massive');
   const comuni = await comuniMassiveAperti(supabaseAdmin).catch((e) => {
     console.error('[acea/massive] comuni non letti:', e);
     return [];
@@ -35,7 +35,9 @@ export default async function AceaMassivePage() {
     <div className="flex h-[calc(100dvh-6rem)] flex-col gap-2">
       <AceaNav attivo="massive" />
       <ContatoriAcea famiglia="massive" />
-      <RegistroAcea famiglia="massive" comuniIniziali={comuni} />
+      {/* L'anagrafica del punto la correggono in cella i soli Admin Plus: il gate l'ha già
+          risolto sopra, e la route rifiuta comunque chi non lo è. */}
+      <RegistroAcea famiglia="massive" comuniIniziali={comuni} anagraficaModificabile={adminPlus} />
     </div>
   );
 }

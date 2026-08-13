@@ -26,7 +26,7 @@ import { nomeFotoFile, identificativoFoto, type FotoIdCampo } from '@/lib/interv
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { decisioneCorsia } from '@/lib/interventi/manuali/decisioneCorsia';
 import { lookupMaster } from '@/lib/acqualatina/lookupMaster';
-import { masterAttivi, candidatiPerRicerca } from '@/lib/acqualatina/censimentoMaster';
+import { candidatiPerRicerca } from '@/lib/acqualatina/censimentoMaster';
 import { richiestaToIntervento } from '@/lib/interventi/manuali/richiestaToIntervento';
 import { risolviTerritorioIdPerPiano } from '@/lib/interventi/territorioOverride';
 import { isTaskVia, ATTIVITA_TASK_VIA } from '@/lib/interventi/manuali/taskVia';
@@ -265,10 +265,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   // «Link scaduto o non più modificabile», che qui sarebbe falso e manderebbe l'operatore a
   // cercare un problema che non c'è. Sul 400 il sync legge il corpo (`motivoManuale400`) e
   // mostra il motivo vero nella coda «da risolvere».
+  //
+  // ⚠️ Il gate è sulla MATRICOLA e resta secco, anche ora che la ricerca in campo accetta pure
+  // l'ODL. Cercare per ordine serve a TROVARE la riga e a farsi proporre la matricola censita —
+  // che è quella che poi arriva qui dentro — non ad aggirare l'elenco: se la matricola non è a
+  // catalogo l'intervento non si aggiunge e non si esegue, e nessun ODL valido accanto la
+  // riabilita. È la differenza con ACEA, dove il non censito è un avviso e si può proseguire.
   if (committente === 'acqualatina') {
     const matricolaQ = String((anagrafica as { matricola?: unknown }).matricola ?? '').trim();
-    const masterIds = await masterAttivi();
-    const verdetto = lookupMaster(matricolaQ, await candidatiPerRicerca(matricolaQ, masterIds));
+    const verdetto = matricolaQ === ''
+      ? ({ esito: 'assente' } as const)
+      : lookupMaster(matricolaQ, await candidatiPerRicerca(matricolaQ));
     if (verdetto.esito === 'assente' || verdetto.esito === 'ambiguo') {
       return NextResponse.json(
         {

@@ -6,17 +6,22 @@ import { AlertTriangle, Ban, ClipboardList, ScanLine } from 'lucide-react';
 import Button from '@/components/Button';
 import { ScannerMisuratore } from '@/components/modules/rapportini/risanamento/ScannerMisuratore';
 import type { CensitoMisuratore } from '@/lib/limitazione/autofillAnagrafica';
-import { matchVociMatricola, type VoceMatricola } from '@/lib/limitazione/matchVociMatricola';
+import { matchVociMatricola, matchVociOdl, type VoceMatricola } from '@/lib/limitazione/matchVociMatricola';
 import { lookupMaster, type RigaMaster } from '@/lib/acqualatina/lookupMaster';
 import { leggiCensimentoMasterLocale } from '@/lib/offline/censimentoMaster';
 
 /**
- * Passo «cerca matricola» della commessa AcquaLatina.
+ * Passo «cerca misuratore» della commessa AcquaLatina.
  *
  * Componente NUOVO e non un ramo di `CercaMatricolaLimitazione`: quello serve ACEA e ha la
  * semantica OPPOSTA a valle — là il non censito è un avviso morbido con «inserisci a mano»,
  * qui è un blocco. Condividerlo avrebbe significato due comportamenti dietro un flag, sullo
  * stesso codice che gira in produzione per un altro committente.
+ *
+ * Il campo accetta la MATRICOLA o l'ODL, e non chiede all'operatore di dichiarare quale dei due
+ * sta scrivendo: chi è davanti al contatore legge la matricola, chi parte dal battente ha in
+ * mano il numero dell'ordine — che è anche il primo dato della lista dell'ufficio. Cercare per
+ * ordine dava «Misuratore non censito» fino al 13/08/2026 (ODL 12386221).
  *
  * Il verdetto lo calcola sempre `lookupMaster`: online lo fa il server su `/cerca-master`,
  * offline lo fa qui sulla cache locale. Stessa funzione, così «non censito» significa la
@@ -28,21 +33,26 @@ const daRiga = (r: RigaMaster): CensitoMisuratore => ({
   matricola: r.matricola, odl: r.odl, indirizzo: r.indirizzo, comune: r.comune, cap: r.cap,
 });
 
+/** `cercato` è quello che l'operatore ha digitato: può essere una matricola o un ODL, e i testi
+ *  non lo chiamano più «matricola letta» perché nella metà dei casi non lo è. */
 type Blocco =
-  | { motivo: 'assente'; letta: string }
+  | { motivo: 'assente'; cercato: string }
   | { motivo: 'masterVuoto' }
   | { motivo: 'ambiguo'; odl: string[] }
   /** L'operatore ha detto che la matricola proposta non è quella sul contatore. */
-  | { motivo: 'rifiutata'; letta: string; proposta: string; indirizzo: string };
+  | { motivo: 'rifiutata'; cercato: string; proposta: string; indirizzo: string };
+
+/** Su cosa ha agganciato il lookup: cambia la domanda della schermata di scelta. */
+type Motivo = 'matricola' | 'odl';
 
 type Vista =
   | { v: 'ricerca' }
-  | { v: 'scelta'; candidati: CensitoMisuratore[] }
+  | { v: 'scelta'; motivo: Motivo; candidati: CensitoMisuratore[] }
   | { v: 'conferma'; candidato: CensitoMisuratore }
   | { v: 'blocco'; blocco: Blocco }
   /** Offline SENZA censimento in cache: non si sa, quindi non si blocca (decisione 5).
    *  Si procede con riserva e il verdetto duro arriva dal server all'invio. */
-  | { v: 'senzaCensimento'; letta: string };
+  | { v: 'senzaCensimento'; cercato: string };
 
 export function CercaMatricolaAcqualatina({
   token,
@@ -74,15 +84,17 @@ export function CercaMatricolaAcqualatina({
    *  è «non lo so», e la differenza è tutto il senso della decisione 5. */
   const cercaOffline = async (v: string): Promise<Vista> => {
     const locale = await leggiCensimentoMasterLocale();
-    if (!locale) return { v: 'senzaCensimento', letta: v };
+    if (!locale) return { v: 'senzaCensimento', cercato: v };
     const verdetto = lookupMaster(v, locale.righe);
     if (verdetto.esito === 'letterale') { onTrovato(daRiga(verdetto.riga)); return { v: 'ricerca' }; }
     if (verdetto.esito === 'conferma') {
       const c = verdetto.candidati.map(daRiga);
-      return c.length === 1 ? { v: 'conferma', candidato: c[0] } : { v: 'scelta', candidati: c };
+      return c.length === 1
+        ? { v: 'conferma', candidato: c[0] }
+        : { v: 'scelta', motivo: verdetto.motivo, candidati: c };
     }
     if (verdetto.esito === 'ambiguo') return { v: 'blocco', blocco: { motivo: 'ambiguo', odl: verdetto.odl } };
-    return { v: 'blocco', blocco: { motivo: 'assente', letta: v } };
+    return { v: 'blocco', blocco: { motivo: 'assente', cercato: v } };
   };
 
   const cerca = async (valore: string) => {
@@ -92,7 +104,9 @@ export function CercaMatricolaAcqualatina({
     setVista({ v: 'ricerca' });
 
     // 1) Già un tuo task (e non rifiutato) → apri quella voce, non se ne crea un'altra.
-    const own = matchVociMatricola(vociAttive, v);
+    //    Prima la matricola, poi l'ODL: il campo accetta entrambi, e senza il secondo verso chi
+    //    digita il numero dell'ordine si ritroverebbe un doppione accanto al task che ha già.
+    const own = matchVociMatricola(vociAttive, v) ?? matchVociOdl(vociAttive, v);
     if (own) { onApriAssegnato(own.id); return; }
 
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
@@ -114,7 +128,7 @@ export function CercaMatricolaAcqualatina({
       }
       const j = (await res.json()) as
         | { esito: 'letterale'; misuratore: CensitoMisuratore }
-        | { esito: 'conferma'; candidati: CensitoMisuratore[] }
+        | { esito: 'conferma'; motivo?: Motivo; candidati: CensitoMisuratore[] }
         | { esito: 'ambiguo'; odl: string[] }
         | { esito: 'assente'; masterVuoto?: boolean };
 
@@ -122,11 +136,11 @@ export function CercaMatricolaAcqualatina({
       if (j.esito === 'conferma') {
         setVista(j.candidati.length === 1
           ? { v: 'conferma', candidato: j.candidati[0] }
-          : { v: 'scelta', candidati: j.candidati });
+          : { v: 'scelta', motivo: j.motivo ?? 'matricola', candidati: j.candidati });
         return;
       }
       if (j.esito === 'ambiguo') { setVista({ v: 'blocco', blocco: { motivo: 'ambiguo', odl: j.odl } }); return; }
-      setVista({ v: 'blocco', blocco: j.masterVuoto ? { motivo: 'masterVuoto' } : { motivo: 'assente', letta: v } });
+      setVista({ v: 'blocco', blocco: j.masterVuoto ? { motivo: 'masterVuoto' } : { motivo: 'assente', cercato: v } });
     } catch {
       const fallback = await cercaOffline(v);
       setVista(fallback);
@@ -141,14 +155,14 @@ export function CercaMatricolaAcqualatina({
 
   return (
     <div className="space-y-3">
-      <p className="text-sm font-semibold text-[var(--brand-text-muted)]">Cerca matricola</p>
+      <p className="text-sm font-semibold text-[var(--brand-text-muted)]">Cerca matricola o ODL</p>
 
       <div className="flex gap-2">
         <input
           type="text"
           inputMode="text"
-          placeholder="Matricola"
-          aria-label="Matricola"
+          placeholder="Matricola o ODL"
+          aria-label="Matricola o ODL"
           value={q}
           onChange={(e) => { setQ(e.target.value); setVista({ v: 'ricerca' }); setErrore(null); }}
           onKeyDown={(e) => { if (e.key === 'Enter') void cerca(q); }}
@@ -164,13 +178,20 @@ export function CercaMatricolaAcqualatina({
 
       {errore && <p className="text-sm font-medium text-[var(--danger)]">{errore}</p>}
 
-      {/* ── Scelta fra più ordini sulla stessa matricola ─────────────────────────
-          L'indirizzo è il discriminante: l'operatore è sul posto e lo vede, l'ufficio no. */}
+      {/* ── Scelta fra più candidati ─────────────────────────────────────────────
+          Il discriminante cambia col verso della ricerca, e con esso la riga in evidenza:
+          · per MATRICOLA sono più ordini sullo stesso contatore → discrimina l'INDIRIZZO,
+            che l'operatore è sul posto e vede, l'ufficio no;
+          · per ODL sono più contatori dello stesso ordine (i condomìni: nel file di Terracina
+            109 ordini ne coprono da 2 a 5) → l'indirizzo è identico su tutti e non sceglie
+            niente, discrimina la MATRICOLA sul contatore davanti a cui si è. */}
       {vista.v === 'scelta' && (
         <div className="space-y-2 rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3">
           <p className="flex items-center gap-1.5 text-xs font-semibold text-[var(--brand-text-muted)]">
             <ClipboardList className="h-3.5 w-3.5 shrink-0" strokeWidth={1.8} aria-hidden />
-            Più ordini su questa matricola: scegli l&apos;indirizzo dove ti trovi
+            {vista.motivo === 'odl'
+              ? 'Più misuratori su questo ODL: scegli la matricola che leggi sul contatore'
+              : "Più ordini su questa matricola: scegli l'indirizzo dove ti trovi"}
           </p>
           <ul className="space-y-1">
             {vista.candidati.map((c) => (
@@ -180,11 +201,22 @@ export function CercaMatricolaAcqualatina({
                   onClick={() => setVista({ v: 'conferma', candidato: c })}
                   className="flex min-h-[48px] w-full flex-col items-start justify-center gap-0.5 rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] active:border-[var(--brand-primary)]"
                 >
-                  <span className="text-sm font-semibold text-[var(--brand-text-main)]">{indirizzoDi(c)}</span>
-                  <span className="text-xs text-[var(--brand-text-muted)]">
-                    ODL <span className="font-mono tabular-nums">{c.odl}</span> · matr.{' '}
-                    <span className="font-mono tabular-nums">{c.matricola}</span>
-                  </span>
+                  {vista.motivo === 'odl' ? (
+                    <>
+                      <span className="font-mono text-sm font-semibold tabular-nums text-[var(--brand-text-main)]">
+                        {c.matricola}
+                      </span>
+                      <span className="text-xs text-[var(--brand-text-muted)]">{indirizzoDi(c)}</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-sm font-semibold text-[var(--brand-text-main)]">{indirizzoDi(c)}</span>
+                      <span className="text-xs text-[var(--brand-text-muted)]">
+                        ODL <span className="font-mono tabular-nums">{c.odl}</span> · matr.{' '}
+                        <span className="font-mono tabular-nums">{c.matricola}</span>
+                      </span>
+                    </>
+                  )}
                 </button>
               </li>
             ))}
@@ -214,7 +246,7 @@ export function CercaMatricolaAcqualatina({
                 v: 'blocco',
                 blocco: {
                   motivo: 'rifiutata',
-                  letta: q.trim(),
+                  cercato: q.trim(),
                   proposta: vista.candidato.matricola,
                   indirizzo: indirizzoDi(vista.candidato),
                 },
@@ -240,7 +272,7 @@ export function CercaMatricolaAcqualatina({
               {vista.blocco.motivo === 'ambiguo'
                 ? 'Più ordini indistinguibili su questa matricola.'
                 : vista.blocco.motivo === 'masterVuoto'
-                  ? 'Nessun elenco misuratori attivo per questa commessa.'
+                  ? 'Nessun ordine a registro per questa commessa.'
                   : vista.blocco.motivo === 'rifiutata'
                     ? 'La matricola non corrisponde.'
                     : 'Misuratore non censito.'}
@@ -252,11 +284,11 @@ export function CercaMatricolaAcqualatina({
             <p className="text-xs">ODL coinvolti: <span className="font-mono tabular-nums">{vista.blocco.odl.join(', ')}</span></p>
           )}
           {vista.blocco.motivo === 'assente' && (
-            <p className="text-xs">Matricola letta: <span className="font-mono tabular-nums">{vista.blocco.letta}</span></p>
+            <p className="text-xs">Codice cercato: <span className="font-mono tabular-nums">{vista.blocco.cercato}</span></p>
           )}
           {vista.blocco.motivo === 'rifiutata' && (
             <p className="text-xs">
-              Letta <span className="font-mono tabular-nums">{vista.blocco.letta}</span>, in elenco risulta{' '}
+              Cercato <span className="font-mono tabular-nums">{vista.blocco.cercato}</span>, in elenco risulta{' '}
               <span className="font-mono tabular-nums">{vista.blocco.proposta}</span> in {vista.blocco.indirizzo}.
             </p>
           )}
@@ -279,8 +311,8 @@ export function CercaMatricolaAcqualatina({
             Puoi proseguire: la matricola verrà verificata dall&apos;ufficio alla sincronizzazione. Se non
             risulta a catalogo, la pratica ti tornerà indietro.
           </p>
-          <Button variant="outline" size="touch" onClick={() => onManuale(vista.letta)} className="w-full border-dashed">
-            Prosegui con <span className="ml-1 font-mono tabular-nums">{vista.letta}</span>
+          <Button variant="outline" size="touch" onClick={() => onManuale(vista.cercato)} className="w-full border-dashed">
+            Prosegui con <span className="ml-1 font-mono tabular-nums">{vista.cercato}</span>
           </Button>
         </div>
       )}

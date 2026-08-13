@@ -1,7 +1,15 @@
 import 'server-only';
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
-import { requireAdmin } from '@/lib/apiAuth';
+import { requireAdmin, requireAdminPlus } from '@/lib/apiAuth';
+import {
+  anagraficaCelleValida, patchRegistroAnagrafica, type AnagraficaCelle,
+} from '@/lib/acea/anagraficaCelle';
+import { propagaAnagraficaAInterventi } from '@/lib/acea/propagaAnagrafica';
+import {
+  eConflittoUnicita, motivoMatricolaDuplicata, patchRegistroMatricola, valoreMatricolaCella,
+} from '@/lib/acea/matricolaCella';
+import { propagaMatricolaAInterventi } from '@/lib/acea/propagaMatricolaRegistro';
 import {
   etichettaMotivo, pianoPianificazione,
   type InterventoEsistente, type OrdineDaPianificare,
@@ -42,6 +50,24 @@ type Modifica = {
    * questa non è un appunto: è lo stesso dato che il modulo Interventi mostra e corregge.
    */
   matricolaNuova?: string | null;
+  /**
+   * L'ANAGRAFICA del punto corretta in cella: indirizzo, comune, CAP, cod. fornitura/impianto,
+   * nome utente, recapito. Chiavi assenti = invariate, valore vuoto = svuotato.
+   *
+   * Riservata agli ADMIN PLUS (vedi il gate nella POST): a differenza di nota e matricola
+   * nuova, non è un dato nostro — è quello del committente, quello su cui si cerca l'ordine e
+   * si discute al telefono con lui. E come la matricola nuova non si ferma al registro: scende
+   * sull'intervento agganciato e sulla sua voce di rapportino, perché il rapportino di domani è
+   * già scritto e senza la discesa l'operatore andrebbe all'indirizzo appena corretto.
+   */
+  anagrafica?: AnagraficaCelle;
+  /**
+   * La MATRICOLA della riga, corretta in cella. Riservata agli Admin Plus come l'anagrafica,
+   * ma con regole sue (`lib/acea/matricolaCella.ts`): non si svuota, viaggia in coppia con
+   * `matricola_norm`, e su AcquaLatina l'indice unico `(odl, matricola_norm)` può RIFIUTARLA —
+   * quel rifiuto è una risposta di dominio, non un guasto, e torna fra le `rifiutate`.
+   */
+  matricola?: string | null;
 };
 
 type Corpo = {
@@ -59,6 +85,11 @@ type Corpo = {
  * pura, così i due percorsi non possono divergere.
  *
  * Registra un'operazione annullabile come la pianificazione in blocco.
+ *
+ * `requireAdmin` è il cancello della rotta; l'ANAGRAFICA del punto ne ha uno secondo e più
+ * stretto (`requireAdminPlus`), acceso solo se la richiesta ne porta davvero una: un incolla
+ * misto di esecutore, note e anagrafica resta UNA richiesta — come l'utente lo vive — e il
+ * permesso in più si chiede per la parte che lo richiede, non per tutta la riga.
  */
 export async function POST(req: Request) {
   const auth = await requireAdmin();
@@ -72,6 +103,30 @@ export async function POST(req: Request) {
     }
     const famigliaVista = parseFamiglia(corpo.famiglia);
     const profilo = PROFILO_COMMESSA[famigliaVista];
+
+    /*
+      L'anagrafica si normalizza QUI, prima di ogni altra cosa, e non ci si fida di quel che
+      arriva: `anagraficaCelleValida` scarta le chiavi ignote e applica la stessa forma che la
+      griglia ha già mostrato in cella (MAIUSCOLO, spazi schiacciati, vuoto → null). Le chiavi
+      pericolose — `odl`, `matricola` — non sono nella whitelist, quindi non esiste un corpo che
+      possa farle passare da questa porta.
+    */
+    const anagraficaPerChiave = new Map<string, AnagraficaCelle>();
+    for (const m of lista) {
+      if (m.anagrafica === undefined) continue;
+      const valida = anagraficaCelleValida(m.anagrafica);
+      if (Object.keys(valida).length > 0) anagraficaPerChiave.set(m.chiave, valida);
+    }
+    /*
+      Il cancello, e sta DOPO la normalizzazione apposta: un corpo che porta solo chiavi ignote
+      («anagrafica: { matricola: … }») non è una richiesta di modifica anagrafica, e negarla con
+      un 403 manderebbe a cercare un permesso mancante al posto della chiave sbagliata.
+    */
+    const conMatricola = lista.some((m) => m.matricola !== undefined);
+    if (anagraficaPerChiave.size > 0 || conMatricola) {
+      const plus = await requireAdminPlus();
+      if (plus instanceof NextResponse) return plus;
+    }
 
     const odlTutti = [...new Set(lista.map((m) => m.chiave.split('|')[0]))];
 
@@ -129,12 +184,97 @@ export async function POST(req: Request) {
         }
       }
     }
-    // Solo note/matricola nuova: non c'è pianificazione da toccare, e si evita di aprire
-    // un'operazione annullabile vuota che comparirebbe nello storico come se avesse spostato
-    // qualcosa.
+    /*
+      L'ANAGRAFICA del punto, terza corsia accanto a nota e matricola nuova.
+
+      Come quelle si scrive subito e a parte dalla pianificazione — si corregge un indirizzo
+      MENTRE si guarda la riga, non dopo averla assegnata — e come la matricola nuova non si
+      ferma al registro: `propagaAnagraficaAInterventi` la porta sull'intervento agganciato e
+      sulla sua voce di rapportino. Senza quella discesa l'ufficio vedrebbe la cella cambiare e
+      l'operatore continuerebbe ad andare all'indirizzo vecchio, che è già nel suo rapportino.
+    */
+    let anagraficheScritte = 0;
+    for (const [chiave, anagrafica] of anagraficaPerChiave) {
+      const [odl, operazione] = chiave.split('|');
+      const { data: righeToccate, error } = await supabaseAdmin
+        .from(profilo.tabellaOrdini)
+        .update(patchRegistroAnagrafica(anagrafica))
+        .eq('odl', odl)
+        .eq('numero_operazione', operazione)
+        .select('id');
+      if (error) throw error;
+      anagraficheScritte += 1;
+      for (const r of (righeToccate ?? []) as Array<{ id: string }>) {
+        await propagaAnagraficaAInterventi(supabaseAdmin, r.id, anagrafica, profilo.committenti);
+      }
+    }
+
+    /*
+      La MATRICOLA: l'identità della riga, quindi la sola cella che il DATABASE può rifiutare.
+
+      Su AcquaLatina `(odl, matricola_norm)` è unico — un contatore per ODL una volta sola — e
+      una correzione che ci finisce contro non è un guasto: è il registro che dice «quella
+      matricola su questo ODL c'è già». Va restituita fra le `rifiutate`, come un ordine chiuso
+      o un giorno fuori finestra, non fatta esplodere in un 500 che porterebbe giù anche le note
+      e la pianificazione dello stesso incolla.
+
+      Si legge PRIMA di scrivere per due motivi: saltare le correzioni che non cambiano niente
+      (un ri-incolla dello stesso valore), e conservare la matricola VECCHIA — è l'unica cosa
+      che lega a questa riga gli interventi non ancora agganciati (vedi `propagaMatricola…`).
+    */
+    let matricoleRiga = 0;
+    const rifiutate: Array<{ chiave: string; motivo: string }> = [];
+    /** Cose riuscite a metà, da dire: la riga è a posto ma qualcosa dietro non ha seguito. */
+    const avvisi: string[] = [];
+    for (const m of lista) {
+      if (m.matricola === undefined) continue;
+      const esito = valoreMatricolaCella(m.matricola);
+      if (!esito.ok) { rifiutate.push({ chiave: m.chiave, motivo: esito.motivo }); continue; }
+      const [odl, operazione] = m.chiave.split('|');
+
+      const { data: prima, error: eLettura } = await supabaseAdmin
+        .from(profilo.tabellaOrdini)
+        .select('id, matricola, matricola_norm')
+        .eq('odl', odl)
+        .eq('numero_operazione', operazione)
+        .maybeSingle();
+      if (eLettura) throw eLettura;
+      const riga = prima as { id: string; matricola: string | null; matricola_norm: string | null } | null;
+      if (!riga) { rifiutate.push({ chiave: m.chiave, motivo: 'ordine non trovato' }); continue; }
+      if ((riga.matricola_norm ?? '') === esito.norm) continue;   // già così: nulla da fare
+
+      const { error } = await supabaseAdmin
+        .from(profilo.tabellaOrdini)
+        .update(patchRegistroMatricola(esito))
+        .eq('odl', odl)
+        .eq('numero_operazione', operazione);
+      if (error) {
+        if (!eConflittoUnicita(error)) throw error;
+        rifiutate.push({ chiave: m.chiave, motivo: motivoMatricolaDuplicata(esito.matricola) });
+        continue;
+      }
+      matricoleRiga += 1;
+
+      const esitoProp = await propagaMatricolaAInterventi(
+        supabaseAdmin,
+        { id: riga.id, odl, matricolaVecchia: riga.matricola },
+        esito.matricola,
+        profilo,
+      );
+      if (esitoProp.avviso) avvisi.push(esitoProp.avviso);
+    }
+
+    // Solo note/matricola nuova/anagrafica/matricola: non c'è pianificazione da toccare, e si
+    // evita di aprire un'operazione annullabile vuota che comparirebbe nello storico come se
+    // avesse spostato qualcosa.
     if (lista.every((m) => m.staffId === undefined && m.data === undefined)) {
       return NextResponse.json({
-        operazioneId: null, creati: 0, aggiornati: noteScritte + matricoleScritte, rifiutate: [], bozze: 0,
+        operazioneId: null,
+        creati: 0,
+        aggiornati: noteScritte + matricoleScritte + anagraficheScritte + matricoleRiga,
+        rifiutate,
+        avvisi,
+        bozze: 0,
       });
     }
 
@@ -240,8 +380,10 @@ export async function POST(req: Request) {
       interventoPerOdl.set(k, [...(interventoPerOdl.get(k) ?? []), i]);
     }
 
+    // `rifiutate` è dichiarata più su, con la matricola: le due sorgenti di rifiuto — la cella
+    // che il registro non accetta e la riga che la pianificazione salta — sono la stessa cosa
+    // per chi legge la risposta, e tenerle in due liste le avrebbe fatte comparire a metà.
     const azioniLog: Array<Record<string, unknown>> = [];
-    const rifiutate: Array<{ chiave: string; motivo: string }> = [];
     let creati = 0;
     let aggiornati = 0;
 
@@ -489,7 +631,7 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json(
-      { operazioneId, creati, aggiornati, rifiutate, bozze },
+      { operazioneId, creati, aggiornati, rifiutate, avvisi, bozze },
       { headers: { 'Cache-Control': 'no-store' } },
     );
   } catch (e) {

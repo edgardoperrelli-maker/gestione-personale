@@ -7,6 +7,11 @@ import {
   spostaFocus, validaData, validaOperatore,
   type Cella, type ColonnaEditabile, type Intervallo,
 } from '@/lib/acea/editingGriglia';
+import {
+  COLONNE_ANAGRAFICA, MAX_ANAGRAFICA, eColonnaAnagrafica, valoreAnagrafica,
+  type AnagraficaCelle,
+} from '@/lib/acea/anagraficaCelle';
+import { MAX_MATRICOLA, valoreMatricolaCella } from '@/lib/acea/matricolaCella';
 import { incollaSuRighe, testoRighe } from '@/lib/acea/righeAppunti';
 import { MOTIVO_SOLO_ATTIVAZIONI, soloAttivazioni } from '@/lib/acea/giorniProgrammabili';
 import { eRiapertura } from '@/lib/acea/scadenza';
@@ -31,13 +36,57 @@ export const MAX_NOTA = 500;
 /** Quanto puo` essere lunga una matricola: una serigrafia di misuratore, non un testo libero. */
 export const MAX_MATRICOLA_NUOVA = 100;
 
-/** Colonne modificabili, nell'ordine in cui compaiono in tabella. */
-export const COLONNE_EDITABILI: ColonnaEditabile[] = ['pianificato_a', 'pianificato_il', 'note', 'matricola_nuova'];
+/**
+ * Colonne modificabili, nell'ordine in cui compaiono in tabella.
+ *
+ * Le anagrafiche stanno IN CODA e non in testa: `colonnaPredefinita` — dove finisce un incolla
+ * sulle righe spuntate quando nessuna cella ha il focus — prende la prima di questo elenco che
+ * sia a schermo, e quel bersaglio deve restare l'Esecutore (il gesto del 90% dei casi). Con
+ * l'anagrafica davanti, un nome incollato su quaranta spunte sarebbe finito nell'indirizzo.
+ */
+export const COLONNE_EDITABILI: ColonnaEditabile[] = [
+  'pianificato_a', 'pianificato_il', 'note', 'matricola_nuova', ...COLONNE_ANAGRAFICA, 'matricola',
+];
+
+/**
+ * Le colonne RISERVATE agli Admin Plus: l'anagrafica del punto e la matricola.
+ *
+ * Un predicato solo per le due, perché il permesso è lo stesso e i posti che lo consultano sono
+ * tre (il cancello di `editabile`, il conteggio delle celle saltate in un incolla, la guida).
+ * Quel che cambia fra le due — la matricola non si svuota, e il database può rifiutarla — vive
+ * in `matricolaCella.ts`, non qui.
+ */
+export function eColonnaRiservata(chiave: string): boolean {
+  return chiave === 'matricola' || eColonnaAnagrafica(chiave);
+}
+
+/**
+ * Le colonne il cui editor in cella è un `<input>` di TESTO LIBERO.
+ *
+ * Data ed Esecutore hanno il loro (calendario, menu del cronoprogramma) e restano fuori. Un
+ * predicato invece dell'elenco scritto a mano in due file: la condizione «qui si apre l'input»
+ * viveva sia nel hook (Enter/F2) sia nella tabella (doppio click e rendering dell'editor), e
+ * aggiungere sei colonne in un posto solo avrebbe dato celle che si aprono da tastiera e non
+ * col mouse — o il contrario.
+ */
+export function eColonnaTesto(chiave: string): boolean {
+  return chiave === 'note' || chiave === 'matricola_nuova' || eColonnaRiservata(chiave);
+}
+
+/** Il tetto di caratteri della cella di testo, che è anche il `maxLength` dell'input. */
+export function maxTestoCella(chiave: string): number {
+  if (chiave === 'matricola_nuova') return MAX_MATRICOLA_NUOVA;
+  if (chiave === 'matricola') return MAX_MATRICOLA;
+  if (eColonnaAnagrafica(chiave)) return MAX_ANAGRAFICA[chiave];
+  return MAX_NOTA;
+}
 
 /** Valore mostrato in una cella modificabile, tenendo conto delle modifiche non ancora salvate. */
-export type ValoreLocale = {
+export type ValoreLocale = AnagraficaCelle & {
   pianificato_a?: string | null; pianificato_il?: string | null; note?: string | null;
   matricola_nuova?: string | null;
+  /** La matricola corretta e non ancora ricaricata. Mai `null`: non si svuota. */
+  matricola?: string;
 };
 
 type Props = {
@@ -89,6 +138,15 @@ type Props = {
   senzaPianificazione?: boolean;
   /** Famiglia della vista: il salvataggio deve scrivere sul registro giusto. */
   famiglia: Famiglia;
+  /**
+   * `true` se chi guarda è un ADMIN PLUS: solo allora le colonne anagrafiche si scrivono.
+   *
+   * È un permesso di SUPERFICIE, non il cancello: quello è la route (`/api/acea/celle`, che
+   * rifiuta 403 a chiunque altro). Serve perché una cella che sembra scrivibile e poi torna
+   * indietro con un errore è peggio di una cella che non lo sembra — e perché l'incolla di una
+   * colonna intera deve poter dire «queste celle le ho saltate, e perché».
+   */
+  anagraficaModificabile?: boolean;
 };
 
 /**
@@ -110,7 +168,7 @@ type Props = {
  */
 export function useEditingGriglia({
   righe, operatori, oggi, colonneVisibili, righeSpuntate, onSalvato, attivo, famiglia,
-  senzaPianificazione = false,
+  senzaPianificazione = false, anagraficaModificabile = false,
 }: Props) {
   const [focus, setFocus] = useState<Cella | null>(null);
   const [selezione, setSelezione] = useState<Intervallo | null>(null);
@@ -162,6 +220,16 @@ export function useEditingGriglia({
     (chiave: string): chiave is ColonnaEditabile =>
       (COLONNE_EDITABILI as string[]).includes(chiave)
       /*
+        L'ANAGRAFICA del punto e la MATRICOLA si scrivono solo da Admin Plus.
+
+        Non sono colonne nostre come la nota: sono il dato del committente, quello su cui si
+        cerca l'ordine, si fattura e si discute al telefono con lui. Correggerlo e` un gesto
+        d'ufficio raro e con conseguenze (scende sull'intervento e sulla voce di rapportino gia`
+        in mano all'operatore), quindi vale lo stesso cancello della modifica dello Storico:
+        `canManageUsers`, cioe` il solo `admin_plus`.
+      */
+      && !(eColonnaRiservata(chiave) && !anagraficaModificabile)
+      /*
         Sulle schede di ESTRAZIONE le due colonne della pianificazione non si scrivono.
 
         Là non si manda nessuno sul posto: si guarda cosa c'è da chiedere ad ACEA e cosa c'è da
@@ -170,7 +238,7 @@ export function useEditingGriglia({
         diversi per la stessa cosa nella stessa schermata.
       */
       && !(senzaPianificazione && (chiave === 'pianificato_a' || chiave === 'pianificato_il')),
-    [senzaPianificazione],
+    [senzaPianificazione, anagraficaModificabile],
   );
 
   /**
@@ -202,19 +270,31 @@ export function useEditingGriglia({
   const applica = useCallback(async (scritture: Array<{ riga: number; colonna: number; valore: string }>) => {
     if (scritture.length === 0) return;
 
-    const perChiave = new Map<string, { staffId?: string; data?: string; nota?: string; matricolaNuova?: string }>();
+    const perChiave = new Map<string, {
+      staffId?: string; data?: string; nota?: string; matricolaNuova?: string;
+      anagrafica?: AnagraficaCelle; matricola?: string;
+    }>();
     const nuoviLocali = new Map(locali);
     const errori: string[] = [];
 
     let saltate = 0;
+    /**
+     * Celle RISERVATE (anagrafica, matricola) saltate per mancanza di permesso, contate a parte.
+     *
+     * «Non modificabili» sarebbe una mezza verita` sbagliata proprio dove conta: quelle celle
+     * SONO modificabili, ma non da chi sta incollando. Detto cosi`, chi non e` Admin Plus sa
+     * a chi chiedere invece di credere che il dato sia congelato per tutti.
+     */
+    let saltatePerRuolo = 0;
     for (const s of scritture) {
       const chiave = chiaveDi(s.riga);
       if (!chiave) continue;
       const colonna = colonneRef.current[s.colonna];
-      // I campi ACEA non si scrivono: il registro e` il suo specchio. Si contano e si dicono,
-      // invece di lasciar credere che l'incolla sia passato tutto.
+      // I campi del committente non si scrivono (tranne l'anagrafica, e solo da Admin Plus):
+      // si contano e si dicono, invece di lasciar credere che l'incolla sia passato tutto.
       if (!colonna || !editabile(colonna)) {
-        saltate += 1;
+        if (colonna && eColonnaRiservata(colonna)) saltatePerRuolo += 1;
+        else saltate += 1;
         continue;
       }
       /*
@@ -244,6 +324,39 @@ export function useEditingGriglia({
         const testo = s.valore.slice(0, MAX_MATRICOLA_NUOVA);
         perChiave.set(chiave, { ...perChiave.get(chiave), matricolaNuova: testo });
         nuoviLocali.set(chiave, { ...nuoviLocali.get(chiave), matricola_nuova: testo });
+      } else if (colonna === 'matricola') {
+        /*
+          L'IDENTITÀ della riga, e l'unica cella di testo con una VALIDAZIONE vera: il vuoto si
+          rifiuta col motivo, come una data malformata, invece di essere scritto.
+
+          Il resto — «esiste già su questo ODL?» — non si può decidere qui: dipende dalle altre
+          righe del registro, non da quelle a schermo, e un controllo sulle 300 righe scese
+          direbbe «libera» su una matricola che il database poi rifiuta. Lo decide l'indice
+          unico, che è l'unico che vede tutto il registro, e la risposta torna fra le rifiutate.
+        */
+        const esito = valoreMatricolaCella(s.valore);
+        if (!esito.ok) { errori.push(esito.motivo); continue; }
+        perChiave.set(chiave, { ...perChiave.get(chiave), matricola: esito.matricola });
+        nuoviLocali.set(chiave, { ...nuoviLocali.get(chiave), matricola: esito.matricola });
+      } else if (eColonnaAnagrafica(colonna)) {
+        /*
+          L'anagrafica del punto. Come la nota, nessuna validazione di dominio: un CAP di
+          quattro cifre o un civico strano arrivano cosi` dall'export del committente, ed e`
+          proprio per correggerli che questa cella si scrive — rifiutarli qui vorrebbe dire
+          poter scrivere solo cio` che era gia` giusto.
+
+          Il valore passa da `valoreAnagrafica`, la STESSA normalizzazione che applichera` il
+          server: la cella ottimistica deve mostrare quello che finira` a registro (MAIUSCOLO,
+          spazi schiacciati), non quello che si e` battuto — altrimenti al primo ricarico il
+          testo cambierebbe sotto gli occhi e sembrerebbe un salvataggio andato storto.
+        */
+        const valore = valoreAnagrafica(colonna, s.valore);
+        const precedente = perChiave.get(chiave);
+        perChiave.set(chiave, {
+          ...precedente,
+          anagrafica: { ...precedente?.anagrafica, [colonna]: valore },
+        });
+        nuoviLocali.set(chiave, { ...nuoviLocali.get(chiave), [colonna]: valore });
       } else if (colonna === 'pianificato_a') {
         const e = validaOperatore(s.valore, operatori);
         if (daSaltare(e)) continue;
@@ -282,6 +395,12 @@ export function useEditingGriglia({
         `${saltate} ${saltate === 1 ? 'cella' : 'celle'} su colonne ACEA: non modificabili, saltate.`,
       );
     }
+    if (saltatePerRuolo > 0) {
+      toast.info(
+        `${saltatePerRuolo} ${saltatePerRuolo === 1 ? 'cella saltata' : 'celle saltate'} `
+        + 'su anagrafica o matricola: la correzione è riservata agli Admin Plus.',
+      );
+    }
     if (errori.length > 0) {
       const unici = [...new Set(errori)];
       toast.error(unici.length > 2 ? `${unici.slice(0, 2).join('; ')} e altri ${unici.length - 2}` : unici.join('; '));
@@ -303,7 +422,8 @@ export function useEditingGriglia({
       });
       const body = (await res.json()) as {
         operazioneId: string | null; creati: number; aggiornati: number;
-        rifiutate: Array<{ chiave: string; motivo: string }>; bozze?: number; error?: string;
+        rifiutate: Array<{ chiave: string; motivo: string }>; avvisi?: string[];
+        bozze?: number; error?: string;
       };
       if (!res.ok) {
         setLocali(precedenti);   // rollback: il valore torna com'era
@@ -327,6 +447,15 @@ export function useEditingGriglia({
             : `${meta} righe salvate a metà: senza esecutore e data non generano il rapportino.`,
         );
       }
+      /*
+        Le cose riuscite A META`, dette per intero e senza contarle fra i successi.
+
+        Oggi ne esiste una sola: la matricola corretta a registro che un intervento non ha
+        potuto seguire (l'indice unico di `interventi` glielo impedisce). E` il caso in cui il
+        silenzio farebbe piu` danno — la cella cambia, quindi sembra tutto a posto, mentre il
+        modulo Interventi resta col contatore vecchio e nessuno lo va a guardare.
+      */
+      for (const avviso of body.avvisi ?? []) toast.info(avviso);
       if (body.rifiutate.length > 0) {
         const primi = body.rifiutate.slice(0, 2).map((r) => `${r.chiave.split('|')[0]} (${r.motivo})`);
         toast.info(
@@ -357,6 +486,11 @@ export function useEditingGriglia({
     const loc = locali.get(`${r.odl}|${r.numero_operazione}`);
     if (colonna === 'pianificato_a') return loc?.pianificato_a ?? r.pianificato_a ?? '';
     if (colonna === 'pianificato_il') return loc?.pianificato_il ?? r.pianificato_il ?? '';
+    // Un'anagrafica appena corretta e non ancora ricaricata: si copia il valore NUOVO, quello
+    // che si vede in cella. `?? ''` e non `??` sul solo undefined: una cella appena svuotata
+    // esce vuota, che e` il valore che ha adesso.
+    if (eColonnaAnagrafica(colonna) && loc && colonna in loc) return loc[colonna] ?? '';
+    if (colonna === 'matricola' && loc?.matricola) return loc.matricola;
     const v = valoreCella(r, colonna as ChiaveColonna);
     return v === '—' ? '' : v;
   }, [locali]);
@@ -440,7 +574,7 @@ export function useEditingGriglia({
         } else if (chiave === 'pianificato_a') {
           e.preventDefault();
           setEditorEsecutore(focus);
-        } else if (chiave === 'note' || chiave === 'matricola_nuova') {
+        } else if (chiave && eColonnaTesto(chiave)) {
           e.preventDefault();
           setEditorTesto(focus);
         }
@@ -573,15 +707,15 @@ export function useEditingGriglia({
     if (nome) void applica([{ riga, colonna, valore: nome }]);
   }, [applica]);
 
-  /** Apre l'input SOLO su Note e Matricola nuova: le sole colonne di testo libero. */
+  /** Apre l'input sulle sole colonne di testo libero (vedi `eColonnaTesto`). */
   const apriEditorTesto = useCallback((riga: number, colonna: number) => {
     const chiave = colonneRef.current[colonna];
-    if (chiave !== 'note' && chiave !== 'matricola_nuova') return;
+    if (!chiave || !eColonnaTesto(chiave) || !editabile(chiave)) return;
     const c = { riga, colonna };
     setFocus(c);
     setSelezione({ da: c, a: c });
     setEditorTesto(c);
-  }, []);
+  }, [editabile]);
 
   const chiudiEditorTesto = useCallback(() => setEditorTesto(null), []);
 
@@ -595,7 +729,7 @@ export function useEditingGriglia({
     void applica([{ riga, colonna, valore }]);
   }, [applica]);
 
-  /** Il testo grezzo di Note/Matricola nuova, per il `defaultValue` dell'input. */
+  /** Il testo grezzo della cella, per il `defaultValue` dell'input. */
   const valoreTestoIniziale = useCallback((riga: number, colonna: number): string => {
     const r = righeRef.current[riga];
     if (!r) return '';
@@ -603,6 +737,16 @@ export function useEditingGriglia({
     const loc = locali.get(`${r.odl}|${r.numero_operazione}`);
     if (chiave === 'note') return loc?.note ?? r.note ?? '';
     if (chiave === 'matricola_nuova') return loc?.matricola_nuova ?? r.matricola_nuova ?? '';
+    if (chiave === 'matricola') return loc?.matricola ?? r.matricola ?? '';
+    if (chiave && eColonnaAnagrafica(chiave)) {
+      // Il valore ancora in viaggio vince su quello a registro, e una cella appena SVUOTATA
+      // (`null` fra i locali) riapre vuota — non ripescando il vecchio valore dalla riga.
+      if (loc && chiave in loc) return loc[chiave] ?? '';
+      // `valoreCella` compone l'indirizzo (via + civico) e scrive '—' sui vuoti: qui serve il
+      // testo su cui si riscrive, e un trattino da cancellare a mano sarebbe solo un intralcio.
+      const v = valoreCella(r, chiave);
+      return v === '—' ? '' : v;
+    }
     return '';
   }, [locali]);
 

@@ -18,11 +18,12 @@ export const dynamic = 'force-dynamic';
  * volta scorreva; e ogni ritocco alla testa avrebbe richiesto di riaggiornare quel numero.
  */
 export default async function AceaDunningPage() {
-  await gatePagina('/hub/acea/dunning');
+  const { adminPlus } = await gatePagina('/hub/acea/dunning');
   return (
     <div className="flex h-[calc(100dvh-6rem)] flex-col gap-2">
       <AceaNav attivo="dunning" />
-      <DunningClient />
+      {/* Il permesso viaggia dal server: `DunningClient` è client, la sessione non ce l'ha. */}
+      <DunningClient anagraficaModificabile={adminPlus} />
     </div>
   );
 }

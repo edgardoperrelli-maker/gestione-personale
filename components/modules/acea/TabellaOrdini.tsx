@@ -14,7 +14,7 @@ import {
 } from '@/lib/acea/colonneTabella';
 import { ordinabile, type FiltriUI, type Opzioni } from '@/lib/acea/filtriOrdini';
 import { selezionaRighe } from '@/lib/acea/selezioneRighe';
-import { MAX_MATRICOLA_NUOVA, MAX_NOTA } from './useEditingGriglia';
+import { eColonnaTesto, maxTestoCella } from './useEditingGriglia';
 import Skeleton from '@/components/ui/Skeleton';
 import { toast } from '@/components/ui/Toast';
 import FiltroColonna from './FiltroColonna';
@@ -682,6 +682,16 @@ export default function TabellaOrdini({
                     // scrittura resta sulle due, ed e` `scrivibile` a dirlo.
                     const iEdit = editing?.indiceColonna(c.chiave) ?? null;
                     const scrivibile = editing?.editabile(c.chiave) ?? false;
+                    /*
+                      Il click spunta la riga solo dove NON si scrive.
+
+                      La regola di `COLONNE_CLICK_RIGA` era «le colonne d'identità, quelle che non
+                      si scrivono mai»: con l'anagrafica modificabile dagli Admin Plus, `impianto`
+                      (Cod. fornitura) smette di appartenere a quel gruppo per loro, e deve tornare
+                      una cella normale — cursore, copia, doppio click per correggere. Per tutti
+                      gli altri `scrivibile` è falso e il gesto resta quello di sempre.
+                    */
+                    const clickSpuntaRiga = COLONNE_CLICK_RIGA.has(c.chiave) && !scrivibile;
                     const locale = editing?.valoreLocale(r, c.chiave) ?? null;
                     const testo = locale ?? valoreCella(r, c.chiave);
                     const evidenzia = c.chiave === 'scadenza';
@@ -719,7 +729,7 @@ export default function TabellaOrdini({
                       && editing.editorEsecutore.colonna === iEdit;
                     const inEditorTesto =
                       iEdit !== null
-                      && (c.chiave === 'note' || c.chiave === 'matricola_nuova')
+                      && eColonnaTesto(c.chiave)
                       && editing?.editorTesto?.riga === vi.index
                       && editing.editorTesto.colonna === iEdit;
                     if (inEditorEsecutore && editing) {
@@ -819,14 +829,15 @@ export default function TabellaOrdini({
                     }
                     if (inEditorTesto && editing) {
                       /*
-                        L'input di Note/Matricola nuova VIVE nella cella, come gli altri due editor.
-                        Stessa regola della Data: `defaultValue`, non `value` — l'input è vivo solo
-                        finché è aperto — e un valore identico a quello iniziale non parte nemmeno.
-                        A differenza della Data, qui una stringa VUOTA è un valore legittimo: è
-                        così che si cancella una nota già scritta.
+                        L'input di testo VIVE nella cella, come gli altri due editor — vale per le
+                        nostre colonne (Note, Matricola nuova) e per l'anagrafica del punto degli
+                        Admin Plus. Stessa regola della Data: `defaultValue`, non `value` — l'input
+                        è vivo solo finché è aperto — e un valore identico a quello iniziale non
+                        parte nemmeno. A differenza della Data, qui una stringa VUOTA è un valore
+                        legittimo: è così che si cancella una nota (o un recapito) già scritto.
                       */
                       const iniziale = editing.valoreTestoIniziale(vi.index, iEdit);
-                      const massimo = c.chiave === 'note' ? MAX_NOTA : MAX_MATRICOLA_NUOVA;
+                      const massimo = maxTestoCella(c.chiave);
                       const conferma = (valore: string) => {
                         if (valore !== iniziale) {
                           editing.onConfermaTesto(vi.index, iEdit, valore);
@@ -880,7 +891,7 @@ export default function TabellaOrdini({
                                 : testo
                         }
                         onMouseDown={
-                          COLONNE_CLICK_RIGA.has(c.chiave)
+                          clickSpuntaRiga
                             ? (e) => {
                                 /*
                                   Colonna d'identità: il click spunta la riga, come il checkbox.
@@ -918,9 +929,9 @@ export default function TabellaOrdini({
                               }
                         }
                         // Doppio click: l'editor della cella — calendario sulla Data, menu degli
-                        // operatori sull'Esecutore, input su Note e Matricola nuova. Le guardie
-                        // sulle colonne stanno negli `onApri*`, quindi sugli altri campi il doppio
-                        // click non fa niente di diverso da due click.
+                        // operatori sull'Esecutore, input di testo su Note, Matricola nuova e
+                        // anagrafica. Le guardie sulle colonne stanno negli `onApri*`, quindi sugli
+                        // altri campi il doppio click non fa niente di diverso da due click.
                         onDoubleClick={
                           iEdit === null || !scrivibile
                             ? undefined
@@ -928,7 +939,7 @@ export default function TabellaOrdini({
                               ? () => editing?.onApriEditorData(vi.index, iEdit)
                               : c.chiave === 'pianificato_a'
                                 ? () => editing?.onApriEditorEsecutore(vi.index, iEdit)
-                                : c.chiave === 'note' || c.chiave === 'matricola_nuova'
+                                : eColonnaTesto(c.chiave)
                                   ? () => editing?.onApriEditorTesto(vi.index, iEdit)
                                   : undefined
                         }
@@ -946,7 +957,7 @@ export default function TabellaOrdini({
                               ? TONO_STATO[tonoStato]
                               : 'text-[var(--brand-text-main)]'
                         } ${scrivibile ? 'cursor-cell' : ''} ${
-                          COLONNE_CLICK_RIGA.has(c.chiave) ? 'cursor-pointer' : ''
+                          clickSpuntaRiga ? 'cursor-pointer' : ''
                         } ${c.chiave === 'odl' ? 'group/odl relative' : ''} ${
                           inSelezione && !inFocus ? 'bg-[var(--brand-primary-soft)]' : ''
                         } ${

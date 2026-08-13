@@ -14,6 +14,7 @@ import {
 import {
   MAX_RIGHE_EXPORT, nomeFileExport, nomeFileRichiesta, nomeFoglioExport,
 } from '@/lib/acea/exportVista';
+import { eColonnaAnagrafica } from '@/lib/acea/anagraficaCelle';
 import { gruppiPerRapportino } from '@/lib/acea/caricaSuRapportino';
 import { ATTIVITA_TABELLONE, type Famiglia } from '@/lib/acea/famiglia';
 import { contaFiltriColonna } from '@/lib/acea/filtriOrdini';
@@ -63,13 +64,24 @@ const TITOLI: Record<Famiglia, string> = {
 };
 
 /** Registro ordini con filtri, tabella virtualizzata e selezione. Condiviso dalle tre famiglie. */
-export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
+export default function RegistroAcea({
+  famiglia, comuniIniziali = [], anagraficaModificabile = false,
+}: {
   famiglia: Famiglia;
   /**
    * Le schede-comune al primo render (solo massive), lette dal server nella pagina: devono
    * esistere PRIMA della prima risposta, o la prima interrogazione partirebbe senza scheda.
    */
   comuniIniziali?: string[];
+  /**
+   * `true` per gli ADMIN PLUS: le colonne anagrafiche del punto (indirizzo, comune, CAP, cod.
+   * fornitura, nome utente, recapito) diventano scrivibili in cella come le nostre.
+   *
+   * Lo decide la pagina, che ha la sessione: il valore predefinito è `false` perché un
+   * permesso che si accende per dimenticanza è il modo peggiore di sbagliare. Il cancello vero
+   * resta la route (`/api/acea/celle`), che rifiuta 403 a chiunque non sia admin_plus.
+   */
+  anagraficaModificabile?: boolean;
 }) {
   const definizione: DefColonna[] = DEFINIZIONI[famiglia];
   /** Come si chiama, nei messaggi, l'attività di tabellone che rende assegnabili in questa vista. */
@@ -316,6 +328,7 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
     attivo: true,
     famiglia,
     senzaPianificazione: schedaEstrazione,
+    anagraficaModificabile,
   });
 
   /**
@@ -341,6 +354,12 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
     if (chiave === 'matricola_nuova') return loc.matricola_nuova ?? null;
     if (chiave === 'pianificato_a') return loc.pianificato_a ?? null;
     if (chiave === 'pianificato_il') return loc.pianificato_il ? dataIt(loc.pianificato_il) : null;
+    // Anagrafica appena corretta: la cella mostra subito il valore nuovo, e una SVUOTATA mostra
+    // il trattino dei vuoti — `?? '—'` e non `?? null`, che riesumerebbe il valore a registro
+    // facendo sembrare la cancellazione non passata.
+    if (eColonnaAnagrafica(chiave) && chiave in loc) return loc[chiave] ?? '—';
+    // La matricola non ha il caso «svuotata»: non si può. `?? null` basta.
+    if (chiave === 'matricola') return loc.matricola ?? null;
     return null;
   }, [editing.locali]);
 
@@ -751,7 +770,9 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
             (Risoluzione del merge: da main arriva il contratto nuovo — `oggi` dal server, la
             finestra la deriva la guida — dal branch il gating sulla selezione. Servono entrambi.)
           */}
-          {selezionate.length === 0 && <GuidaTabella oggi={oggi} famiglia={famiglia} />}
+          {selezionate.length === 0 && (
+            <GuidaTabella oggi={oggi} famiglia={famiglia} anagraficaModificabile={anagraficaModificabile} />
+          )}
 
           {/*
             Sempre montata: tiene in vita l'annullamento dell'ultima pianificazione, che vive nel
