@@ -154,14 +154,33 @@ export type RegistroAnagraficaPatch = Partial<Record<
  *    matricola del contatore rimosso, corretta su un intervento, non deve poter far «adottare»
  *    o confondere una riga di registro diversa;
  *  - `attivita`/`fascia_oraria`: classificazione dell'intervento, non anagrafica del punto.
+ *
+ * ⚠️ Un campo VUOTO non si propaga, e non è una raffinatezza: fino al 13/08/2026 il valore
+ * partiva anche quando era `null`, così una correzione d'ufficio su un intervento che il PDR non
+ * ce l'ha CANCELLAVA cod. fornitura e nome utente sull'ordine a registro. Le righe di
+ * `acqualatina_ordini` senza quei due campi erano 16, tutte «CHIUSA — ESEGUITA», e cinque si sono
+ * svuotate in venti minuti la mattina del 13/08 — una a ogni chiusura. L'intervento è la
+ * fotografia di un'uscita e può legittimamente non avere l'anagrafica del punto; il registro è
+ * l'anagrafica, e il silenzio dell'uno non è una smentita dell'altro.
+ *
+ * È la stessa regola che `patchAnagrafica` (`lib/acqualatina/ordiniDaMaster.ts`) applica nel verso
+ * opposto — «un campo vuoto del file non cancella mai niente» — e ora i due versi concordano.
+ * Corollario voluto: da qui un dato si CORREGGE, non si azzera. Per svuotarlo davvero si passa
+ * dal registro.
  */
 export function anagraficaPatchRegistro(p: AnagraficaPatch): RegistroAnagraficaPatch {
+  const pieno = (v: string | null | undefined): v is string => String(v ?? '').trim() !== '';
   const patch: RegistroAnagraficaPatch = {};
-  if ('pdr' in p) patch.impianto = p.pdr;
-  if ('nominativo' in p) patch.nominativo = p.nominativo;
-  if ('comune' in p) patch.comune = p.comune;
-  if ('cap' in p) patch.cap = p.cap;
-  if ('via' in p) {
+  if ('pdr' in p && pieno(p.pdr)) patch.impianto = p.pdr;
+  if ('nominativo' in p && pieno(p.nominativo)) patch.nominativo = p.nominativo;
+  if ('comune' in p && pieno(p.comune)) patch.comune = p.comune;
+  if ('cap' in p && pieno(p.cap)) patch.cap = p.cap;
+  // L'indirizzo fa eccezione, ed è un'eccezione con una ragione: a registro `via` e `civico`
+  // sono UN dato solo, spezzato per ordinare per civico numerico. Un indirizzo riscritto e non
+  // vuoto è la coppia COMPLETA, quindi porta anche il civico assente — «VIA ROMA» dopo
+  // «VIA ROMA 10» deve togliere il 10, o la correzione non si vedrebbe. Quello che non si
+  // propaga è l'indirizzo SVUOTATO: lì non c'è nessuna coppia nuova da scrivere.
+  if ('via' in p && pieno(p.via)) {
     const { via, civico } = spezzaIndirizzo(p.via);
     patch.via = via;
     patch.civico = civico;

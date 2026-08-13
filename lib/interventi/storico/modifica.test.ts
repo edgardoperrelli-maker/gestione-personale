@@ -139,8 +139,8 @@ describe('anagraficaPatchRegistro', () => {
     expect(anagraficaPatchRegistro({ via: 'VIA ROMA' })).toEqual({ via: 'VIA ROMA', civico: null });
   });
 
-  it('via cancellata (null): svuota anche il civico', () => {
-    expect(anagraficaPatchRegistro({ via: null })).toEqual({ via: null, civico: null });
+  it('via CANCELLATA (null): non propaga niente, nemmeno il civico', () => {
+    expect(anagraficaPatchRegistro({ via: null })).toEqual({});
   });
 
   it("odl e matricola NON entrano: sono la chiave e l'identità della riga di registro, non anagrafica", () => {
@@ -151,8 +151,25 @@ describe('anagraficaPatchRegistro', () => {
     expect(anagraficaPatchRegistro({ attivita: 'BONIFICHE', fascia_oraria: '8-12' })).toEqual({});
   });
 
-  it('un campo cancellato (null) propaga null: la cancellazione è una correzione', () => {
-    expect(anagraficaPatchRegistro({ nominativo: null })).toEqual({ nominativo: null });
+  /*
+    Un campo vuoto NON cancella (13/08/2026). La regola precedente diceva l'opposto — «la
+    cancellazione è una correzione» — e in produzione si è vista per quello che era: un
+    intervento senza PDR (legittimo: è la fotografia di un'uscita, non l'anagrafica del punto)
+    svuotava cod. fornitura e nome utente sull'ordine a registro a ogni chiusura. Sedici righe
+    di `acqualatina_ordini` erano già così, cinque svuotate in venti minuti la mattina stessa.
+    Stessa regola del verso opposto (`patchAnagrafica` in `lib/acqualatina/ordiniDaMaster.ts`).
+  */
+  it('un campo cancellato (null) NON si propaga: il vuoto non è una correzione', () => {
+    expect(anagraficaPatchRegistro({ nominativo: null })).toEqual({});
+    expect(anagraficaPatchRegistro({ pdr: null })).toEqual({});
+  });
+
+  it('nemmeno la stringa vuota o i soli spazi cancellano', () => {
+    expect(anagraficaPatchRegistro({ pdr: '', nominativo: '   ' })).toEqual({});
+  });
+
+  it('il campo pieno passa: si CORREGGE da qui, non si azzera', () => {
+    expect(anagraficaPatchRegistro({ pdr: '', nominativo: 'ROSSI' })).toEqual({ nominativo: 'ROSSI' });
   });
 
   it('vuoto → vuoto', () => {
