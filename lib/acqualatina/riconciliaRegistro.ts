@@ -43,11 +43,21 @@ export async function riconciliaChiusureAcqualatina(): Promise<void> {
   // 1) Il registro, UNA volta: identità per l'aggancio e la validazione dei puntatori,
   //    chiuse positive per la riapertura, «non eseguite» per la pulizia — e l'anagrafica
   //    (impianto…matricola) per il primo scatto del passo 3.
+  /*
+    `order('id')` su OGNI scansione paginata, e qui non è pignoleria: senza un ordinamento
+    totale due `range()` consecutivi non vedono per forza la stessa sequenza, e una riga può
+    saltare la finestra. Su questa scansione una riga persa non è un dato mancante ma un DANNO:
+    il suo `id` non entra in `idsRegistro`, il passo 2 legge quel puntatore come orfano di una
+    fusione e AZZERA l'`ordine_id` degli interventi che ci stanno dietro. Il passo 3 poi
+    riaggancia solo «a scelta obbligata»: su un ODL multi-matricola non riaggancia, e la riga
+    resta «Aperta» a lavoro consegnato — con l'intervento completato e giusto nel suo modulo.
+  */
   const righeRegistro: Array<RigaPerAggancio & { aperto: boolean; esito_positivo: boolean | null }> = [];
   for (let offset = 0; ; offset += PAGINA_SCAN) {
     const { data, error } = await supabaseAdmin
       .from('acqualatina_ordini')
       .select('id, odl, matricola_norm, aperto, esito_positivo, impianto, nominativo, recapito, via, civico, comune, cap, matricola')
+      .order('id', { ascending: true })
       .range(offset, offset + PAGINA_SCAN - 1);
     if (error) throw error;
     const blocco = (data ?? []) as typeof righeRegistro;
@@ -75,6 +85,7 @@ export async function riconciliaChiusureAcqualatina(): Promise<void> {
       .eq('committente', 'acqualatina')
       .eq('stato', 'completato')
       .not('ordine_id', 'is', null)
+      .order('id', { ascending: true })
       .range(offset, offset + PAGINA_SCAN - 1);
     if (error) throw error;
     const blocco = (data ?? []) as Array<InterventoConcluso & { id: string }>;
@@ -112,6 +123,7 @@ export async function riconciliaChiusureAcqualatina(): Promise<void> {
       .eq('committente', 'acqualatina')
       .neq('stato', 'annullato')
       .is('ordine_id', null)
+      .order('id', { ascending: true })
       .range(offset, offset + PAGINA_SCAN - 1);
     if (error) throw error;
     const blocco = (data ?? []) as InterventoSciolto[];

@@ -45,10 +45,10 @@ export default function ConfrontoEsitiCard() {
       const riepilogo = XLSX.utils.aoa_to_sheet([
         ['Confronto esiti col sito AcquaLatina'],
         [],
-        ['Allineati (sito effettuato, noi chiusi)', esito.allineati],
-        ['Manca il nostro esito (sito effettuato, noi aperti)', esito.daChiudereDaNoi.length],
+        ['Allineati (stesso esito: eseguito, o non eseguito, da tutt\'e due)', esito.allineati],
+        ['Manca il nostro esito (o contraddice il sito)', esito.daChiudereDaNoi.length],
         ['In lavorazione oggi (esclusi dalle code)', esito.inLavorazioneOggi],
-        ['Da registrare sul sito (noi chiusi, sito senza esito)', esito.mancantiSulSito.length],
+        ['Da registrare sul sito (noi eseguito, il sito no)', esito.mancantiSulSito.length],
         ['Chiusi oggi, si registrano a fine giornata (esclusi dalla coda)', esito.chiusiOggi],
         ['Non esitati dal sito', esito.nonEsitatiSito],
         ['Sconosciuti al registro', esito.sconosciuti.length],
@@ -136,9 +136,10 @@ export default function ConfrontoEsitiCard() {
         <h2 className="text-sm font-semibold text-[var(--brand-text-main)]">Confronto esiti col sito</h2>
         <p className="mt-0.5 text-xs text-[var(--brand-text-muted)]">
           Carica l&apos;export delle esecuzioni del sito AcquaLatina (file «ESECUZIONI»). Il
-          confronto è solo in lettura: dice quali ODL il sito dà per fatti mentre da noi sono
-          ancora aperti, e quali abbiamo chiuso noi senza che sul sito ci sia l&apos;esito.
-          Gli esiti nostri si correggono dal modulo interventi — il registro segue da solo.
+          confronto è solo in lettura e guarda l&apos;esito, non il solo fatto che ci sia: un
+          «non eseguito» sul sito e una riga «non eseguita» da noi sono allineati. Elenca dove
+          il nostro esito manca o dice il contrario, e dove abbiamo eseguito senza che il sito
+          lo registri. Gli esiti nostri si correggono dal modulo interventi — il registro segue da solo.
         </p>
       </div>
 
@@ -204,7 +205,7 @@ export default function ConfrontoEsitiCard() {
           </div>
 
           {esito.daChiudereDaNoi.length > 0 && (
-            <Elenco titolo={`Il sito li dà per fatti, da noi sono ancora aperti (${esito.daChiudereDaNoi.length})`}>
+            <Elenco titolo={`Il sito ha un esito, il nostro manca o dice il contrario (${esito.daChiudereDaNoi.length})`}>
               {esito.daChiudereDaNoi.slice(0, MAX_RIGHE).map((v) => (
                 <li key={v.odl} className="flex flex-wrap items-baseline justify-between gap-x-3 py-1">
                   <span className="font-mono text-[var(--brand-text-main)]">{v.odl}</span>

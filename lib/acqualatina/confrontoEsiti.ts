@@ -7,8 +7,10 @@
 // è raggiungibile da qui, e il registro si corregge dagli interventi (riconciliazione).
 //
 // La regola degli esiti è del committente, riferita dall'utente (04/08/2026): «eseguito è
-// sempre positivo» — qualunque esito valorizzato nel file («EFFETTUATO NO ANOMALIE»,
-// «EFFETTUATO - CONTATORE GUASTO») è lavoro fatto; la cella vuota è l'ODL ancora da esitare.
+// sempre positivo» — anche l'anomalia («EFFETTUATO - CONTATORE GUASTO») è lavoro fatto, non
+// una mezza esecuzione. Ma «valorizzato» non vuol dire «eseguito»: il file porta anche i
+// «NON ESEGUITO - …», e leggerli come lavoro fatto è ciò che accusava di anomalia le righe
+// PIÙ allineate che ci fossero (vedi `classificaEsitoSito`).
 
 import { normHeader } from '@/lib/attivita/masterUpload';
 
@@ -57,9 +59,12 @@ export type ImpiantoDifforme = {
 };
 
 export type ConfrontoEsiti = {
-  /** Sito «effettuato» e registro chiuso positivo: le due mani dicono la stessa cosa. */
+  /** Sito e registro dicono la stessa cosa: eseguito da tutt'e due, o non eseguito da tutt'e due. */
   allineati: number;
-  /** Sito «effettuato», registro ancora aperto: manca il NOSTRO esito (rapportino o consuntivazione). */
+  /**
+   * Il sito ha un esito, noi no — o ne abbiamo uno che lo contraddice. Manca (o non combacia)
+   * il NOSTRO esito: un rapportino da fare, o una consuntivazione da correggere.
+   */
   daChiudereDaNoi: VoceDaChiudere[];
   /**
    * ODL con un intervento IN CORSO oggi: il sito li dà già per fatti (la squadra registra
@@ -68,7 +73,7 @@ export type ConfrontoEsiti = {
    * confusione in ufficio (decisione utente 04/08): si contano e basta, senza elenco.
    */
   inLavorazioneOggi: number;
-  /** Registro chiuso positivo, sito senza esito (o senza proprio l'ODL): manca la registrazione sul sito. */
+  /** Registro chiuso positivo, sito senza l'ODL o senza un esito POSITIVO: manca la registrazione sul sito. */
   mancantiSulSito: VoceMancanteSito[];
   /**
    * Chiusi da noi OGGI e non ancora sul sito: non sono una mancanza, la giornata non è
@@ -86,6 +91,45 @@ export type ConfrontoEsiti = {
 };
 
 const norm = (v: unknown): string => String(v ?? '').replace(/\s+/g, ' ').trim();
+
+/**
+ * Cosa dice una delle due mani su un ODL. Tre casi, gli stessi da una parte e dall'altra: è
+ * averli in comune che rende il confronto un'uguaglianza invece di una scala di eccezioni.
+ */
+export type Verdetto = 'assente' | 'positivo' | 'negativo';
+
+/**
+ * Il verdetto del SITO, dalla colonna «Esito».
+ *
+ * Il vocabolario del file è chiuso e si legge da sé: «EFFETTUATO …» è lavoro fatto, «NON
+ * ESEGUITO - …» è un'uscita a vuoto (valvola di chiusura guasta, nicchia non adeguata,
+ * diametro non disponibile, utente assente), la cella vuota è l'ODL non ancora esitato.
+ *
+ * Si guarda il TESTO e non il «Codice Esito» (OK, MI, VC, NC, CD, UA) di proposito: le sigle
+ * sono un elenco che il committente può allungare senza dirlo, e un codice nuovo cadrebbe in
+ * silenzio dalla parte sbagliata. «NON ESEGUITO» invece si dichiara — e un'etichetta nuova che
+ * non comincia così è, per il committente, un'esecuzione.
+ */
+export function classificaEsitoSito(esito: string): Verdetto {
+  const e = norm(esito);
+  if (e === '') return 'assente';
+  return /^non\s+esegui/i.test(e) ? 'negativo' : 'positivo';
+}
+
+/**
+ * Il verdetto del REGISTRO per un ODL, dalle sue righe (una per matricola).
+ *
+ * Il positivo vince sul negativo: un ODL multi-matricola con una riga chiusa eseguita è
+ * lavoro fatto. Il negativo è `esito_positivo === false`, che vale sia per «CHIUSA — NON
+ * ESEGUITA» (il NO definitivo) sia per «APERTA — NON ESEGUITA» (da ripassare): sono due code
+ * diverse per noi, ma la stessa identica frase detta al sito — ci siamo andati, non si è
+ * potuto fare. `null` è la riga mai lavorata.
+ */
+function verdettoRegistro(righe: readonly RigaRegistroPerConfronto[]): Verdetto {
+  if (righe.some((r) => !r.aperto && r.esito_positivo === true)) return 'positivo';
+  if (righe.some((r) => r.esito_positivo === false)) return 'negativo';
+  return 'assente';
+}
 
 /**
  * Riduce il foglio Esecuzione a una riga per ODL.
@@ -170,7 +214,13 @@ export function confrontaEsitiSito(
 
   for (const f of file) {
     const righe = perOdlRegistro.get(f.odl);
-    if (f.esito !== '') esitatiSito.add(f.odl);
+    const sito = classificaEsitoSito(f.esito);
+    /*
+      Solo il POSITIVO segna l'ODL come registrato sul sito. Un «NON ESEGUITO» è un esito, ma
+      non è la registrazione del nostro lavoro: se da noi la riga è chiusa eseguita, il sito è
+      indietro di un aggiornamento — e deve finire nella coda inversa, «da registrare sul sito».
+    */
+    if (sito === 'positivo') esitatiSito.add(f.odl);
     if (!righe) {
       sconosciuti.push(f.odl);
       continue;
@@ -179,30 +229,42 @@ export function confrontaEsitiSito(
     if (f.impianto !== '' && impiantoRegistro && norm(impiantoRegistro) !== f.impianto) {
       impiantiDifformi.push({ odl: f.odl, impiantoSito: f.impianto, impiantoRegistro: norm(impiantoRegistro) });
     }
-    if (f.esito === '') {
+    if (sito === 'assente') {
       nonEsitatiSito++;
       continue;
     }
-    const chiusaPositiva = righe.some((r) => !r.aperto && r.esito_positivo === true);
-    if (chiusaPositiva) {
+    const nostro = verdettoRegistro(righe);
+    if (nostro === sito) {
+      // Le due mani dicono la stessa cosa. Vale per il «fatto da tutt'e due» come per il «non
+      // eseguito da tutt'e due»: era il secondo a mancare, e ogni «NON ESEGUITO» del file
+      // finiva accusato come nostra dimenticanza proprio mentre l'esito nostro era corretto.
       allineati++;
-    } else if (inLavorazione.has(f.odl)) {
-      inLavorazioneOggi++;
-    } else {
-      daChiudereDaNoi.push({
-        odl: f.odl,
-        esitoSito: f.esito,
-        dataSito: f.dataFine,
-        nominativo: righe.find((r) => r.nominativo)?.nominativo ?? null,
-        comune: righe.find((r) => r.comune)?.comune ?? null,
-        statoNostro: statoNostro(righe),
-      });
+      continue;
     }
+    if (nostro === 'positivo') {
+      // Noi eseguito, il sito no: il nostro esito non manca affatto. La coda giusta è quella
+      // inversa qui sotto, che lo raccoglie da sé; elencarlo anche qui lo farebbe comparire
+      // in due code opposte, ciascuna a chiedere all'altra mano di scrivere.
+      continue;
+    }
+    if (inLavorazione.has(f.odl)) {
+      inLavorazioneOggi++;
+      continue;
+    }
+    daChiudereDaNoi.push({
+      odl: f.odl,
+      esitoSito: f.esito,
+      dataSito: f.dataFine,
+      nominativo: righe.find((r) => r.nominativo)?.nominativo ?? null,
+      comune: righe.find((r) => r.comune)?.comune ?? null,
+      statoNostro: statoNostro(righe),
+    });
   }
 
   /*
-    La direzione opposta: chiusi positivi da NOI che il sito non dà come effettuati — o l'ODL
-    manca dal file, o c'è ma senza esito. È la coda «da registrare sul sito» dell'ufficio.
+    La direzione opposta: chiusi positivi da NOI che il sito non dà come effettuati. Tre modi
+    di non darlo — l'ODL manca dal file, c'è senza esito, oppure c'è con un «NON ESEGUITO»
+    che il nostro rapportino ha poi smentito. È la coda «da registrare sul sito» dell'ufficio.
   */
   const mancantiSulSito: VoceMancanteSito[] = [];
   let chiusiOggi = 0;

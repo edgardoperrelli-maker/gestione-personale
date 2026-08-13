@@ -137,11 +137,56 @@ describe('agganciPerOdl — il collegamento che si ripara da solo', () => {
     expect(agganciPerOdl([sciolto('i2', '100001')], righe)).toEqual([]);
   });
 
-  it('ODL sconosciuto al registro o assente: resta sciolto', () => {
+  it('ODL sconosciuto al registro o assente, e nessuna matricola: resta sciolto', () => {
     expect(agganciPerOdl(
       [sciolto('i1', '999999'), sciolto('i2', null)],
       [riga('o1', '100001')],
     )).toEqual([]);
+  });
+
+  /*
+    Il ripiego sulla matricola, per i «+» compilati sul campo: l'operatore ha in mano il
+    contatore, non il numero d'ordine. L'11/08/2026 cinque richieste manuali sono nate con
+    l'ODL vuoto — una con la matricola copiata DENTRO il campo ODL — e le loro righe di
+    registro non avevano modo di ritrovare l'intervento: restavano aperte a lavoro fatto.
+  */
+  describe('quando l’ODL non trova nulla, decide la matricola', () => {
+    it('ODL assente ma matricola univoca a registro: aggancia', () => {
+      expect(agganciPerOdl(
+        [sciolto('i1', null, '350746')],
+        [riga('o1', '12383382', '350746'), riga('o2', '12383274', '350739')],
+      )).toEqual([{ interventoId: 'i1', ordineId: 'o1' }]);
+    });
+
+    it('ODL sconosciuto (la matricola finita nel campo sbagliato): aggancia lo stesso', () => {
+      expect(agganciPerOdl(
+        [sciolto('i1', '350739', '350739')],
+        [riga('o1', '12383382', '350746'), riga('o2', '12383274', '350739')],
+      )).toEqual([{ interventoId: 'i1', ordineId: 'o2' }]);
+    });
+
+    it('matricola su PIÙ righe: nessun aggancio, la scelta non è obbligata', () => {
+      expect(agganciPerOdl(
+        [sciolto('i1', null, '350746')],
+        [riga('o1', '12383382', '350746'), riga('o2', '12399999', '350746')],
+      )).toEqual([]);
+    });
+
+    it('la matricola NON scavalca un ODL che ha già deciso', () => {
+      // L'ODL trova la sua riga: il ripiego non entra in gioco, nemmeno se la matricola
+      // dell'intervento punterebbe altrove (un contatore digitato male non deve spostare l'esito).
+      expect(agganciPerOdl(
+        [sciolto('i1', '12383382', '350739')],
+        [riga('o1', '12383382', '350746'), riga('o2', '12383274', '350739')],
+      )).toEqual([{ interventoId: 'i1', ordineId: 'o1' }]);
+    });
+
+    it('confronta le matricole normalizzate, come fa l’aggancio multi-contatore', () => {
+      expect(agganciPerOdl(
+        [sciolto('i1', null, 'mtr-746')],
+        [riga('o1', '12383382', 'MTR746')],
+      )).toEqual([{ interventoId: 'i1', ordineId: 'o1' }]);
+    });
   });
 });
 

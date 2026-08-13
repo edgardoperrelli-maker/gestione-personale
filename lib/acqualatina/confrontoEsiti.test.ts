@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  confrontaEsitiSito, parseEsecuzioni,
+  classificaEsitoSito, confrontaEsitiSito, parseEsecuzioni,
   type RigaEsecuzione, type RigaRegistroPerConfronto,
 } from './confrontoEsiti';
 
@@ -48,6 +48,30 @@ describe('parseEsecuzioni', () => {
   });
 });
 
+describe('classificaEsitoSito', () => {
+  // Il vocabolario COMPLETO visto nell'export reale del 13/08/2026 (845 righe): sei etichette,
+  // di cui quattro sono uscite a vuoto. Il motore ne leggeva due e dava per fatte le altre.
+  it.each([
+    ['EFFETTUATO NO ANOMALIE', 'positivo'],
+    ['EFFETTUATO - CONTATORE GUASTO', 'positivo'],
+    ['NON ESEGUITO - VALVOLA CHIUSURA NN FUNZ', 'negativo'],
+    ['NON ESEGUITO - NICCHIA CONT. NN ADEGUATA', 'negativo'],
+    ['NON ESEGUITO - DIAMETRO NN DISPONIBILE', 'negativo'],
+    ['NON ESEGUITO UTENTE ASSENTE', 'negativo'],
+    ['', 'assente'],
+    ['   ', 'assente'],
+  ])('«%s» → %s', (esito, atteso) => {
+    expect(classificaEsitoSito(esito)).toBe(atteso);
+  });
+
+  it('un\'etichetta nuova che non si dichiara «non eseguito» è un\'esecuzione', () => {
+    // Il committente allunga l'elenco senza dirlo: il default deve stare dalla parte del
+    // vocabolario dichiarato, non delle sigle.
+    expect(classificaEsitoSito('EFFETTUATO - CONTATORE SOSTITUITO')).toBe('positivo');
+    expect(classificaEsitoSito('non eseguito – motivo nuovo')).toBe('negativo');
+  });
+});
+
 describe('confrontaEsitiSito', () => {
   it('sito effettuato + registro chiuso positivo = allineati', () => {
     const out = confrontaEsitiSito([esec()], [registro()]);
@@ -74,6 +98,65 @@ describe('confrontaEsitiSito', () => {
       [registro({ aperto: true, esito_positivo: null })],
     );
     expect(out.daChiudereDaNoi).toHaveLength(1);
+  });
+
+  /*
+    Il gruppo che mancava: il file porta anche i «NON ESEGUITO - …», e sono ESITI, non celle
+    vuote. Trattarli come lavoro fatto accusava «manca il nostro esito» sulle righe in cui le
+    due mani erano d'accordo — 13 su 18 anomalie del report del 13/08/2026, cioè tutte e sole
+    le «non eseguito» del file.
+  */
+  describe('il sito dice NON ESEGUITO', () => {
+    const NON_ESEG = 'NON ESEGUITO - VALVOLA CHIUSURA NN FUNZ';
+
+    it('e da noi è «chiusa — non eseguita»: sono allineati, non un\'anomalia', () => {
+      const out = confrontaEsitiSito(
+        [esec({ esito: NON_ESEG })],
+        [registro({ aperto: false, esito_positivo: false, stato_desc: 'Chiusa — non eseguita' })],
+      );
+      expect(out.allineati).toBe(1);
+      expect(out.daChiudereDaNoi).toEqual([]);
+      expect(out.mancantiSulSito).toEqual([]);
+    });
+
+    it('e da noi è «aperta — non eseguita» (da ripassare): allineati lo stesso', () => {
+      // Due code diverse per noi, la stessa frase detta al sito: ci siamo andati, non si è fatto.
+      const out = confrontaEsitiSito(
+        [esec({ esito: NON_ESEG })],
+        [registro({ aperto: true, esito_positivo: false, stato_desc: 'Aperta — non eseguita' })],
+      );
+      expect(out.allineati).toBe(1);
+      expect(out.daChiudereDaNoi).toEqual([]);
+    });
+
+    it('e da noi non c\'è ancora nessun esito: manca il nostro rapportino', () => {
+      const out = confrontaEsitiSito(
+        [esec({ esito: NON_ESEG })],
+        [registro({ aperto: true, esito_positivo: null, stato_desc: 'Aperta' })],
+      );
+      expect(out.daChiudereDaNoi).toHaveLength(1);
+      expect(out.daChiudereDaNoi[0]?.esitoSito).toBe(NON_ESEG);
+    });
+
+    it('ma da noi è chiusa ESEGUITA: è il sito a essere indietro, e sta in UNA sola coda', () => {
+      const out = confrontaEsitiSito([esec({ esito: NON_ESEG })], [registro()]);
+      expect(out.daChiudereDaNoi).toEqual([]);
+      expect(out.mancantiSulSito.map((m) => m.odl)).toEqual(['100001']);
+      expect(out.allineati).toBe(0);
+    });
+  });
+
+  it('il sito dice effettuato ma il nostro esito è «non eseguita»: i due si contraddicono', () => {
+    // Non è «da registrare sul sito» né un allineamento: una delle due mani ha sbagliato, e
+    // la riga va guardata. Resta nella coda dell'ufficio, col nostro stato accanto.
+    const out = confrontaEsitiSito(
+      [esec()],
+      [registro({ aperto: false, esito_positivo: false, stato_desc: 'Chiusa — non eseguita' })],
+    );
+    expect(out.daChiudereDaNoi).toEqual([{
+      odl: '100001', esitoSito: 'EFFETTUATO NO ANOMALIE', dataSito: '29/07/2026 14:02',
+      nominativo: 'ROSSI MARIO', comune: 'TERRACINA', statoNostro: 'chiusa — non eseguita',
+    }]);
   });
 
   it('chiuso positivo da noi ma sito senza esito (o senza l\'ODL): coda «da registrare sul sito»', () => {

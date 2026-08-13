@@ -93,25 +93,40 @@ const normMatr = (m: string | null | undefined): string =>
  * riga sola, oppure la matricola dell'intervento ne indica esattamente una. Un ODL
  * multi-contatore senza matricola che decida resta sciolto: meglio un aggancio in meno di un
  * esito scritto sul contatore sbagliato.
+ *
+ * Quando l'ODL non individua NESSUNA riga si ripiega sulla MATRICOLA, con la stessa prudenza:
+ * solo se ne indica esattamente una in tutto il registro. Il caso è quello dei «+» compilati
+ * sul campo, dove l'operatore ha in mano il contatore e non il numero d'ordine — l'11/08/2026
+ * cinque richieste manuali sono nate con l'ODL vuoto (una con la matricola copiata dentro il
+ * campo ODL), e senza questo ripiego le loro righe di registro non avevano alcun modo di
+ * ritrovare l'intervento: restavano aperte a lavoro fatto. La matricola è l'identità del
+ * pezzo sostituito, ed è l'unica cosa che l'operatore non può sbagliare avendocela in mano.
  */
 export function agganciPerOdl(
   sciolti: readonly InterventoSciolto[],
   righe: readonly RigaPerAggancio[],
 ): Array<{ interventoId: string; ordineId: string }> {
   const perOdl = new Map<string, RigaPerAggancio[]>();
+  const perMatricola = new Map<string, RigaPerAggancio[]>();
   for (const r of righe) {
     const odl = r.odl.trim();
-    if (odl === '') continue;
-    perOdl.set(odl, [...(perOdl.get(odl) ?? []), r]);
+    if (odl !== '') perOdl.set(odl, [...(perOdl.get(odl) ?? []), r]);
+    const m = normMatr(r.matricola_norm);
+    if (m !== '') perMatricola.set(m, [...(perMatricola.get(m) ?? []), r]);
   }
   const agganci: Array<{ interventoId: string; ordineId: string }> = [];
   for (const s of sciolti) {
     const candidate = perOdl.get(String(s.odl ?? '').trim()) ?? [];
+    const m = normMatr(s.matricola_contatore);
     let scelta: RigaPerAggancio | null = candidate.length === 1 ? candidate[0] : null;
     if (!scelta && candidate.length > 1) {
-      const m = normMatr(s.matricola_contatore);
       const stesse = m === '' ? [] : candidate.filter((c) => normMatr(c.matricola_norm) === m);
       if (stesse.length === 1) scelta = stesse[0];
+    }
+    // L'ODL non ha trovato niente: né vuoto né sconosciuto al registro decidono, la matricola sì.
+    if (!scelta && candidate.length === 0 && m !== '') {
+      const perM = perMatricola.get(m) ?? [];
+      if (perM.length === 1) scelta = perM[0];
     }
     if (scelta) agganci.push({ interventoId: s.id, ordineId: scelta.id });
   }

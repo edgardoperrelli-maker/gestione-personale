@@ -15,6 +15,8 @@ import { buildTassonomiaIndex, risolviGruppo } from '@/lib/attivita/tassonomia';
 import { caricaFlussi } from '@/lib/consuntivazione/flusso';
 import { risolviFlussoVoceManuale } from '@/lib/interventi/manuali/risolviFlussoVoceManuale';
 import { messaggioErroreManuale } from '@/lib/interventi/manuali/messaggioErroreManuale';
+import { esitoInterventoDaVoce } from '@/lib/interventi/esitoDaVoce';
+import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 
 export const runtime = 'nodejs';
 
@@ -42,7 +44,7 @@ async function handlePOST(req: Request, { params }: { params: Promise<{ id: stri
   // dati_correnti di default (servono prima del check atomico per costruire il record).
   const { data: richiesta } = await supabaseAdmin
     .from('interventi_manuali')
-    .select('id, stato, voce_id, intervento_id, piano_id, staff_id, data, committente, dati_correnti, parent_voce_id')
+    .select('id, stato, voce_id, intervento_id, piano_id, staff_id, data, committente, dati_correnti, parent_voce_id, rapportino_id')
     .eq('id', id)
     .maybeSingle();
   if (!richiesta) return NextResponse.json({ error: 'not_found' }, { status: 404 });
@@ -286,7 +288,7 @@ async function handlePOST(req: Request, { params }: { params: Promise<{ id: stri
       .maybeSingle();
     const haGiaSnapshot = Array.isArray((voceEsistente as { campi_snapshot?: unknown } | null)?.campi_snapshot)
       && ((voceEsistente as { campi_snapshot: unknown[] }).campi_snapshot.length > 0);
-    await supabaseAdmin
+    const { data: voceAgg } = await supabaseAdmin
       .from('rapportino_voci')
       .update({
         intervento_id: intRow!.id,
@@ -294,7 +296,57 @@ async function handlePOST(req: Request, { params }: { params: Promise<{ id: stri
         ...colonneAnagraficaVoce(dati),
         ...(!haGiaSnapshot && flussoVoce ? { template_id: flussoVoce.templateId, campi_snapshot: flussoVoce.campi } : {}),
       })
-      .eq('id', richiesta.voce_id);
+      .eq('id', richiesta.voce_id)
+      .select('risposte, campi_snapshot')
+      .maybeSingle();
+
+    /*
+      RECUPERO POST-INVIO: l'approvazione arrivata DOPO che il rapportino è partito.
+
+      L'intervento nasce «assegnato» perché su AcquaLatina approvare è assegnare, e a chiuderlo
+      con l'esito vero ci pensa `invia` (app/api/r/[token]/invia/route.ts). Ma se il rapportino
+      è GIÀ inviato quel passaggio non tornerà mai: `tokenStatus` lo respinge come
+      «non_modificabile», e l'intervento resta assegnato per sempre — con la sua voce che
+      dichiara un esito e lo Storico che lo mostra come fatto. È successo l'11/08/2026 su cinque
+      «+» AcquaLatina approvati cinque minuti dopo l'invio: cinque righe di registro rimaste
+      aperte a lavoro consegnato, e il confronto col sito a segnalarle come nostro esito
+      mancante. Stesso sintomo del caso 957327236 del 05/08, che `invia` cura solo per le voci
+      orfane al momento dell'invio — non per gli interventi che ancora non esistevano.
+
+      L'esito lo legge la STESSA funzione che userebbe `invia`, dalla stessa voce: una voce
+      senza esito (neutra) non chiude niente, com'è giusto. Best-effort: un'approvazione non
+      deve fallire perché il recupero non è riuscito — la richiesta è già approvata e
+      l'intervento creato, e questo è il di più che gli evita di restare a metà.
+    */
+    if (voceAgg && richiesta.rapportino_id) {
+      try {
+        const { data: rapportino } = await supabaseAdmin
+          .from('rapportini')
+          .select('stato, campi_snapshot')
+          .eq('id', richiesta.rapportino_id as string)
+          .maybeSingle();
+        if ((rapportino as { stato?: string } | null)?.stato === 'inviato') {
+          const campiVoce = (voceAgg as { campi_snapshot?: unknown }).campi_snapshot;
+          const campiEsito = (Array.isArray(campiVoce) && campiVoce.length > 0
+            ? campiVoce
+            : ((rapportino as { campi_snapshot?: unknown }).campi_snapshot ?? [])) as TemplateCampo[];
+          const patch = esitoInterventoDaVoce(
+            ((voceAgg as { risposte?: Record<string, unknown> | null }).risposte ?? {}),
+            campiEsito,
+          );
+          if (patch) {
+            const { error } = await supabaseAdmin
+              .from('interventi')
+              .update({ stato: 'completato', esito: patch.esito, esito_motivo: patch.esito_motivo })
+              .eq('id', intRow!.id)
+              .neq('stato', 'annullato');
+            if (error) throw error;
+          }
+        }
+      } catch (e) {
+        console.error('[approva] chiusura post-invio non riuscita:', e instanceof Error ? e.message : String(e));
+      }
+    }
   }
 
   // ── Aggiorna interventi_manuali con l'intervento_id ─────────────────────────
