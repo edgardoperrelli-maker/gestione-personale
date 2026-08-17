@@ -159,14 +159,21 @@ export async function sincronizzaRapportini(
   const TPL_VUOTO: TplTestata = { campi: [], info_campi: [], tipo: 'standard' };
   const tplTestataCache = new Map<string, TplTestata | null>();
   // Un id risolto (sticky/prevalente) che non esiste più non è un errore fatale come
-  // l'esplicito: null = quell'operatore resta senza modulo (e senza template_id, che
-  // scritto punterebbe a una riga cancellata), gli altri generano comunque.
-  const caricaTplTestata = async (id: string): Promise<TplTestata | null> => {
-    if (tplTestataCache.has(id)) return tplTestataCache.get(id) ?? null;
-    const { data: tplRow } = await db.from('rapportino_template').select('id, campi, info_campi, tipo').eq('id', id).maybeSingle();
+  // l'esplicito: tpl null = quell'operatore resta senza modulo (e senza template_id, che
+  // scritto punterebbe a una riga cancellata), gli altri generano comunque. Un ERRORE di
+  // lettura invece NON è "template cancellato": va fatto risalire (il sync abortisce come
+  // per ogni altra query fallita), perché scambiarlo per una riga assente scriverebbe
+  // testata nulla e snapshot vuoti su rapportini esistenti per colpa di un blip di rete.
+  const caricaTplTestata = async (
+    id: string,
+  ): Promise<{ ok: true; tpl: TplTestata | null } | { ok: false; errore: string }> => {
+    if (tplTestataCache.has(id)) return { ok: true, tpl: tplTestataCache.get(id) ?? null };
+    const { data: tplRow, error: eTpl } = await db
+      .from('rapportino_template').select('id, campi, info_campi, tipo').eq('id', id).maybeSingle();
+    if (eTpl) return { ok: false, errore: eTpl.message };
     const tpl = (tplRow as TplTestata | null) ?? null;
     tplTestataCache.set(id, tpl);
-    return tpl;
+    return { ok: true, tpl };
   };
 
   const operatoriPiano = (ops ?? []).map((o) => ({ staff_id: String(o.staff_id), staff_name: (o.staff_name as string | null) ?? null }));
@@ -442,16 +449,27 @@ export async function sincronizzaRapportini(
 
     // Modello di TESTATA dell'operatore (vedi il commento alla risoluzione, più sopra):
     // esplicito → il suo rapportino esistente (sticky) → risanamento sui SUOI task →
-    // prevalente dei SUOI task → prevalente del piano. Il modello segue il lavoro
-    // dell'operatore: quello di un collega dello stesso giro non è più contagioso.
+    // prevalente dei SUOI task → prevalente del piano → modello stabilito del piano
+    // (stickyPiano). Il modello segue il lavoro dell'operatore: quello di un collega dello
+    // stesso giro non è più contagioso. L'ultimo gradino copre l'operatore AGGIUNTO a un
+    // piano coi task non classificabili (es. piani "senza interventi", flusso scelto a mano
+    // alla prima generazione): senza, nascerebbe senza modulo accanto a colleghi che ce
+    // l'hanno — e stickyPiano scatta solo quando nessun conteggio sui task ha detto nulla,
+    // quindi non riporta il contagio del piano misto.
     const tasksOpClassificabili = tasksOp as TaskClassificabile[];
     const templateIdRisolto =
       templateEsplicito ??
       ((existing as { template_id?: string | null } | null)?.template_id ?? null) ??
       (pianoHaRisanamento(tasksOpClassificabili) ? risolviTemplateRisanamento(candidatiRisanamento) : null) ??
       flussoPrevalente(tasksOpClassificabili, tassIndex, flussi) ??
-      prevalentePiano;
-    const tplOp = templateIdRisolto ? await caricaTplTestata(templateIdRisolto) : null;
+      prevalentePiano ??
+      stickyPiano;
+    let tplOp: TplTestata | null = null;
+    if (templateIdRisolto) {
+      const caricato = await caricaTplTestata(templateIdRisolto);
+      if (!caricato.ok) return { ok: false, status: 500, error: caricato.errore };
+      tplOp = caricato.tpl;
+    }
     const templateId = tplOp ? templateIdRisolto : null;
     const tpl = tplOp ?? TPL_VUOTO;
     // Sync automatico (skipInviati): un rapportino già consegnato non va alterato senza conferma

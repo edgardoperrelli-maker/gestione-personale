@@ -13,12 +13,15 @@ type Filtro =
   | ['isNull' | 'notNull', string, null];
 
 /** Fake Supabase client: simula le tabelle in memoria con le query chain usate dal motore. */
-export function makeFakeDb(seed: Tables, opts: { failVociInsertOnce?: string; failVociInsertTimes?: number } = {}): { db: SupabaseClient; tables: Tables } {
+export function makeFakeDb(seed: Tables, opts: { failVociInsertOnce?: string; failVociInsertTimes?: number; failMaybeSingleOnce?: { table: string; message: string } } = {}): { db: SupabaseClient; tables: Tables } {
   const tables: Tables = {};
   for (const k of Object.keys(seed)) tables[k] = seed[k].map((r) => ({ ...r }));
   let counter = 0;
   const genId = () => `gen_${++counter}`;
   let failVociPending: string | null = opts.failVociInsertOnce ?? null;
+  // Simula UN errore transitorio (rete/schema cache) sulla PRIMA maybeSingle() della tabella
+  // indicata: e' il contratto reale di supabase-js v2, che non lancia ma torna {data:null,error}.
+  let failMaybeSinglePending: { table: string; message: string } | null = opts.failMaybeSingleOnce ?? null;
   // Quante insert COLLEGATE devono fallire: 1 simula la race che il retry risolve, 2 una race
   // persistente che costringe al fallback scollegato. Le insert con soli intervento_id null passano.
   let failVociResidui = opts.failVociInsertTimes ?? (failVociPending ? 1 : 0);
@@ -68,7 +71,15 @@ export function makeFakeDb(seed: Tables, opts: { failVociInsertOnce?: string; fa
     // thenable: await builder → esegue (select/update/delete)
     then(resolve: (v: unknown) => void) { resolve(this.exec()); }
     async single() { const r = this.rows(); return { data: r[0] ?? null, error: null }; }
-    async maybeSingle() { const r = this.rows(); return { data: r[0] ?? null, error: null }; }
+    async maybeSingle() {
+      if (failMaybeSinglePending && this.table === failMaybeSinglePending.table) {
+        const { message } = failMaybeSinglePending;
+        failMaybeSinglePending = null;
+        return { data: null, error: { message } };
+      }
+      const r = this.rows();
+      return { data: r[0] ?? null, error: null };
+    }
 
     insert(rows: Row | Row[]) {
       const arr = Array.isArray(rows) ? rows : [rows];

@@ -524,6 +524,43 @@ describe('sincronizzaRapportini — modello PER OPERATORE (piano misto)', () => 
     expect(tables.rapportini.find((r) => r.staff_id === 's2')?.template_id).toBe('tpl-italgas');
   });
 
+  it('operatore AGGIUNTO a un piano non classificabile: eredita il modello stabilito del piano (stickyPiano)', async () => {
+    // Piano "senza interventi" (task non classificabili, flusso scelto a mano alla prima
+    // generazione): il collega ha gia' il rapportino col modello X. Il nuovo operatore non ha
+    // sticky proprio ne' conteggi sui task → deve ereditare X, non nascere senza modulo.
+    const { db, tables } = makeFakeDb(seedBase({
+      rapportino_template: [
+        { id: 'tpl-x', nome: 'FLUSSO AGENTE', campi: [{ chiave: 'eseguito', etichetta: 'ESEGUITO', tipo: 'select', ordine: 1 }], info_campi: [], active: true },
+      ],
+      mappa_piani_operatori: [
+        { piano_id: 'p1', staff_id: 's1', staff_name: 'Vecchio', tasks: [{ id: 't1', odl: 'ODL1' }] },
+        { piano_id: 'p1', staff_id: 's2', staff_name: 'Nuovo', tasks: [{ id: 't2', odl: 'ODL2' }] },
+      ],
+      rapportini: [{ id: 'rap1', piano_id: 'p1', staff_id: 's1', token: 'TOK1', stato: 'in_corso', template_id: 'tpl-x' }],
+    }));
+    const res = await sincronizzaRapportini(db, 'p1', {});
+    expect(res.ok).toBe(true);
+    expect(tables.rapportini.find((r) => r.staff_id === 's2')?.template_id).toBe('tpl-x');
+  });
+
+  it('errore transitorio sulla lettura del template: il sync ABORTISCE senza azzerare la testata', async () => {
+    // supabase-js non lancia sui blip di rete/schema cache: torna {data:null, error}. Scambiare
+    // l'errore per "template cancellato" scriverebbe template_id=null e snapshot vuoti sui
+    // rapportini esistenti — il vecchio codice in quel punto abortiva, e cosi' deve restare.
+    const { db, tables } = makeFakeDb(seedBase({
+      rapportino_template: [{ id: 'tpl1', nome: 'MODELLO', campi: [{ chiave: 'eseguito', etichetta: 'ESEGUITO', tipo: 'select', ordine: 1 }], info_campi: [], active: true }],
+      mappa_piani_operatori: [{ piano_id: 'p1', staff_id: 's1', staff_name: 'Mario', tasks: [{ id: 't1', odl: 'ODL1' }] }],
+      rapportini: [{ id: 'rap1', piano_id: 'p1', staff_id: 's1', token: 'TOK1', stato: 'in_corso', template_id: 'tpl1' }],
+    }), { failMaybeSingleOnce: { table: 'rapportino_template', message: 'schema cache reload' } });
+    const res = await sincronizzaRapportini(db, 'p1', {});
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.status).toBe(500);
+      expect(res.error).toBe('schema cache reload');
+    }
+    expect(tables.rapportini.find((r) => r.id === 'rap1')?.template_id).toBe('tpl1');
+  });
+
   it('sticky verso un template cancellato: il rapportino resta senza modello, il resto genera', async () => {
     const { db, tables } = makeFakeDb(seedBase({
       attivita_tassonomia: TASSONOMIA_MISTA,
