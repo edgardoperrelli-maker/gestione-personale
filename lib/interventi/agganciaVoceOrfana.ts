@@ -47,8 +47,36 @@ export async function agganciaVoceOrfana(
     .neq('stato', 'annullato');
   if (error || !candidati?.length) return null;
 
+  /*
+    Gli interventi che una voce ce l'hanno GIA' non sono candidati: un intervento ha una voce
+    sola, ed e` l'invariante su cui poggia tutto il resto — il positivo che non si declassa
+    (`decisioneScritturaEsito`), la voce che segue lo spostamento, l'esito che il registro legge.
+    Agganciare qui significherebbe FABBRICARE lo stato che quelle regole esistono per impedire.
+
+    E` la seconda meta` del guard sulle voci rifiutate (migration 20260810160000): li` si era
+    chiuso il caso della voce rifiutata che scivola sul PDR e prende l'intervento del contatore
+    accanto, ma la scivolata non ha niente a che vedere col rifiuto — il PDR e` del PUNTO, non
+    del contatore, e due misuratori nello stesso stabile lo condividono. Caso vero trovato il
+    17/08/2026: la voce orfana di PASTORELLI del 22/06 (ODL 912232071) non trova il proprio ODL,
+    scivola sul PDR 4000133725 e aggancia un intervento gia` chiuso positivo CON la sua voce.
+    Nessuna regola di ambiguita` scattava: su quel PDR l'intervento e` uno solo.
+
+    Vale per il RECUPERO, che e` quel che fa questo modulo. La generazione dei rapportini crea
+    la voce in quel momento e non passa di qui.
+  */
+  const { data: occupati } = await db
+    .from('rapportino_voci')
+    .select('intervento_id')
+    .in('intervento_id', candidati.map((c) => (c as { id: string }).id));
+  const conVoce = new Set(
+    ((occupati ?? []) as Array<{ intervento_id: string | null }>)
+      .map((o) => String(o.intervento_id ?? '')).filter(Boolean),
+  );
+  const liberi = (candidati as InterventoLinkRow[]).filter((c) => !conVoce.has(String(c.id)));
+  if (liberi.length === 0) return null;
+
   const raw = (voce.raw_json ?? {}) as { odl?: unknown; odsin?: unknown; matricola?: unknown; pdr?: unknown };
-  const trovato = buildVoceInterventoLinker(candidati as InterventoLinkRow[])({
+  const trovato = buildVoceInterventoLinker(liberi)({
     staff_id: rapportino.staffId,
     odl: (raw.odl as string | null | undefined) ?? (raw.odsin as string | null | undefined) ?? voce.odl,
     matricola: (raw.matricola as string | null | undefined) ?? voce.matricola,

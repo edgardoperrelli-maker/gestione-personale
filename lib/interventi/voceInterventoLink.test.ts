@@ -146,3 +146,41 @@ describe('buildVoceInterventoLinker', () => {
     });
   });
 });
+
+/*
+  IL CONTRATTO CHE I PERCORSI DI RECUPERO DEVONO RISPETTARE.
+
+  Il linker non sa quali interventi hanno già una voce — sa solo scegliere fra i candidati che
+  gli passi. L'esclusione la fanno i chiamanti del RECUPERO (`agganciaVoceOrfana` e la
+  risincronizzazione), perché un intervento ha UNA voce sola: è l'invariante su cui poggiano il
+  positivo che non si declassa e la voce che segue lo spostamento.
+
+  Caso vero del 17/08/2026: la voce orfana di PASTORELLI del 22/06 (ODL 912232071) non trova il
+  proprio ODL fra gli interventi del giorno, scivola sul PDR — che è del PUNTO, non del contatore
+  — e aggancia un intervento già chiuso positivo CON la sua voce. Nessuna regola di ambiguità
+  scattava: su quel PDR l'intervento è uno solo. È la stessa scivolata della migration
+  20260810160000, che lì era stata chiusa solo per le voci rifiutate.
+*/
+describe('recupero: gli interventi che hanno già una voce non sono candidati', () => {
+  const orfana = { staff_id: 's1', odl: '912232071', pdr: '4000133725' };
+
+  it('senza esclusione la voce scivola sul PDR e prende l\'intervento del vicino', () => {
+    const link = buildVoceInterventoLinker([it_({ id: 'iVicino', odl: 'ALTRO-ODL', pdr: '4000133725' })]);
+    expect(link(orfana)).toBe('iVicino');
+  });
+
+  it('escluso quello occupato, la voce resta orfana invece di agganciare il vicino', () => {
+    const occupati = new Set(['iVicino']);
+    const candidati = [it_({ id: 'iVicino', odl: 'ALTRO-ODL', pdr: '4000133725' })]
+      .filter((i) => !occupati.has(i.id));
+    expect(buildVoceInterventoLinker(candidati)(orfana)).toBeNull();
+  });
+
+  it('il proprio ODL vince comunque, se l\'intervento giusto è libero', () => {
+    const candidati = [
+      it_({ id: 'iVicino', odl: 'ALTRO-ODL', pdr: '4000133725' }),
+      it_({ id: 'iSuo', odl: '912232071' }),
+    ].filter((i) => !new Set(['iVicino']).has(i.id));
+    expect(buildVoceInterventoLinker(candidati)(orfana)).toBe('iSuo');
+  });
+});
