@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { esitoInterventoDaVoce, patchInterventoLiveDaVoce } from './esitoDaVoce';
+import { decisioneScritturaEsito, esitoInterventoDaVoce, patchInterventoLiveDaVoce } from './esitoDaVoce';
 import type { TemplateCampo } from '../../utils/rapportini/buildVoci';
 
 const campi: TemplateCampo[] = [{ chiave: 'eseguito', etichetta: 'Eseguito', tipo: 'select', ordine: 1, opzioni: ['SI', 'NO'] }];
@@ -67,5 +67,40 @@ describe('matricola obbligatoria: l\'intervento non si chiude senza', () => {
   it('NO col motivo chiude comunque: là la matricola non esiste', () => {
     expect(esitoInterventoDaVoce({ eseguito: 'NO', note: 'UTENTE ASSENTE' }, acqualatina))
       .toEqual({ esito: null, esito_motivo: 'UTENTE ASSENTE' });
+  });
+});
+
+describe('decisioneScritturaEsito', () => {
+  it('il positivo si scrive sempre, comunque stia l\'intervento', () => {
+    expect(decisioneScritturaEsito('eseguito_positivo', null, 1)).toEqual({ scrivi: true });
+    expect(decisioneScritturaEsito('eseguito_positivo', 'eseguito_positivo', 5)).toEqual({ scrivi: true });
+  });
+
+  it('su un intervento non positivo non c\'è niente da proteggere', () => {
+    expect(decisioneScritturaEsito(null, null, 3)).toEqual({ scrivi: true });
+    expect(decisioneScritturaEsito(null, 'accesso_negato', 3)).toEqual({ scrivi: true });
+  });
+
+  /*
+    L'AUTOCORREZIONE deve continuare a funzionare: con una voce sola chi scrive è il
+    proprietario di quell'esito, e un positivo messo per sbaglio si toglie da lì. È lo stesso
+    motivo per cui non basta un `.neq('esito', 'eseguito_positivo')` in coda all'update.
+  */
+  it('con una voce sola l\'operatore può correggere il proprio positivo', () => {
+    expect(decisioneScritturaEsito(null, 'eseguito_positivo', 1)).toEqual({ scrivi: true });
+    expect(decisioneScritturaEsito(null, 'eseguito_positivo', 0)).toEqual({ scrivi: true });
+  });
+
+  /*
+    ODL 12384609, 14/08/2026: LIBERATORI chiude «SI» alle 13:18, PRATESI «NO» alle 13:27 sullo
+    STESSO intervento. Prima vinceva l'ultimo a premere invia, su un lavoro che era stato fatto.
+  */
+  it('con più voci il positivo non si declassa, e si dice perché', () => {
+    const d = decisioneScritturaEsito(null, 'eseguito_positivo', 2);
+    expect(d.scrivi).toBe(false);
+    if (!d.scrivi) {
+      expect(d.motivo).toContain('2 voci');
+      expect(d.motivo).toContain('non si declassa');
+    }
   });
 });

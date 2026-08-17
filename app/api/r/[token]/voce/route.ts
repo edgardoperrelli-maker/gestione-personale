@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { tokenStatus } from '@/utils/rapportini/tokenStatus';
 import { mergeRisposte } from '@/utils/rapportini/mergeRisposte';
 import { patchInterventoLiveDaVoce } from '@/lib/interventi/esitoDaVoce';
+import { esitoScrivibile } from '@/lib/interventi/scritturaEsito';
 import { sweepDopoPositivi } from '@/lib/interventi/sweepOdlPositivo';
 import { buildVoceInterventoLinker, type InterventoLinkRow } from '@/lib/interventi/voceInterventoLink';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
@@ -121,6 +122,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
         if (committente === 'acqualatina') matricolaNuova = matricolaNuovaRisposta;
         else console.warn('[r/voce] matricola_nuova ignorata: intervento non AcquaLatina', { interventoId, committente });
       }
+      /*
+        Il positivo vince sempre. Se questa voce declasserebbe un intervento gia` eseguito che
+        condivide con un'altra voce — il residuo di uno spostamento — non e` lei a poterlo
+        smentire: il lavoro l'ha fatto qualcun altro. Regola in `decisioneScritturaEsito`.
+
+        Il caso 12378907: la voce del 12/08 «NESSUN PASSAGGIO», rimasta indietro, avrebbe
+        riaperto l'ordine chiuso dalla voce del 13/08 al primo salvataggio.
+      */
+      const decisione = await esitoScrivibile(
+        supabaseAdmin, interventoId, patch.azione === 'completa' ? patch.esito : null,
+      );
+      if (!decisione.scrivi) console.warn('[r/voce] esito non propagato:', { interventoId, motivo: decisione.motivo });
+
       // 'completa' chiude l'intervento (qualsiasi stato tranne annullato).
       // 'riapri' annulla SOLO una nostra precedente chiusura: tocca l'intervento
       // solo se è 'completato', così non declassa stati intermedi gestiti da altri flussi.
@@ -133,17 +147,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
       // `matricola_nuova` può non esistere ancora (migration non applicata prima del deploy):
       // senza questa guardia un intervento AcquaLatina non si chiuderebbe MAI finché la colonna
       // non arriva, perché l'update è uno solo con stato/esito/chiuso_at.
-      const { error: errInt } = await scriviSenzaColonnaMancante(interventoPatch, 'matricola_nuova', (valori) => {
-        const q = supabaseAdmin.from('interventi').update(valori).eq('id', interventoId);
-        return patch.azione === 'completa' ? q.neq('stato', 'annullato') : q.eq('stato', 'completato');
-      });
+      const { error: errInt } = decisione.scrivi
+        ? await scriviSenzaColonnaMancante(interventoPatch, 'matricola_nuova', (valori) => {
+          const q = supabaseAdmin.from('interventi').update(valori).eq('id', interventoId);
+          return patch.azione === 'completa' ? q.neq('stato', 'annullato') : q.eq('stato', 'completato');
+        })
+        : { error: null };
       if (errInt) console.error('[r/voce] propagazione intervento fallita:', errInt.message);
       // Positivo appena registrato → sweep: revoca voci/interventi aperti con lo stesso ODL
       // negli altri rapportini (anche di piani futuri già generati). Best-effort.
-      if (!errInt && patch.azione === 'completa' && patch.esito === 'eseguito_positivo') {
+      if (!errInt && decisione.scrivi && patch.azione === 'completa' && patch.esito === 'eseguito_positivo') {
         await sweepDopoPositivi(supabaseAdmin, [interventoId]);
       }
       // Il registro AcquaLatina la vuole anche lui (colonna «Matricola nuova» in griglia).
+      // Vale anche a esito non propagato: la matricola è del CONTATORE, non dell'esito.
       if (!errInt && matricolaNuova) {
         await propagaMatricolaNuovaARegistro(supabaseAdmin, interventoId, matricolaNuova);
       }

@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { tokenStatus } from '@/utils/rapportini/tokenStatus';
 import { buildVoceInterventoLinker, type InterventoLinkRow } from '@/lib/interventi/voceInterventoLink';
 import { esitoInterventoDaVoce } from '@/lib/interventi/esitoDaVoce';
+import { esitoScrivibile } from '@/lib/interventi/scritturaEsito';
 import { chiavePositivo, decidiChiusuraConPositivi, indicizzaPositivi } from '@/lib/interventi/odlPositivi';
 import { rimuoviVociBloccate, sweepDopoPositivi } from '@/lib/interventi/sweepOdlPositivo';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
@@ -264,6 +265,20 @@ export async function POST(_req: Request, { params }: { params: Promise<{ token:
         .eq('id', v.intervento_id)
         .neq('stato', 'annullato');
       continue; // niente registro misuratori: il doppione non è una rimozione valida
+    }
+
+    /*
+      Il positivo vince sempre: una voce che declasserebbe un intervento gia` eseguito, e che
+      quell'intervento lo condivide con un'altra voce, non ha titolo per smentirla — il lavoro
+      l'ha fatto qualcun altro. Regola in `decisioneScritturaEsito`.
+
+      E` il caso 12384609 del 14/08/2026: LIBERATORI invia «SI» alle 13:18, PRATESI «NO» alle
+      13:27 sullo stesso intervento, e vinceva l'ultimo a premere invia.
+    */
+    const scrivibile = await esitoScrivibile(supabaseAdmin, v.intervento_id, patch.esito);
+    if (!scrivibile.scrivi) {
+      console.warn('[r/invia] esito non propagato:', { interventoId: v.intervento_id, motivo: scrivibile.motivo });
+      continue;
     }
 
     // chiuso_at = ora di compilazione della voce (updated_at), non l'ora di invio.

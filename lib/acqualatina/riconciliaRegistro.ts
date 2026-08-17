@@ -27,7 +27,7 @@
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import {
   PATCH_RIAPERTA, agganciPerOdl, gruppiChiusura, idsDaRiaprire, idsSenzaConcluso,
-  patchAggancioAnagrafica,
+  patchAggancioAnagrafica, rispostaPrevalente,
   type InterventoConcluso, type InterventoSciolto, type RigaPerAggancio,
 } from './chiusuraRegistro';
 
@@ -197,8 +197,14 @@ export async function riconciliaChiusureAcqualatina(): Promise<void> {
         .in('intervento_id', idInterventi.slice(i, i + 200));
       if (error) throw error;
       for (const v of (data ?? []) as Array<{ intervento_id: string | null; risposte: Record<string, unknown> | null }>) {
-        if (!v.intervento_id || eseguitoPerIntervento.has(v.intervento_id)) continue;
-        const risposta = String((v.risposte ?? {})['eseguito'] ?? '').trim();
+        if (!v.intervento_id) continue;
+        // Non «la prima che arriva»: fra le voci che condividono un intervento decide la più
+        // forte (`rispostaPrevalente`), altrimenti la stessa riga chiudeva o no a seconda
+        // dell'ordine — che una select senza `order by` non garantisce.
+        const risposta = rispostaPrevalente(
+          eseguitoPerIntervento.get(v.intervento_id),
+          String((v.risposte ?? {})['eseguito'] ?? ''),
+        );
         if (risposta !== '') eseguitoPerIntervento.set(v.intervento_id, risposta);
       }
     }
