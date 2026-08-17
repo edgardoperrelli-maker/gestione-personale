@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireAdmin } from '@/lib/apiAuth';
-import { esitoInterventoDaVoce } from '@/lib/interventi/esitoDaVoce';
-import { buildVoceInterventoLinker, type InterventoLinkRow } from '@/lib/interventi/voceInterventoLink';
-import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
+import { risincronizzaGiorno } from '@/lib/interventi/risincronizzaGiorno';
 
 export const runtime = 'nodejs';
 
@@ -13,6 +11,10 @@ export const runtime = 'nodejs';
  * riapplica l'esito corrente di ogni voce compilata sull'intervento collegato,
  * SENZA inviare i rapportini. Idempotente. Recupera i rapportini già compilati
  * prima che l'auto-aggancio fosse attivo.
+ *
+ * La logica sta in `lib/interventi/risincronizzaGiorno.ts`, condivisa con il recupero su
+ * INTERVALLO (`/api/interventi/recupera-orfane`): il modulo Live naviga solo [oggi−7, oggi],
+ * quindi da qui non si arriva ai giorni dove le orfane si sono accumulate.
  */
 export async function POST(req: Request) {
   const auth = await requireAdmin();
@@ -25,100 +27,8 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { data: interventi } = await supabaseAdmin
-      .from('interventi')
-      .select('id, staff_id, odl, matricola_contatore, pdr')
-      .eq('data', data)
-      .neq('stato', 'annullato');
-    /*
-      Gli interventi che una voce ce l'hanno gia` restano fuori dai candidati: un intervento ha
-      UNA voce sola, ed e` l'invariante su cui poggiano il positivo che non si declassa e la voce
-      che segue lo spostamento. Senza questa esclusione il catch-up FABBRICA lo stato che quelle
-      regole esistono per impedire — una voce orfana che non trova il proprio ODL scivola sul PDR
-      (che e` del PUNTO, non del contatore) e prende l'intervento del contatore accanto, che una
-      sua voce ce l'ha gia`. Stessa ragione del guard sulle voci rifiutate (20260810160000).
-    */
-    const idInterventi = ((interventi ?? []) as Array<{ id: string }>).map((i) => i.id);
-    const conVoce = new Set<string>();
-    for (let i = 0; i < idInterventi.length; i += 200) {
-      const { data: occupati } = await supabaseAdmin
-        .from('rapportino_voci').select('intervento_id').in('intervento_id', idInterventi.slice(i, i + 200));
-      for (const o of (occupati ?? []) as Array<{ intervento_id: string | null }>) {
-        if (o.intervento_id) conVoce.add(String(o.intervento_id));
-      }
-    }
-    const resolve = buildVoceInterventoLinker(
-      ((interventi ?? []) as InterventoLinkRow[]).filter((i) => !conVoce.has(String(i.id))),
-    );
-
-    const { data: raps } = await supabaseAdmin
-      .from('rapportini')
-      .select('id, staff_id, campi_snapshot')
-      .eq('data', data);
-
-    let agganciate = 0;
-    let completati = 0;
-
-    // Catch-up completo: per OGNI voce assicura il collegamento (aggancia quelle scollegate)
-    // e riapplica l'esito sull'intervento. `updated_at` della voce = ORA REALE DI COMPILAZIONE.
-    for (const rap of (raps ?? []) as Array<{ id: string; staff_id: string | null; campi_snapshot: unknown }>) {
-      const campi = (rap.campi_snapshot ?? []) as TemplateCampo[];
-      const { data: voci } = await supabaseAdmin
-        .from('rapportino_voci')
-        .select('id, intervento_id, raw_json, risposte, updated_at, campi_snapshot, odl, matricola, pdr, approvazione_stato')
-        .eq('rapportino_id', rap.id);
-
-      for (const v of (voci ?? []) as Array<{
-        id: string;
-        intervento_id: string | null;
-        raw_json: unknown;
-        risposte: Record<string, unknown> | null;
-        updated_at: string;
-        campi_snapshot?: unknown;
-        odl: string | null;
-        matricola: string | null;
-        pdr: string | null;
-        approvazione_stato: string | null;
-      }>) {
-        let interventoId = v.intervento_id;
-        if (!interventoId) {
-          const raw = (v.raw_json ?? {}) as { odl?: unknown; odsin?: unknown; matricola?: unknown; pdr?: unknown };
-          // Fallback alle COLONNE della voce, come generazione/salvataggio/invio: senza, lo
-          // strumento di recupero non recuperava proprio le voci che lo motivano — quelle il cui
-          // `raw_json` non porta le chiavi (ODL 957327236) rispondevano «agganciate: 0».
-          const found = resolve({
-            staff_id: rap.staff_id,
-            odl: (raw.odl as string | null | undefined) ?? (raw.odsin as string | null | undefined) ?? v.odl,
-            matricola: (raw.matricola as string | null | undefined) ?? v.matricola,
-            pdr: (raw.pdr as string | null | undefined) ?? v.pdr,
-            // Il recupero massivo passa su TUTTE le voci del giorno, rifiutate comprese: senza
-            // questo campo rimetterebbe in piedi proprio i collegamenti che stiamo togliendo.
-            approvazione_stato: v.approvazione_stato,
-          });
-          if (found) {
-            interventoId = found;
-            await supabaseAdmin.from('rapportino_voci').update({ intervento_id: found }).eq('id', v.id);
-            agganciate += 1;
-          }
-        }
-        if (!interventoId) continue;
-        // Voce neutra → non tocca (non riapre nel recupero). Esito valutato sui campi
-        // DELLA voce (flusso del suo gruppo attività, fallback rapportino).
-        const campiV = Array.isArray(v.campi_snapshot) && v.campi_snapshot.length > 0
-          ? (v.campi_snapshot as TemplateCampo[])
-          : campi;
-        const patch = esitoInterventoDaVoce(v.risposte ?? {}, campiV);
-        if (!patch) continue;
-        const { error: e } = await supabaseAdmin
-          .from('interventi')
-          .update({ stato: 'completato', esito: patch.esito, esito_motivo: patch.esito_motivo, chiuso_at: v.updated_at })
-          .eq('id', interventoId)
-          .neq('stato', 'annullato');
-        if (!e) completati += 1;
-      }
-    }
-
-    return NextResponse.json({ ok: true, agganciate, completati });
+    const esito = await risincronizzaGiorno(supabaseAdmin, data);
+    return NextResponse.json({ ok: true, ...esito });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Errore risincronizzazione.' }, { status: 500 });
   }
