@@ -17,6 +17,7 @@ import { isTaskVia } from '@/lib/interventi/manuali/taskVia';
 import { risolviFlussoPerGruppo } from '@/lib/rapportini/flussiGruppo';
 import { risolviFlussoDaTask, type TaskClassificabile } from '@/lib/rapportini/flussoDaTask';
 import { buildTassonomiaIndex, committenteEquivalente, type TassonomiaRiga } from '@/lib/attivita/tassonomia';
+import { flussoPrevalente } from '@/lib/interventi/templateOperatore';
 import { pickTemplateId } from '@/lib/interventi/templatePiano';
 import { pianoHaRisanamento, risolviTemplateRisanamento } from '@/lib/risanamento/templateRisanamento';
 import { registraAzione, type AttoreAudit } from '@/lib/audit/registra';
@@ -24,10 +25,11 @@ import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 
 export type SincronizzaOpts = {
   /**
-   * Modello esplicito (flussi con template configurato, es. agente). Se assente il motore
-   * risolve da sé il fallback del piano: modello già stabilito dai rapportini esistenti →
-   * risanamento (piano con RESINE) → primo attivo non-manuale (ordine nome). Con le Azioni
-   * operatori la mappa non chiede più la scelta del modello; is_default è ritirato.
+   * Modello esplicito (flussi con template configurato, es. agente): vale per tutti gli
+   * operatori del piano. Se assente il motore risolve PER OPERATORE: modello già stabilito
+   * dal suo rapportino esistente → risanamento (suoi task RESINE) → flusso prevalente fra i
+   * SUOI task → prevalente del piano. Con le Azioni operatori la mappa non chiede più la
+   * scelta del modello; is_default è ritirato.
    */
   templateId?: string;
   overwrite?: 'replace' | 'skip';
@@ -120,52 +122,59 @@ export async function sincronizzaRapportini(
   );
   const tasksPiano = (ops ?? []).flatMap((o) => ((o.tasks as TaskClassificabile[]) ?? []));
 
-  // Modello del rapportino (fallback per le voci senza flusso): esplicito dal chiamante,
-  // altrimenti quello già stabilito dai rapportini esistenti del piano (riaperture: stesso
-  // modello, niente churn di link), poi risanamento se il piano ha task RESINE, poi il flusso
-  // PREVALENTE fra quelli dei task del giro.
+  // Modello del rapportino (fallback per le voci senza flusso): esplicito dal chiamante, vale
+  // per tutto il piano. SENZA esplicito la risoluzione è PER OPERATORE, dentro il loop più
+  // sotto: il modello già stabilito dal SUO rapportino (riaperture: stesso modello, niente
+  // churn di link) → risanamento se i SUOI task hanno RESINE → flusso prevalente fra i SUOI
+  // task → prevalente del piano (operatore coi task non classificabili).
   //
-  // Qui c'era «il primo attivo non-manuale in ordine di nome»: una scelta alfabetica, cioè
-  // casuale rispetto al lavoro. Ha retto finché il primo in ordine era innocuo, poi il flusso
-  // «ACQUALATINA SOSTITUZIONE MISURATORI» (creato il 27/07/2026) è diventato il primo e ha
-  // messo «MATRICOLA NUOVO MISURATORE» obbligatoria addosso ai giri ACEA e Italgas. Un modulo
-  // non si eredita per ordine alfabetico: o lo dice il giro, o il rapportino nasce SENZA
-  // modello (`template_id` null, snapshot vuoto) e sono le voci a portare il proprio.
-  let templateId = opts.templateId ?? null;
-  if (!templateId) {
-    const { data: rapsPiano } = await db.from('rapportini').select('template_id').eq('piano_id', pianoId);
-    templateId = pickTemplateId((rapsPiano as Array<{ template_id?: string | null }>) ?? []);
+  // Qui la scelta era UNA per l'intero piano, contata su tutti i task del giro. Sul piano
+  // misto PERUGIA del 2026-08-17 (4 operatori BONIFICHE EXTRA, 3 Italgas) ha vinto il flusso
+  // task-via — 27 task contro 25 — e i tre operatori Italgas si sono trovati la testata
+  // `task_via = true`: ogni loro attività apriva il contenitore bonifica invece del form
+  // esito. Il modello è dell'OPERATORE, non del piano: si conta sul suo lavoro. (In
+  // `flussoPrevalente` resta anche la regola nata qui il 27/07/2026: niente eredità
+  // alfabetica — o il modello lo dicono i task, o il rapportino nasce senza.)
+  const templateEsplicito = opts.templateId ?? null;
+  if (templateEsplicito) {
+    const { data: tplRow } = await db.from('rapportino_template').select('id').eq('id', templateEsplicito).single();
+    if (!tplRow) return { ok: false, status: 404, error: 'Template non trovato' };
   }
-  if (!templateId) {
-    const candidati = templatesAttivi
-      .filter((t) => !t.solo_manuale)
-      .map((t) => ({ id: t.id, nome: t.nome ?? '', tipo: t.tipo ?? undefined }))
-      .sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
-    templateId = pianoHaRisanamento(tasksPiano) ? risolviTemplateRisanamento(candidati) : null;
-  }
-  if (!templateId) {
-    // Flusso prevalente del giro: si contano i task che sanno classificarsi. A pari merito
-    // decide l'id, per determinismo (stesso criterio del motore ACEA).
-    const conteggi = new Map<string, number>();
-    for (const t of tasksPiano) {
-      const f = risolviFlussoDaTask(t, tassIndex, flussi);
-      if (f) conteggi.set(f.id, (conteggi.get(f.id) ?? 0) + 1);
-    }
-    templateId = [...conteggi.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] ?? null;
-  }
-  // Azioni operatori davvero vuoto (nessun flusso collegato E nessun modello non-manuale):
-  // non c'è niente con cui compilare, né a livello di rapportino né di voce. Resta un errore.
-  if (!templateId && flussi.length === 0 && templatesAttivi.every((t) => t.solo_manuale)) {
+  const candidatiRisanamento = templatesAttivi
+    .filter((t) => !t.solo_manuale)
+    .map((t) => ({ id: t.id, nome: t.nome ?? '', tipo: t.tipo ?? undefined }))
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
+  const prevalentePiano = flussoPrevalente(tasksPiano, tassIndex, flussi);
+  // Azioni operatori davvero vuoto (nessun flusso collegato E nessun modello non-manuale) e
+  // nessun modello già stabilito da un rapportino esistente del piano (sticky): non c'è
+  // niente con cui compilare, né a livello di rapportino né di voce. Resta un errore.
+  const { data: rapsPiano } = await db.from('rapportini').select('template_id').eq('piano_id', pianoId);
+  const stickyPiano = pickTemplateId((rapsPiano as Array<{ template_id?: string | null }>) ?? []);
+  if (!templateEsplicito && !stickyPiano && !prevalentePiano && flussi.length === 0 && templatesAttivi.every((t) => t.solo_manuale)) {
     return { ok: false, status: 422, error: 'Nessun flusso attivo in Azioni operatori: impossibile generare i rapportini.' };
   }
-  // Nessun modello risolto ma i flussi esistono: il rapportino nasce senza modulo e le voci
+  // Nessun modello risolto per un operatore: il suo rapportino nasce senza modulo e le voci
   // (dal proprio flusso o dal "+") portano i campi. Meglio vuoto che con quello di un altro.
-  let tpl: { campi: unknown; info_campi?: unknown; tipo?: string | null } = { campi: [], info_campi: [], tipo: 'standard' };
-  if (templateId) {
-    const { data: tplRow } = await db.from('rapportino_template').select('id, campi, info_campi, tipo').eq('id', templateId).single();
-    if (!tplRow) return { ok: false, status: 404, error: 'Template non trovato' };
-    tpl = tplRow as typeof tpl;
-  }
+  type TplTestata = { campi: unknown; info_campi?: unknown; tipo?: string | null };
+  const TPL_VUOTO: TplTestata = { campi: [], info_campi: [], tipo: 'standard' };
+  const tplTestataCache = new Map<string, TplTestata | null>();
+  // Un id risolto (sticky/prevalente) che non esiste più non è un errore fatale come
+  // l'esplicito: tpl null = quell'operatore resta senza modulo (e senza template_id, che
+  // scritto punterebbe a una riga cancellata), gli altri generano comunque. Un ERRORE di
+  // lettura invece NON è "template cancellato": va fatto risalire (il sync abortisce come
+  // per ogni altra query fallita), perché scambiarlo per una riga assente scriverebbe
+  // testata nulla e snapshot vuoti su rapportini esistenti per colpa di un blip di rete.
+  const caricaTplTestata = async (
+    id: string,
+  ): Promise<{ ok: true; tpl: TplTestata | null } | { ok: false; errore: string }> => {
+    if (tplTestataCache.has(id)) return { ok: true, tpl: tplTestataCache.get(id) ?? null };
+    const { data: tplRow, error: eTpl } = await db
+      .from('rapportino_template').select('id, campi, info_campi, tipo').eq('id', id).maybeSingle();
+    if (eTpl) return { ok: false, errore: eTpl.message };
+    const tpl = (tplRow as TplTestata | null) ?? null;
+    tplTestataCache.set(id, tpl);
+    return { ok: true, tpl };
+  };
 
   const operatoriPiano = (ops ?? []).map((o) => ({ staff_id: String(o.staff_id), staff_name: (o.staff_name as string | null) ?? null }));
 
@@ -436,7 +445,33 @@ export async function sincronizzaRapportini(
     if (opts.overwrite === 'skip' && staffInConflitto.has(String(op.staff_id))) continue;
     const tasksOp = ((op.tasks as Array<{ id?: unknown; odl?: string | null; matricola?: string | null }>) ?? []);
     const { data: existing } = await db.from('rapportini')
-      .select('id, token, stato').eq('piano_id', pianoId).eq('staff_id', op.staff_id).maybeSingle();
+      .select('id, token, stato, template_id').eq('piano_id', pianoId).eq('staff_id', op.staff_id).maybeSingle();
+
+    // Modello di TESTATA dell'operatore (vedi il commento alla risoluzione, più sopra):
+    // esplicito → il suo rapportino esistente (sticky) → risanamento sui SUOI task →
+    // prevalente dei SUOI task → prevalente del piano → modello stabilito del piano
+    // (stickyPiano). Il modello segue il lavoro dell'operatore: quello di un collega dello
+    // stesso giro non è più contagioso. L'ultimo gradino copre l'operatore AGGIUNTO a un
+    // piano coi task non classificabili (es. piani "senza interventi", flusso scelto a mano
+    // alla prima generazione): senza, nascerebbe senza modulo accanto a colleghi che ce
+    // l'hanno — e stickyPiano scatta solo quando nessun conteggio sui task ha detto nulla,
+    // quindi non riporta il contagio del piano misto.
+    const tasksOpClassificabili = tasksOp as TaskClassificabile[];
+    const templateIdRisolto =
+      templateEsplicito ??
+      ((existing as { template_id?: string | null } | null)?.template_id ?? null) ??
+      (pianoHaRisanamento(tasksOpClassificabili) ? risolviTemplateRisanamento(candidatiRisanamento) : null) ??
+      flussoPrevalente(tasksOpClassificabili, tassIndex, flussi) ??
+      prevalentePiano ??
+      stickyPiano;
+    let tplOp: TplTestata | null = null;
+    if (templateIdRisolto) {
+      const caricato = await caricaTplTestata(templateIdRisolto);
+      if (!caricato.ok) return { ok: false, status: 500, error: caricato.errore };
+      tplOp = caricato.tpl;
+    }
+    const templateId = tplOp ? templateIdRisolto : null;
+    const tpl = tplOp ?? TPL_VUOTO;
     // Sync automatico (skipInviati): un rapportino già consegnato non va alterato senza conferma
     // esplicita → lo si lascia intatto (voci e stato). La riapertura resta nel flusso Genera/Conferma.
     if (opts.skipInviati && (existing as { stato?: string } | null)?.stato === 'inviato') continue;

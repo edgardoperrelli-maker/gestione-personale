@@ -19,6 +19,8 @@ export type VoceGate = {
   campi_snapshot?: unknown;
   attivita?: string | null;
   manuale?: boolean | null;
+  /** Flag task-via del flusso DELLA voce: comanda lui sulla testata (vedi contenitoreTaskVia). */
+  tplTaskVia?: boolean | null;
 };
 export type VoceIncompleta = { index: number; motivo: MotivoIncompleto };
 
@@ -29,7 +31,7 @@ export function indiciVociIncomplete(
 ): VoceIncompleta[] {
   const out: VoceIncompleta[] = [];
   voci.forEach((v, i) => {
-    if (contenitoreTaskVia({ attivita: v.attivita ?? null, manuale: v.manuale ?? null }, modalita)) return;
+    if (contenitoreTaskVia({ attivita: v.attivita ?? null, manuale: v.manuale ?? null, tplTaskVia: v.tplTaskVia ?? null }, modalita)) return;
     const campiV = Array.isArray(v.campi_snapshot) && v.campi_snapshot.length > 0
       ? (v.campi_snapshot as TemplateCampo[])
       : campiFallback;

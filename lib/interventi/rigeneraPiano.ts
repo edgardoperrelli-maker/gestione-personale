@@ -50,11 +50,15 @@ export async function rigeneraPiano(
 
   // Solo i piani che hanno GIÀ dei rapportini hanno un template "stabilito": la prima
   // generazione (scelta del modello + conferma) resta competenza del flusso esplicito.
+  // Il template stabilito fa da GATE ma non si passa al motore: passarlo lo imponeva come
+  // esplicito a TUTTO il piano, e su un giro misto (BONIFICHE EXTRA + Italgas) ogni Salva
+  // ristampava il modello prevalente addosso agli operatori dell'altro flusso. Dentro il
+  // motore ogni operatore tiene il modello del SUO rapportino esistente (sticky per-op).
   const templateId = await recuperaTemplateIdPiano(db, pianoId);
   if (!templateId) return base;
 
   // skipInviati: un rapportino consegnato non va alterato senza conferma esplicita.
-  const sync = await sincronizzaRapportini(db, pianoId, { templateId, skipInviati: true, attore });
+  const sync = await sincronizzaRapportini(db, pianoId, { skipInviati: true, attore });
   if (sync.ok) return { ...base, rapportiniSync: sync.rapportini.length };
   return { ...base, rapportiniWarning: sync.error ?? `conflitto rapportini (${sync.status})` };
 }

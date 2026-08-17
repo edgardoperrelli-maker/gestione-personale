@@ -99,6 +99,9 @@ export type Voce = {
   info_campi?: TemplateInfoCampo[];
   /** Riga in lista dal flusso della voce (stessa regola LIVE di titolo/dettagli). */
   lista_campi?: ListaCampi;
+  /** Flag task-via del flusso DELLA voce: comanda lui sulla testata nel decidere se la voce è
+   *  un contenitore (vedi contenitoreTaskVia). Assente/null = voce senza flusso proprio. */
+  tplTaskVia?: boolean | null;
 };
 
 type Props = {

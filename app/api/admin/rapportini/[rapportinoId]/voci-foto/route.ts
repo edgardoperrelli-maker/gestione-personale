@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireAdmin } from '@/lib/apiAuth';
 import { contaFotoScaricabili } from '@/utils/rapportini/contaFotoScaricabili';
 import { isTaskVia, contenitoreTaskVia } from '@/lib/interventi/manuali/taskVia';
+import { tplTaskViaPerVoce } from '@/lib/rapportini/tplTaskViaPerVoce';
 import { unioneCampi } from '@/utils/rapportini/campiDiVoce';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 
@@ -43,7 +44,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ rapport
 
   const { data: vociRows, error } = await supabaseAdmin
     .from('rapportino_voci')
-    .select('id, via, odl, attivita, manuale, risposte, campi_snapshot')
+    .select('id, via, odl, attivita, manuale, risposte, campi_snapshot, template_id')
     .eq('rapportino_id', rapportinoId)
     .order('ordine', { ascending: true });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -56,7 +57,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ rapport
     manuale: boolean | null;
     risposte: Record<string, unknown> | null;
     campi_snapshot?: unknown;
+    template_id?: string | null;
   }>;
+  // Flag task-via del flusso per-voce: una voce di un flusso non task-via non è un contenitore
+  // anche sotto testata task-via (rapportino misto/testata sbagliata) → le sue foto stanno
+  // nelle risposte, non nei "+" figli.
+  const tplTaskViaByVoce = await tplTaskViaPerVoce(supabaseAdmin, tipizzate);
   // Chiavi foto = unione rapportino + per-voce (flussi diversi nello stesso rapportino).
   const chiaviFoto = unioneCampi(
     (rap.campi_snapshot ?? []) as TemplateCampo[],
@@ -96,7 +102,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ rapport
 
   const out = tipizzate
     .map((v) => {
-      const contenitore = contenitoreTaskVia(v, { tutto: tplTaskVia });
+      const contenitore = contenitoreTaskVia({ ...v, tplTaskVia: tplTaskViaByVoce.get(v.id) ?? null }, { tutto: tplTaskVia });
       return {
         voceId: v.id,
         via: v.via,

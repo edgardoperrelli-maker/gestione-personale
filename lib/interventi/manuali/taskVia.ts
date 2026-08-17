@@ -9,22 +9,28 @@ export function isTaskVia(voce: { attivita?: string | null } | null | undefined)
  * PURA: una specifica voce si comporta da "task-via" (contenitore a sola via — apre TaskViaFocus,
  * esclusa da completezza/invio e dal corpo del PDF) in base alla modalità del template?
  *
- * - `tutto` (template task-via puro): OGNI voce è un contenitore, qualunque sia l'attività.
- * - altrimenti: lo è SOLO la voce con attività "BONIFICHE EXTRA". Vale a prescindere dal flag
- *   `ibrido` del template — l'attività "BONIFICHE EXTRA" è di per sé il segnale di contenitore.
- *   Così un template "ibrido nei fatti" (mischia attività classiche e BONIFICHE EXTRA nello stesso
- *   rapportino) apre il contenitore anche se non è stato spuntato `task_via_ibrido`, eliminando il
- *   footgun che lasciava quelle voci sul form esito classico. Le altre attività restano classiche.
+ * Ordine di decisione:
+ * 1. attività "BONIFICHE EXTRA" → contenitore SEMPRE, a prescindere dai flag del template —
+ *    l'attività è di per sé il segnale. Così un template "ibrido nei fatti" (mischia attività
+ *    classiche e BONIFICHE EXTRA nello stesso rapportino) apre il contenitore anche se non è
+ *    stato spuntato `task_via_ibrido`.
+ * 2. `tplTaskVia` (flag `task_via` del flusso DELLA voce, se la voce ne ha uno) → comanda lui.
+ *    È la guardia contro il rapportino con testata task-via ma voci di un altro flusso: sul
+ *    piano misto BONIFICHE EXTRA + Italgas la testata poteva uscire task-via per tutti, e ogni
+ *    attività classica apriva il contenitore invece del form esito (PERUGIA, 2026-08-17).
+ * 3. altrimenti vale la testata: `tutto` (template task-via puro) → contenitore. Copre le voci
+ *    storiche senza flusso proprio (es. contenitori con attività vuota, giri di luglio 2026).
  *
- * `ibrido` resta nella firma per retro-compatibilità dei chiamanti (ora ridondante: il segnale è
+ * `ibrido` resta nella firma per retro-compatibilità dei chiamanti (ridondante: il segnale è
  * l'attività). Il flag continua a esistere sul template per UI/PDF.
  */
 export function voceTaskVia(
-  voce: { attivita?: string | null } | null | undefined,
+  voce: { attivita?: string | null; tplTaskVia?: boolean | null } | null | undefined,
   modalita: { tutto?: boolean; ibrido?: boolean },
 ): boolean {
-  if (modalita.tutto) return true;
-  return isTaskVia(voce);
+  if (isTaskVia(voce)) return true;
+  if (typeof voce?.tplTaskVia === 'boolean') return voce.tplTaskVia;
+  return Boolean(modalita.tutto);
 }
 
 /**
@@ -40,7 +46,7 @@ export function voceTaskVia(
  * finivano trattati come contenitori e sparivano da lista/PDF).
  */
 export function contenitoreTaskVia(
-  voce: { attivita?: string | null; manuale?: boolean | null } | null | undefined,
+  voce: { attivita?: string | null; manuale?: boolean | null; tplTaskVia?: boolean | null } | null | undefined,
   modalita: { tutto?: boolean; ibrido?: boolean },
 ): boolean {
   if (voce?.manuale) return false;
