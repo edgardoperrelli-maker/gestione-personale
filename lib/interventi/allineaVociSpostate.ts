@@ -1,4 +1,4 @@
-// lib/acea/allineaVociSpostate.ts
+// lib/interventi/allineaVociSpostate.ts
 // L'applicazione al database della regola di `vociSpostamento.ts`: quando la pianificazione
 // SPOSTA un intervento su un altro operatore o un altro giorno, la voce lasciata indietro va
 // tolta dal rapportino di prima — altrimenti lo stesso ODL resta a schermo sotto due esecutori
@@ -13,7 +13,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   avvisoVociConservate, vociDaSpostamento,
   type DestinazioneSpostamento, type VoceDaSpostamento,
-} from '@/lib/acea/vociSpostamento';
+} from '@/lib/interventi/vociSpostamento';
 
 export type EsitoAllineamento = {
   /** Quante voci vuote sono state tolte dal rapportino di provenienza. */
