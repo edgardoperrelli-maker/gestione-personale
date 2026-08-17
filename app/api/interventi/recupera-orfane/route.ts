@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireAdmin } from '@/lib/apiAuth';
 import { risincronizzaGiorno } from '@/lib/interventi/risincronizzaGiorno';
+import { ricostruisciOrfaniDelGiorno } from '@/lib/interventi/ricostruisciOrfani';
 import { giorniDaRecuperare, MAX_GIORNI_RECUPERO } from '@/lib/interventi/giorniDaRecuperare';
 
 export const runtime = 'nodejs';
@@ -15,19 +16,17 @@ export const maxDuration = 300;
  * può nemmeno vedere i giorni dove le orfane si accumulano: al 17/08/2026 la più vecchia era del
  * 04/06. Non prende un intervallo da indovinare — si cerca i giorni che ne hanno davvero.
  *
- * FA SOLO LA META` SICURA, e non e` una limitazione da togliere.
+ * Due passi, e nessuno dei due rigenera i piani:
+ *  1. le orfane il cui intervento ESISTE ancora si riagganciano (`risincronizzaGiorno`);
+ *  2. quelle il cui intervento non esiste piu` lo riottengono dal PROPRIO task
+ *     (`ricostruisciOrfaniDelGiorno`), uno per uno.
  *
- * Riagganciare una voce a un intervento che esiste e` reversibile e non inventa niente. RICREARE
- * gli interventi mancanti no: l'unico strumento che lo sa fare (`ensureInterventiForPiano`)
- * lavora sul PIANO INTERO — ripristina tutti i task, non i pochi che servono. Lanciato in
- * automatico su 15 giornate il 17/08/2026 ha creato 445 interventi per recuperarne 210: 235
- * erano lavoro pianificato e mai rendicontato, ricomparso come «assegnato» su giornate di
- * giugno. Rimossi con la migration di rollback.
- *
- * Quella meta` resta una decisione per-giornata, col bottone «Rigenera interventi» del Live, che
- * dichiara cosa fa. Qui la si MISURA e basta: `daRigenerare` dice, giorno per giorno, quante
- * orfane si recupererebbero e quanti interventi in piu` comparirebbero — cosi` la scelta si fa
- * sapendo il prezzo.
+ * Il passo 2 non usa `ensureInterventiForPiano` di proposito: quella e` il ripristino del PIANO
+ * INTERO, giusta per il bottone «Rigenera interventi» che si preme su una giornata sapendo cosa
+ * comporta, sproporzionata qui. Lanciata in automatico su 15 giornate il 17/08/2026 ha creato
+ * 445 interventi per recuperarne 210: i 235 di troppo erano lavoro pianificato e mai
+ * rendicontato, ricomparso come «assegnato» su giornate di giugno (rimossi col rollback).
+ * Partendo dalla VOCE invece che dal piano, collaterale non ce n'e`.
  */
 export async function POST() {
   const auth = await requireAdmin();
@@ -38,11 +37,19 @@ export async function POST() {
     const dettaglio: Array<{ data: string; agganciate: number; completati: number; restano: number }> = [];
     let agganciateTot = 0;
     let completatiTot = 0;
+    let ricostruitiTot = 0;
+    let senzaTaskTot = 0;
 
     for (const data of giorni) {
-      // `soloOrfane`: quelle giornate hanno migliaia di voci in totale e poche decine scollegate.
-      // Scorrerle tutte e` cio` che ha fatto scadere la prima versione.
+      // 1) Le orfane il cui intervento ESISTE ancora: basta riagganciarle.
+      //    `soloOrfane`: quelle giornate hanno migliaia di voci in totale e poche decine
+      //    scollegate. Scorrerle tutte e` cio` che ha fatto scadere la prima versione.
       const sync = await risincronizzaGiorno(supabaseAdmin, data, { soloOrfane: true });
+      // 2) Quelle il cui intervento NON esiste piu`: si ricrea il SUO, dal SUO task — una per
+      //    una, senza rigenerare il piano (vedi `ricostruisciOrfani.ts` per il perche`).
+      const ric = await ricostruisciOrfaniDelGiorno(supabaseAdmin, data);
+      ricostruitiTot += ric.ricostruiti;
+      senzaTaskTot += ric.senzaTask;
       agganciateTot += sync.agganciate;
       completatiTot += sync.completati;
 
@@ -60,6 +67,10 @@ export async function POST() {
       troncato: giorni.length >= MAX_GIORNI_RECUPERO,
       agganciate: agganciateTot,
       completati: completatiTot,
+      ricostruiti: ricostruitiTot,
+      // Voci che restano scollegate perche' il loro task non e' piu' nel piano (o l'ODL non lo
+      // individua senza ambiguita'): la` non c'e' niente da cui ricostruire, e non si inventa.
+      senzaTask: senzaTaskTot,
       // Le giornate dove resta qualcosa: lì servirebbe «Rigenera interventi», che ripristina il
       // piano intero. La scelta è dell'ufficio, giornata per giornata.
       daRigenerare: dettaglio.filter((d) => d.restano > 0).map((d) => ({ data: d.data, restano: d.restano })),

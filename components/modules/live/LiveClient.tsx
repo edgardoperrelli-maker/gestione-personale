@@ -91,6 +91,7 @@ export default function LiveClient({
       const res = await fetch('/api/interventi/recupera-orfane', { method: 'POST' });
       const b = (await res.json().catch(() => ({}))) as {
         giorni?: number; agganciate?: number; completati?: number; troncato?: boolean;
+        ricostruiti?: number; senzaTask?: number;
         daRigenerare?: Array<{ data: string; restano: number }>; error?: string;
       };
       if (!res.ok) {
@@ -106,9 +107,9 @@ export default function LiveClient({
       const resta = b.daRigenerare ?? [];
       const coda = resta.length === 0
         ? ''
-        : ` Restano scollegate su ${resta.length} giornate (${resta.slice(0, 4).map((d) => `${d.data}: ${d.restano}`).join(', ')}${resta.length > 4 ? ', …' : ''}): il loro intervento non esiste più, e per ricrearlo serve «Rigenera interventi» su quel giorno, che ripristina l’intero piano.`;
+        : ` Restano scollegate su ${resta.length} giornate (${resta.slice(0, 4).map((d) => `${d.data}: ${d.restano}`).join(', ')}${resta.length > 4 ? ', …' : ''}): il loro task non è più nel piano, quindi non c’è niente da cui ricostruirle.`;
       setEsitoRecupero(
-        `${b.giorni} giornate esaminate: ${b.agganciate ?? 0} voci riagganciate, ${b.completati ?? 0} esiti riapplicati.${b.troncato ? ' Ce ne sono altre: rilancia per continuare.' : ''}${coda}`,
+        `${b.giorni} giornate esaminate: ${b.agganciate ?? 0} voci riagganciate, ${b.ricostruiti ?? 0} interventi ricostruiti dal loro task, ${b.completati ?? 0} esiti riapplicati.${b.troncato ? ' Ce ne sono altre: rilancia per continuare.' : ''}${coda}`,
       );
       await refresh();
     } catch (e) {
@@ -239,7 +240,7 @@ export default function LiveClient({
               variant="outline"
               onClick={() => void recuperaOrfane()}
               loading={recuperando}
-              title="Cerca in tutto lo storico le voci esitate senza intervento e le riaggancia al loro intervento, riapplicando l’esito. Non ricrea interventi: dove servisse, lo dice"
+              title="Cerca in tutto lo storico le voci esitate senza intervento: le riaggancia al loro intervento, o lo ricostruisce dal loro task, e riapplica l’esito. Non rigenera i piani"
             >
               {recuperando ? 'Recupero…' : 'Recupera orfane (storico)'}
             </Button>
