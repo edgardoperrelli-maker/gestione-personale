@@ -48,6 +48,27 @@ describe('voceTaskVia', () => {
     expect(voceTaskVia({}, {})).toBe(false);
     expect(voceTaskVia(null, {})).toBe(false);
   });
+
+  it('il flusso della voce (tplTaskVia) vince sul `tutto` di testata', () => {
+    // Il caso PERUGIA 2026-08-17: testata BONIFICHE EXTRA (task_via) su un giro misto — le voci
+    // Italgas (flusso proprio NON task-via) devono restare sul form esito classico.
+    expect(voceTaskVia({ ...classica, tplTaskVia: false }, { tutto: true })).toBe(false);
+    // Il flusso task-via della voce apre il contenitore anche se la testata non è task-via.
+    expect(voceTaskVia({ ...classica, tplTaskVia: true }, {})).toBe(true);
+    expect(voceTaskVia({ ...classica, tplTaskVia: true }, { ibrido: true })).toBe(true);
+  });
+
+  it('tplTaskVia NON smentisce mai l\'attività BONIFICHE EXTRA', () => {
+    // Anche se la voce BONIFICHE EXTRA risolvesse a un flusso non task-via, resta un contenitore.
+    expect(voceTaskVia({ ...bonifica, tplTaskVia: false }, {})).toBe(true);
+    expect(voceTaskVia({ ...bonifica, tplTaskVia: false }, { tutto: true })).toBe(true);
+  });
+
+  it('tplTaskVia assente o null → vale la testata (voci storiche senza flusso proprio)', () => {
+    expect(voceTaskVia({ ...classica, tplTaskVia: null }, { tutto: true })).toBe(true);
+    expect(voceTaskVia({ ...classica, tplTaskVia: undefined }, { tutto: true })).toBe(true);
+    expect(voceTaskVia({ attivita: '', tplTaskVia: null }, { tutto: true })).toBe(true);
+  });
 });
 
 describe('contenitoreTaskVia', () => {
@@ -73,5 +94,11 @@ describe('contenitoreTaskVia', () => {
     expect(contenitoreTaskVia({ attivita: 'BONIFICHE EXTRA' }, { ibrido: true })).toBe(true);
     expect(contenitoreTaskVia({ attivita: 'Sostituzione' }, { ibrido: true })).toBe(false);
     expect(contenitoreTaskVia(null, { tutto: true })).toBe(true);
+  });
+
+  it('rispetta il flusso della voce: classica con tplTaskVia=false NON è contenitore sotto testata task-via', () => {
+    expect(contenitoreTaskVia({ attivita: 'S-PR-003 A', manuale: false, tplTaskVia: false }, { tutto: true })).toBe(false);
+    // …ma il "+" resta escluso anche quando il SUO flusso è task-via.
+    expect(contenitoreTaskVia({ attivita: 'Sostituzione', manuale: true, tplTaskVia: true }, {})).toBe(false);
   });
 });

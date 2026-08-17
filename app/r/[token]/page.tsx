@@ -233,20 +233,22 @@ export default async function RapportinoPublicPage({
   // rapportini misti ogni card segue la config del SUO flusso, e modificarla in Azioni
   // operatori si riflette subito. Template cancellato o voce storica senza template_id →
   // si resta sulla config del rapportino (comportamento precedente, nessuna regressione).
-  const displayByTplId = new Map<string, { titolo: InfoChiave[]; info: TemplateInfoCampo[]; lista: ListaCampi }>();
+  const displayByTplId = new Map<string, { titolo: InfoChiave[]; info: TemplateInfoCampo[]; lista: ListaCampi; taskVia: boolean | null }>();
   {
     const ids = [...new Set(tplIdByVoceId.values())];
     if (ids.length > 0) {
-      // `lista_campi` è l'ultima colonna nata: se manca (migration non applicata) si rilegge
-      // senza, così titolo e dettagli per-voce non si perdono per colpa sua.
-      const { data: tplVoceRows } = await selectDegradante('id, titolo_campi, info_campi', ['lista_campi'], (colonne) =>
+      // Colonne opzionali dalla più vecchia alla più nuova (si degradano dalla fine):
+      // `task_via` serve alla guardia per-voce (una voce di un flusso NON task-via non deve
+      // diventare contenitore per colpa della testata), `lista_campi` è l'ultima nata.
+      const { data: tplVoceRows } = await selectDegradante('id, titolo_campi, info_campi', ['task_via', 'lista_campi'], (colonne) =>
         supabaseAdmin.from('rapportino_template').select(colonne).in('id', ids),
       );
-      for (const t of (tplVoceRows ?? []) as Array<{ id: string; titolo_campi: unknown; info_campi: unknown; lista_campi?: unknown }>) {
+      for (const t of (tplVoceRows ?? []) as Array<{ id: string; titolo_campi: unknown; info_campi: unknown; lista_campi?: unknown; task_via?: boolean | null }>) {
         displayByTplId.set(t.id, {
           titolo: (Array.isArray(t.titolo_campi) ? t.titolo_campi : []) as InfoChiave[],
           info: (Array.isArray(t.info_campi) ? t.info_campi : []) as TemplateInfoCampo[],
           lista: resolveListaCampi(t.lista_campi),
+          taskVia: typeof t.task_via === 'boolean' ? t.task_via : null,
         });
       }
     }
@@ -350,6 +352,7 @@ export default async function RapportinoPublicPage({
     titolo_campi: displayByTplId.get(tplIdByVoceId.get(v.id) ?? '')?.titolo,
     info_campi: displayByTplId.get(tplIdByVoceId.get(v.id) ?? '')?.info,
     lista_campi: displayByTplId.get(tplIdByVoceId.get(v.id) ?? '')?.lista,
+    tplTaskVia: displayByTplId.get(tplIdByVoceId.get(v.id) ?? '')?.taskVia,
   }));
 
   const campiSnapshot = ((rap.campi_snapshot ?? []) as TemplateCampo[])

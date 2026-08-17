@@ -11,6 +11,7 @@ import { rapportinoInviabile } from '@/lib/interventi/manuali/rapportinoInviabil
 import { isRimozioneTipo } from '@/lib/interventi/rimozioneMisuratore';
 import { righeIncomplete } from '@/utils/rapportini/righeIncomplete';
 import { indiciVociIncomplete } from '@/utils/rapportini/vociIncompleteInvio';
+import { tplTaskViaPerVoce } from '@/lib/rapportini/tplTaskViaPerVoce';
 import { ymdLocal } from '@/utils/date-it';
 export const runtime = 'nodejs';
 
@@ -63,10 +64,24 @@ export async function POST(_req: Request, { params }: { params: Promise<{ token:
     }
     const { data: vociGate } = await supabaseAdmin
       .from('rapportino_voci')
-      .select('risposte, campi_snapshot, attivita, manuale')
+      .select('id, risposte, campi_snapshot, attivita, manuale')
       .eq('rapportino_id', rap.id);
+    // Flag task-via dei flussi PER-VOCE: una voce di un flusso non task-via non è mai un
+    // contenitore, anche se la testata è task-via (rapportino misto o testata sbagliata) —
+    // senza questa guardia il gate la esentava dall'esito e l'ordine restava aperto per sempre.
+    // Best-effort come il resto dei flag: colonne/righe assenti → nessun override, vale la testata.
+    const selTplVoci = await supabaseAdmin
+      .from('rapportino_voci').select('id, template_id').eq('rapportino_id', rap.id);
+    const tplTaskViaByVoce = await tplTaskViaPerVoce(
+      supabaseAdmin,
+      (selTplVoci.data ?? []) as Array<{ id: string; template_id: string | null }>,
+    );
     const campiRap = ((rap as { campi_snapshot?: unknown }).campi_snapshot ?? []) as TemplateCampo[];
-    const incomplete = indiciVociIncomplete((vociGate ?? []) as never, campiRap, { tutto: taskViaTutto, ibrido: taskViaIbrido });
+    const vociConFlag = ((vociGate ?? []) as Array<{ id: string }>).map((v) => ({
+      ...v,
+      tplTaskVia: tplTaskViaByVoce.get(v.id) ?? null,
+    }));
+    const incomplete = indiciVociIncomplete(vociConFlag as never, campiRap, { tutto: taskViaTutto, ibrido: taskViaIbrido });
     if (incomplete.length > 0) {
       const senzaEsito = incomplete.filter((m) => m.motivo === 'senza_esito').length;
       const notaMancante = incomplete.filter((m) => m.motivo === 'nota_mancante').length;

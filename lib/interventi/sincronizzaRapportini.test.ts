@@ -438,6 +438,111 @@ describe('sincronizzaRapportini — risoluzione automatica del modello (senza te
   });
 });
 
+describe('sincronizzaRapportini — modello PER OPERATORE (piano misto)', () => {
+  // Il piano PERUGIA del 2026-08-17: operatori con soli task BONIFICHE EXTRA insieme a operatori
+  // con attività Italgas classiche. Il modello si contava su TUTTI i task del piano e il flusso
+  // task-via (in maggioranza) finiva in testata anche agli operatori Italgas, trasformando ogni
+  // loro voce in un contenitore bonifica. Il modello si risolve sul lavoro del SINGOLO operatore.
+  const TASSONOMIA_MISTA = [
+    { committente: 'italgas', descrizione: 'S-PR-004 A', descrizione_norm: 'S-PR-004 A', gruppo: "ATTIVITA' ALLA CLIENTELA", attivo: true },
+    { committente: 'italgas', descrizione: 'BONIFICHE EXTRA', descrizione_norm: 'BONIFICHE EXTRA', gruppo: 'BONIFICHE EXTRA', attivo: true },
+  ];
+  const TEMPLATE_MISTI = [
+    { id: 'tpl-bonifiche', nome: 'BONIFICHE EXTRA', campi: [], info_campi: [], active: true, task_via: true, gruppo_committente: 'italgas', gruppi_attivita: ['BONIFICHE EXTRA'] },
+    { id: 'tpl-italgas', nome: 'ITALGAS', campi: [{ chiave: 'eseguito', etichetta: 'ESEGUITO', tipo: 'select', ordine: 1 }], info_campi: [], active: true, gruppo_committente: 'italgas', gruppi_attivita: ["ATTIVITA' ALLA CLIENTELA"] },
+  ];
+
+  it('ogni operatore prende il modello del SUO lavoro, non quello prevalente del piano', async () => {
+    const { db, tables } = makeFakeDb(seedBase({
+      attivita_tassonomia: TASSONOMIA_MISTA,
+      rapportino_template: TEMPLATE_MISTI,
+      mappa_piani_operatori: [
+        // Le bonifiche sono in maggioranza sul piano (3 task contro 2): col conteggio piano-wide
+        // vincevano loro anche per l'operatore Italgas.
+        { piano_id: 'p1', staff_id: 's-bon', staff_name: 'Bonifiche', tasks: [
+          { id: 'b1', attivita: 'BONIFICHE EXTRA' }, { id: 'b2', attivita: 'BONIFICHE EXTRA' }, { id: 'b3', attivita: 'BONIFICHE EXTRA' },
+        ] },
+        { piano_id: 'p1', staff_id: 's-ita', staff_name: 'Italgas', tasks: [
+          { id: 'i1', odl: 'ODL1', attivita: 'S-PR-004 A' }, { id: 'i2', odl: 'ODL2', attivita: 'S-PR-004 A' },
+        ] },
+      ],
+    }));
+    const res = await sincronizzaRapportini(db, 'p1', {});
+    expect(res.ok).toBe(true);
+    expect(tables.rapportini.find((r) => r.staff_id === 's-bon')?.template_id).toBe('tpl-bonifiche');
+    expect(tables.rapportini.find((r) => r.staff_id === 's-ita')?.template_id).toBe('tpl-italgas');
+  });
+
+  it('operatore misto (bonifiche + classiche): il flusso task-via non va in testata', async () => {
+    const { db, tables } = makeFakeDb(seedBase({
+      attivita_tassonomia: TASSONOMIA_MISTA,
+      rapportino_template: TEMPLATE_MISTI,
+      mappa_piani_operatori: [
+        { piano_id: 'p1', staff_id: 's1', staff_name: 'Misto', tasks: [
+          { id: 'b1', attivita: 'BONIFICHE EXTRA' }, { id: 'b2', attivita: 'BONIFICHE EXTRA' },
+          { id: 'i1', odl: 'ODL1', attivita: 'S-PR-004 A' },
+        ] },
+      ],
+    }));
+    const res = await sincronizzaRapportini(db, 'p1', {});
+    expect(res.ok).toBe(true);
+    // Le voci BONIFICHE EXTRA restano contenitori per attività; la testata segue il lavoro classico.
+    expect(tables.rapportini.find((r) => r.staff_id === 's1')?.template_id).toBe('tpl-italgas');
+  });
+
+  it('sticky per-operatore: alla rigenerazione ciascuno tiene il modello del SUO rapportino', async () => {
+    const { db, tables } = makeFakeDb(seedBase({
+      attivita_tassonomia: TASSONOMIA_MISTA,
+      rapportino_template: TEMPLATE_MISTI,
+      mappa_piani_operatori: [
+        { piano_id: 'p1', staff_id: 's-bon', staff_name: 'Bonifiche', tasks: [{ id: 'b1', attivita: 'BONIFICHE EXTRA' }] },
+        { piano_id: 'p1', staff_id: 's-ita', staff_name: 'Italgas', tasks: [{ id: 'i1', odl: 'ODL1', attivita: 'S-PR-004 A' }] },
+      ],
+      rapportini: [
+        { id: 'rap-bon', piano_id: 'p1', staff_id: 's-bon', token: 'TOKB', stato: 'in_corso', template_id: 'tpl-bonifiche' },
+        { id: 'rap-ita', piano_id: 'p1', staff_id: 's-ita', token: 'TOKI', stato: 'in_corso', template_id: 'tpl-italgas' },
+      ],
+    }));
+    const res = await sincronizzaRapportini(db, 'p1', {});
+    expect(res.ok).toBe(true);
+    // Il vecchio sticky piano-wide (modello più rappresentato) avrebbe uniformato entrambi.
+    expect(tables.rapportini.find((r) => r.id === 'rap-bon')?.template_id).toBe('tpl-bonifiche');
+    expect(tables.rapportini.find((r) => r.id === 'rap-ita')?.template_id).toBe('tpl-italgas');
+  });
+
+  it('operatore senza task classificabili su un piano classificabile → prevalente del piano', async () => {
+    const { db, tables } = makeFakeDb(seedBase({
+      attivita_tassonomia: TASSONOMIA_MISTA,
+      rapportino_template: TEMPLATE_MISTI,
+      mappa_piani_operatori: [
+        { piano_id: 'p1', staff_id: 's1', staff_name: 'Italgas', tasks: [{ id: 'i1', odl: 'ODL1', attivita: 'S-PR-004 A' }] },
+        { piano_id: 'p1', staff_id: 's2', staff_name: 'Ignoto', tasks: [{ id: 'x1', odl: 'ODLX' }] },
+      ],
+    }));
+    const res = await sincronizzaRapportini(db, 'p1', {});
+    expect(res.ok).toBe(true);
+    expect(tables.rapportini.find((r) => r.staff_id === 's2')?.template_id).toBe('tpl-italgas');
+  });
+
+  it('sticky verso un template cancellato: il rapportino resta senza modello, il resto genera', async () => {
+    const { db, tables } = makeFakeDb(seedBase({
+      attivita_tassonomia: TASSONOMIA_MISTA,
+      rapportino_template: TEMPLATE_MISTI,
+      mappa_piani_operatori: [
+        { piano_id: 'p1', staff_id: 's1', staff_name: 'Mario', tasks: [{ id: 't1', odl: 'ODL1' }] },
+      ],
+      rapportini: [
+        { id: 'rap1', piano_id: 'p1', staff_id: 's1', token: 'TOK1', stato: 'in_corso', template_id: 'tpl-cancellato' },
+      ],
+    }));
+    const res = await sincronizzaRapportini(db, 'p1', {});
+    expect(res.ok).toBe(true);
+    const rap = tables.rapportini.find((r) => r.id === 'rap1');
+    expect(rap?.template_id).toBeNull();
+    expect(rap?.campi_snapshot).toEqual([]);
+  });
+});
+
 describe('sincronizzaRapportini — voci per-attività (flusso dal gruppo)', () => {
   const CAMPI_DUNNING = [{ chiave: 'esito_dunning', etichetta: 'ESITO DUNNING', tipo: 'select', opzioni: ['SI', 'NO'], ordine: 1 }];
   const FLUSSO_DUNNING = {

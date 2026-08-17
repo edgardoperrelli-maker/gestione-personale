@@ -35,6 +35,17 @@ describe('indiciVociIncomplete', () => {
     expect(indiciVociIncomplete(voci, campi, { tutto: true })).toEqual([]);
   });
 
+  it('il flusso della voce vince sulla testata: classica con tplTaskVia=false BLOCCA anche sotto `tutto`', () => {
+    // Testata task-via su rapportino con voci classiche (piano misto PERUGIA 2026-08-17): senza
+    // la guardia il gate esentava le voci dall'esito e l'ordine restava aperto per sempre.
+    const voci = [
+      { risposte: {}, attivita: 'S-PR-003 A', manuale: false, tplTaskVia: false },
+      { risposte: { eseguito: 'SI' }, attivita: 'S-PR-004 A', manuale: false, tplTaskVia: false },
+      { risposte: {}, attivita: 'BONIFICHE EXTRA', manuale: false, tplTaskVia: true }, // contenitore vero
+    ];
+    expect(indiciVociIncomplete(voci, campi, { tutto: true })).toEqual([{ index: 0, motivo: 'senza_esito' }]);
+  });
+
   it('usa i campi per-voce (campi_snapshot) quando presenti', () => {
     expect(indiciVociIncomplete([{ risposte: {}, campi_snapshot: campi }], [])).toEqual([{ index: 0, motivo: 'senza_esito' }]);
   });

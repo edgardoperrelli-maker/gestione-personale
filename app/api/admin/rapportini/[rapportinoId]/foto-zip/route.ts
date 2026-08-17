@@ -5,6 +5,7 @@ import { requireAdmin } from '@/lib/apiAuth';
 import { buildZipEntries, type FotoZip } from '@/lib/interventi/manuali/buildZipEntries';
 import { buildZipEntriesTaskVia, type FotoManualeZip, type InfoRichiestaTaskVia } from '@/lib/interventi/manuali/zipFotoTaskVia';
 import { isTaskVia, contenitoreTaskVia } from '@/lib/interventi/manuali/taskVia';
+import { tplTaskViaPerVoce } from '@/lib/rapportini/tplTaskViaPerVoce';
 import { nomeFotoFile, identificativoFoto, type FotoIdCampo } from '@/lib/interventi/manuali/fotoNaming';
 import { comeArrayFoto } from '@/utils/rapportini/comeArrayFoto';
 import { unioneCampi } from '@/utils/rapportini/campiDiVoce';
@@ -23,6 +24,7 @@ type VoceRow = {
   manuale: boolean | null;
   risposte: Record<string, unknown> | null;
   campi_snapshot?: unknown;
+  template_id?: string | null;
 };
 
 type RichiestaRow = {
@@ -74,12 +76,15 @@ export async function GET(req: Request, { params }: { params: Promise<{ rapporti
   // ── 2. Voci del rapportino (usate sia per le foto nei campi sia per il task-via) ─
   let vociQuery = supabaseAdmin
     .from('rapportino_voci')
-    .select('id, nominativo, matricola, pdr, odl, via, attivita, manuale, risposte, campi_snapshot')
+    .select('id, nominativo, matricola, pdr, odl, via, attivita, manuale, risposte, campi_snapshot, template_id')
     .eq('rapportino_id', rapportinoId);
   if (voceId) vociQuery = vociQuery.eq('id', voceId);
   const { data: vociRows, error: vociErr } = await vociQuery.order('ordine', { ascending: true });
   if (vociErr) return NextResponse.json({ error: vociErr.message }, { status: 500 });
   const tipizzate = (vociRows ?? []) as VoceRow[];
+  // Flag task-via del flusso per-voce: sotto una testata task-via una voce di un flusso
+  // classico non è un contenitore → il suo ZIP viene dalle risposte, non dai "+" figli.
+  const tplTaskViaByVoce = await tplTaskViaPerVoce(supabaseAdmin, tipizzate);
 
   // Nome dello ZIP per-voce (via/odl della voce richiesta).
   const voceForName: { via: string | null; odl: string | null } | null =
@@ -90,7 +95,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ rapporti
   // (interventi_manuali_foto) e lo ZIP va organizzato per VIA / matricola.
   const giroTaskVia = tplTaskVia || tipizzate.some((v) => isTaskVia(v));
   const voceContenitore =
-    !!voceId && !!tipizzate[0] && contenitoreTaskVia(tipizzate[0], { tutto: tplTaskVia });
+    !!voceId && !!tipizzate[0] &&
+    contenitoreTaskVia({ ...tipizzate[0], tplTaskVia: tplTaskViaByVoce.get(tipizzate[0].id) ?? null }, { tutto: tplTaskVia });
 
   // ── 3. Fonte A: foto da interventi manuali (tabella interventi_manuali_foto) ───
   // Intero rapportino: tutte le richieste. Per-voce: SOLO se la voce è un task-via
