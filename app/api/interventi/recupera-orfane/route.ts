@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireAdmin } from '@/lib/apiAuth';
-import { ensureInterventiForPiano } from '@/lib/interventi/ensureInterventiForPiano';
 import { risincronizzaGiorno } from '@/lib/interventi/risincronizzaGiorno';
 import { giorniDaRecuperare, MAX_GIORNI_RECUPERO } from '@/lib/interventi/giorniDaRecuperare';
 
@@ -11,23 +10,24 @@ export const maxDuration = 300;
 /**
  * POST /api/interventi/recupera-orfane  (admin)
  *
- * Recupera le voci di rapportino ESITATE rimaste senza intervento, su TUTTO lo storico.
+ * Riaggancia le voci ESITATE rimaste senza intervento, su TUTTO lo storico, e riapplica il loro
+ * esito. Il modulo Live naviga solo [oggi−7, oggi] (`clampDataLive`), quindi il suo bottone non
+ * può nemmeno vedere i giorni dove le orfane si accumulano: al 17/08/2026 la più vecchia era del
+ * 04/06. Non prende un intervallo da indovinare — si cerca i giorni che ne hanno davvero.
  *
- * Perché serve una rotta a parte, e non basta il bottone del Live: il modulo Live naviga solo
- * [oggi−7, oggi] (`clampDataLive`), quindi il suo «risincronizza» non può nemmeno vedere i
- * giorni dove le orfane si sono accumulate — al 17/08/2026, 41 delle 42 voci esitate senza
- * intervento stavano prima di quella finestra, la più vecchia il 04/06.
+ * FA SOLO LA META` SICURA, e non e` una limitazione da togliere.
  *
- * Non prende un intervallo da indovinare: si CERCA i giorni che hanno davvero delle orfane. È
- * auto-limitante (finiti i giorni non c'è più niente da fare) e idempotente per costruzione —
- * dopo la passata quei giorni non hanno più orfane, quindi la seconda esecuzione non li trova.
+ * Riagganciare una voce a un intervento che esiste e` reversibile e non inventa niente. RICREARE
+ * gli interventi mancanti no: l'unico strumento che lo sa fare (`ensureInterventiForPiano`)
+ * lavora sul PIANO INTERO — ripristina tutti i task, non i pochi che servono. Lanciato in
+ * automatico su 15 giornate il 17/08/2026 ha creato 445 interventi per recuperarne 210: 235
+ * erano lavoro pianificato e mai rendicontato, ricomparso come «assegnato» su giornate di
+ * giugno. Rimossi con la migration di rollback.
  *
- * Due passi per giorno, nell'ordine che conta:
- *  1. `ensureInterventiForPiano` ricostruisce gli interventi dai TASK del piano, che sono la
- *     fonte di verità e non vengono toccati — preserva completati e annullati. È il motivo per
- *     cui non serve fabbricare nulla: al 17/08 tutte e 42 le orfane avevano ancora il proprio
- *     task nel piano.
- *  2. `risincronizzaGiorno` aggancia le voci agli interventi (ri)nati e riapplica l'esito.
+ * Quella meta` resta una decisione per-giornata, col bottone «Rigenera interventi» del Live, che
+ * dichiara cosa fa. Qui la si MISURA e basta: `daRigenerare` dice, giorno per giorno, quante
+ * orfane si recupererebbero e quanti interventi in piu` comparirebbero — cosi` la scelta si fa
+ * sapendo il prezzo.
  */
 export async function POST() {
   const auth = await requireAdmin();
@@ -35,41 +35,34 @@ export async function POST() {
 
   try {
     const giorni = await giorniDaRecuperare(supabaseAdmin);
-    const dettaglio: Array<{
-      data: string; piani: number; creati: number; preservati: number;
-      agganciate: number; completati: number;
-    }> = [];
-    let creatiTot = 0;
+    const dettaglio: Array<{ data: string; agganciate: number; completati: number; restano: number }> = [];
     let agganciateTot = 0;
     let completatiTot = 0;
 
     for (const data of giorni) {
-      const { data: piani } = await supabaseAdmin.from('mappa_piani').select('id').eq('data', data);
-      let creati = 0;
-      let preservati = 0;
-      for (const p of (piani ?? []) as Array<{ id: string }>) {
-        const r = await ensureInterventiForPiano(supabaseAdmin, p.id);
-        creati += r.creati;
-        preservati += r.preservati;
-      }
-      const sync = await risincronizzaGiorno(supabaseAdmin, data);
-      creatiTot += creati;
+      // `soloOrfane`: quelle giornate hanno migliaia di voci in totale e poche decine scollegate.
+      // Scorrerle tutte e` cio` che ha fatto scadere la prima versione.
+      const sync = await risincronizzaGiorno(supabaseAdmin, data, { soloOrfane: true });
       agganciateTot += sync.agganciate;
       completatiTot += sync.completati;
-      dettaglio.push({
-        data, piani: (piani ?? []).length, creati, preservati,
-        agganciate: sync.agganciate, completati: sync.completati,
-      });
+
+      const { count } = await supabaseAdmin
+        .from('rapportino_voci')
+        .select('id, rapportini!inner(data)', { count: 'exact', head: true })
+        .is('intervento_id', null)
+        .eq('rapportini.data', data);
+      dettaglio.push({ data, agganciate: sync.agganciate, completati: sync.completati, restano: count ?? 0 });
     }
 
     return NextResponse.json({
       ok: true,
       giorni: giorni.length,
-      // Vero quando i giorni con orfane erano più del tetto: si rilancia per continuare.
       troncato: giorni.length >= MAX_GIORNI_RECUPERO,
-      creati: creatiTot,
       agganciate: agganciateTot,
       completati: completatiTot,
+      // Le giornate dove resta qualcosa: lì servirebbe «Rigenera interventi», che ripristina il
+      // piano intero. La scelta è dell'ufficio, giornata per giornata.
+      daRigenerare: dettaglio.filter((d) => d.restano > 0).map((d) => ({ data: d.data, restano: d.restano })),
       dettaglio,
     });
   } catch (e) {

@@ -90,17 +90,25 @@ export default function LiveClient({
     try {
       const res = await fetch('/api/interventi/recupera-orfane', { method: 'POST' });
       const b = (await res.json().catch(() => ({}))) as {
-        giorni?: number; creati?: number; agganciate?: number; completati?: number;
-        troncato?: boolean; error?: string;
+        giorni?: number; agganciate?: number; completati?: number; troncato?: boolean;
+        daRigenerare?: Array<{ data: string; restano: number }>; error?: string;
       };
       if (!res.ok) {
         setEsitoRecupero(b.error ?? 'Recupero non riuscito.');
         return;
       }
+      if ((b.giorni ?? 0) === 0) {
+        setEsitoRecupero('Nessuna voce esitata senza intervento: non c’è niente da recuperare.');
+        return;
+      }
+      // Le giornate rimaste si dicono per NOME: lì il recupero richiede «Rigenera interventi»,
+      // che ripristina il piano intero — una decisione, non un automatismo.
+      const resta = b.daRigenerare ?? [];
+      const coda = resta.length === 0
+        ? ''
+        : ` Restano scollegate su ${resta.length} giornate (${resta.slice(0, 4).map((d) => `${d.data}: ${d.restano}`).join(', ')}${resta.length > 4 ? ', …' : ''}): il loro intervento non esiste più, e per ricrearlo serve «Rigenera interventi» su quel giorno, che ripristina l’intero piano.`;
       setEsitoRecupero(
-        (b.giorni ?? 0) === 0
-          ? 'Nessuna voce esitata senza intervento: non c’è niente da recuperare.'
-          : `${b.giorni} giornate: ${b.creati ?? 0} interventi ricostruiti, ${b.agganciate ?? 0} voci riagganciate, ${b.completati ?? 0} esiti riapplicati.${b.troncato ? ' Ce ne sono altre: rilancia per continuare.' : ''}`,
+        `${b.giorni} giornate esaminate: ${b.agganciate ?? 0} voci riagganciate, ${b.completati ?? 0} esiti riapplicati.${b.troncato ? ' Ce ne sono altre: rilancia per continuare.' : ''}${coda}`,
       );
       await refresh();
     } catch (e) {
@@ -231,7 +239,7 @@ export default function LiveClient({
               variant="outline"
               onClick={() => void recuperaOrfane()}
               loading={recuperando}
-              title="Cerca in tutto lo storico le voci esitate senza intervento, ricostruisce gli interventi dai task dei piani e riapplica gli esiti"
+              title="Cerca in tutto lo storico le voci esitate senza intervento e le riaggancia al loro intervento, riapplicando l’esito. Non ricrea interventi: dove servisse, lo dice"
             >
               {recuperando ? 'Recupero…' : 'Recupera orfane (storico)'}
             </Button>
