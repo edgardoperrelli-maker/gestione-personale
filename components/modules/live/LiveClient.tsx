@@ -82,6 +82,33 @@ export default function LiveClient({
       setSyncing(false);
     }
   };
+  const [recuperando, setRecuperando] = useState(false);
+  const [esitoRecupero, setEsitoRecupero] = useState<string | null>(null);
+  const recuperaOrfane = async () => {
+    setRecuperando(true);
+    setEsitoRecupero(null);
+    try {
+      const res = await fetch('/api/interventi/recupera-orfane', { method: 'POST' });
+      const b = (await res.json().catch(() => ({}))) as {
+        giorni?: number; creati?: number; agganciate?: number; completati?: number;
+        troncato?: boolean; error?: string;
+      };
+      if (!res.ok) {
+        setEsitoRecupero(b.error ?? 'Recupero non riuscito.');
+        return;
+      }
+      setEsitoRecupero(
+        (b.giorni ?? 0) === 0
+          ? 'Nessuna voce esitata senza intervento: non c’è niente da recuperare.'
+          : `${b.giorni} giornate: ${b.creati ?? 0} interventi ricostruiti, ${b.agganciate ?? 0} voci riagganciate, ${b.completati ?? 0} esiti riapplicati.${b.troncato ? ' Ce ne sono altre: rilancia per continuare.' : ''}`,
+      );
+      await refresh();
+    } catch (e) {
+      setEsitoRecupero(e instanceof Error ? e.message : 'Recupero non riuscito.');
+    } finally {
+      setRecuperando(false);
+    }
+  };
   const [confermaRigenera, setConfermaRigenera] = useState(false);
   const rigenera = () => setConfermaRigenera(true);
   const eseguiRigenera = async () => {
@@ -194,9 +221,31 @@ export default function LiveClient({
             >
               {rigenerando ? 'Rigenero…' : 'Rigenera interventi'}
             </Button>
+            {/*
+              Gli altri due bottoni lavorano sul GIORNO a schermo, e il Live naviga solo
+              [oggi−7, oggi]: le voci esitate rimaste senza intervento si accumulano indietro,
+              dove da qui non si arriva. Questo non prende un giorno — si cerca da sé le
+              giornate che ne hanno, dalla più vecchia.
+            */}
+            <Button
+              variant="outline"
+              onClick={() => void recuperaOrfane()}
+              loading={recuperando}
+              title="Cerca in tutto lo storico le voci esitate senza intervento, ricostruisce gli interventi dai task dei piani e riapplica gli esiti"
+            >
+              {recuperando ? 'Recupero…' : 'Recupera orfane (storico)'}
+            </Button>
           </>
         }
       />
+
+      {/* L'esito del recupero si legge qui: riguarda tutto lo storico, non il giorno a schermo,
+          quindi la tabella sotto non lo racconta. */}
+      {esitoRecupero && (
+        <div className="rounded-[var(--radius-lg)] border border-[var(--warning)] bg-[var(--warning-soft)] px-4 py-2 text-sm text-[var(--warning)]">
+          {esitoRecupero}
+        </div>
+      )}
 
       <KpiStrip>
         <KpiCard label="Interventi" value={items.length} tone="primary" />
