@@ -30,7 +30,26 @@ export async function POST(req: Request) {
       .select('id, staff_id, odl, matricola_contatore, pdr')
       .eq('data', data)
       .neq('stato', 'annullato');
-    const resolve = buildVoceInterventoLinker((interventi ?? []) as InterventoLinkRow[]);
+    /*
+      Gli interventi che una voce ce l'hanno gia` restano fuori dai candidati: un intervento ha
+      UNA voce sola, ed e` l'invariante su cui poggiano il positivo che non si declassa e la voce
+      che segue lo spostamento. Senza questa esclusione il catch-up FABBRICA lo stato che quelle
+      regole esistono per impedire — una voce orfana che non trova il proprio ODL scivola sul PDR
+      (che e` del PUNTO, non del contatore) e prende l'intervento del contatore accanto, che una
+      sua voce ce l'ha gia`. Stessa ragione del guard sulle voci rifiutate (20260810160000).
+    */
+    const idInterventi = ((interventi ?? []) as Array<{ id: string }>).map((i) => i.id);
+    const conVoce = new Set<string>();
+    for (let i = 0; i < idInterventi.length; i += 200) {
+      const { data: occupati } = await supabaseAdmin
+        .from('rapportino_voci').select('intervento_id').in('intervento_id', idInterventi.slice(i, i + 200));
+      for (const o of (occupati ?? []) as Array<{ intervento_id: string | null }>) {
+        if (o.intervento_id) conVoce.add(String(o.intervento_id));
+      }
+    }
+    const resolve = buildVoceInterventoLinker(
+      ((interventi ?? []) as InterventoLinkRow[]).filter((i) => !conVoce.has(String(i.id))),
+    );
 
     const { data: raps } = await supabaseAdmin
       .from('rapportini')
