@@ -18,6 +18,7 @@ import { scriviSenzaColonnaMancante } from '@/lib/rapportini/colonneOpzionali';
 import {
   buildCampiEditor, anagraficaPatchValida, anagraficaPatchIntervento, anagraficaPatchRegistro,
   ANAGRAFICA_COLONNE, estraiFotoPaths, campiPerChiusuraStorico, tabellaMisuratori,
+  esitoInterventoCancellato,
 } from '@/lib/interventi/storico/modifica';
 import {
   esecutoreIdValido, scegliRapportinoDestinazione, prossimoOrdine, esecutoriConNuovoPrimario,
@@ -353,8 +354,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ voceId
   return NextResponse.json({ ok: true, ...(avviso ? { avviso } : {}) });
 }
 
-// DELETE: pulizia completa della riga. Elimina voce + intervento collegato +
-// (se manuale) richiesta e foto, + righe-misuratore + foto dallo storage. Solo admin_plus.
+// DELETE: pulizia completa della riga. Elimina voce + intervento collegato (solo se la voce era
+// l'ultima ad averlo: `esitoInterventoCancellato`) + (se manuale) richiesta e foto, +
+// righe-misuratore + foto dallo storage. Solo admin_plus.
 export async function DELETE(_req: Request, { params }: { params: Promise<{ voceId: string }> }) {
   const guard = await requireAdminPlus();
   if (guard instanceof NextResponse) return guard;
@@ -404,10 +406,33 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ voce
     await supabaseAdmin.from('rapportino_righe').delete().eq('voce_id', voceId);
     const { error: delVoce } = await supabaseAdmin.from('rapportino_voci').delete().eq('id', voceId);
     if (delVoce) return NextResponse.json({ error: delVoce.message }, { status: 500 });
-    if (v.intervento_id) await supabaseAdmin.from('interventi').delete().eq('id', v.intervento_id);
+
+    /*
+      L'intervento muore con la voce SOLO se era l'ultima ad averlo. Il conteggio si fa QUI,
+      dopo la delete, perché è lo stato che l'eliminazione lascia dietro che decide — e la
+      regola (con il caso che l'ha imposta) sta in `esitoInterventoCancellato`.
+
+      `head: true` con `count: 'exact'`: serve il numero, non le righe.
+    */
+    let avvisoIntervento: string | undefined;
+    if (v.intervento_id) {
+      const { count, error: eConta } = await supabaseAdmin
+        .from('rapportino_voci')
+        .select('id', { count: 'exact', head: true })
+        .eq('intervento_id', v.intervento_id);
+      // Conteggio fallito = non si sa se l'intervento è ancora usato: si conserva. Un
+      // intervento di troppo si vede e si cancella, uno cancellato per sbaglio no.
+      if (eConta) {
+        console.error('[storico/voce DELETE] voci superstiti non contate:', eConta.message);
+        avvisoIntervento = 'Riga eliminata. L’intervento è stato conservato: non è stato possibile verificare se altre voci lo usano.';
+      } else {
+        const esito = esitoInterventoCancellato(v.intervento_id, count ?? 0);
+        if (esito.elimina) await supabaseAdmin.from('interventi').delete().eq('id', v.intervento_id);
+        avvisoIntervento = esito.avviso;
+      }
+    }
+    return NextResponse.json({ ok: true, ...(avvisoIntervento ? { avviso: avvisoIntervento } : {}) });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Errore eliminazione.' }, { status: 500 });
   }
-
-  return NextResponse.json({ ok: true });
 }

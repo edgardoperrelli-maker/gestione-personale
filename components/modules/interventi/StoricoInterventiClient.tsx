@@ -98,6 +98,8 @@ export default function StoricoInterventiClient({ staff, gruppi, territori, comm
   const [contatori, setContatori] = useState<ContatoriStorico>(CONTATORI_ZERO);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Esito non-bloccante dell'ultima azione (es. intervento conservato in cancellazione). */
+  const [avviso, setAvviso] = useState<string | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
 
@@ -171,14 +173,16 @@ export default function StoricoInterventiClient({ staff, gruppi, territori, comm
     window.location.href = `/api/interventi/storico/export?${filtriToParams(filtri).toString()}`;
   };
   const cancella = async (voceId: string) => {
-    if (!(await chiediConferma({ title: 'Eliminare definitivamente questa riga?', message: 'Intervento, eventuali foto e richiesta collegata verranno rimossi. Operazione non reversibile.', confirmLabel: 'Elimina', danger: true }))) return;
+    // «L'intervento collegato», non «l'intervento»: se lo condivide con la voce di un altro
+    // operatore resta dov'è, e il dialogo non deve promettere una pulizia che non farà.
+    if (!(await chiediConferma({ title: 'Eliminare definitivamente questa riga?', message: 'La riga, le sue foto e la richiesta collegata verranno rimosse, insieme all’intervento se nessun’altra voce lo usa. Operazione non reversibile.', confirmLabel: 'Elimina', danger: true }))) return;
     setError(null);
+    setAvviso(null);
     try {
       const res = await fetch(`/api/admin/interventi/storico/voce/${voceId}`, { method: 'DELETE' });
-      if (!res.ok) {
-        const b = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(b.error ?? 'Errore eliminazione.');
-      }
+      const b = (await res.json().catch(() => ({}))) as { error?: string; avviso?: string };
+      if (!res.ok) throw new Error(b.error ?? 'Errore eliminazione.');
+      if (b.avviso) setAvviso(b.avviso);
       void carica(filtri, page);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Errore eliminazione.');
@@ -284,6 +288,15 @@ export default function StoricoInterventiClient({ staff, gruppi, territori, comm
       {error && (
         <div className="rounded-[var(--radius-lg)] border border-[var(--danger)] bg-[var(--danger-soft)] px-4 py-2 text-sm text-[var(--danger)]">
           {error}
+        </div>
+      )}
+
+      {/* L'eliminazione è andata a buon fine ma non ha fatto tutto quello che il dialogo
+          prometteva (tipicamente: l'intervento è rimasto perché un'altra voce lo usa). Non è
+          un errore, e nel banner rosso si leggerebbe come tale. */}
+      {avviso && (
+        <div className="rounded-[var(--radius-lg)] border border-[var(--warning)] bg-[var(--warning-soft)] px-4 py-2 text-sm text-[var(--warning)]">
+          {avviso}
         </div>
       )}
 

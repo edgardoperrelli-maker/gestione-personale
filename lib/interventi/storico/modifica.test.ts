@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest';
 import {
   buildCampiEditor, estraiFotoPaths, anagraficaPatchValida, anagraficaPatchIntervento,
   anagraficaPatchRegistro, campiPerChiusuraStorico, tabellaMisuratori,
+  esitoInterventoCancellato,
 } from './modifica';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 
@@ -174,5 +175,34 @@ describe('anagraficaPatchRegistro', () => {
 
   it('vuoto → vuoto', () => {
     expect(anagraficaPatchRegistro({})).toEqual({});
+  });
+});
+
+describe('esitoInterventoCancellato', () => {
+  it('senza intervento non c’e` niente da cancellare', () => {
+    expect(esitoInterventoCancellato(null, 0)).toEqual({ elimina: false });
+    expect(esitoInterventoCancellato(undefined, 3)).toEqual({ elimina: false });
+  });
+
+  it('la voce sola sul suo intervento se lo porta via', () => {
+    expect(esitoInterventoCancellato('i1', 0)).toEqual({ elimina: true });
+  });
+
+  /*
+    Il caso 12384609 del 17/08/2026: cancellando dallo storico la voce di PRATESI, la DELETE
+    ha eliminato l'intervento che LIBERATORI condivideva con lui, orfanando la sua voce e
+    lasciando la riga di registro «APERTA» su un lavoro fatto.
+  */
+  it('l’intervento condiviso con un’altra voce si conserva, e lo si dice', () => {
+    const esito = esitoInterventoCancellato('cf558e1f', 1);
+    expect(esito.elimina).toBe(false);
+    expect(esito.avviso).toContain('conservato');
+    expect(esito.avviso).toContain('un’altra voce');
+  });
+
+  it('con piu` voci superstiti le conta', () => {
+    const esito = esitoInterventoCancellato('i1', 4);
+    expect(esito.elimina).toBe(false);
+    expect(esito.avviso).toContain('altre 4 voci');
   });
 });
