@@ -15,6 +15,18 @@ import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 
 export type EsitoRisincronizza = { agganciate: number; completati: number };
 
+export type OpzioniRisincronizza = {
+  /**
+   * Passa solo sulle voci SCOLLEGATE invece che su tutte quelle del giorno.
+   *
+   * Il catch-up del singolo giorno (bottone del Live) le vuole tutte: e` un «riallinea questa
+   * giornata». Il recupero su TUTTO lo storico no — quelle giornate hanno 3.988 voci in totale
+   * contro 83 orfane, e scorrerle tutte significa migliaia di round-trip in fila: la prima
+   * passata del 17/08/2026 e` morta al tetto dei 300 secondi a meta` lavoro.
+   */
+  soloOrfane?: boolean;
+};
+
 type VoceRow = {
   id: string;
   intervento_id: string | null;
@@ -31,6 +43,7 @@ type VoceRow = {
 export async function risincronizzaGiorno(
   db: SupabaseClient,
   data: string,
+  opts: OpzioniRisincronizza = {},
 ): Promise<EsitoRisincronizza> {
   const { data: interventi } = await db
     .from('interventi')
@@ -69,10 +82,11 @@ export async function risincronizzaGiorno(
   // e riapplica l'esito sull'intervento. `updated_at` della voce = ORA REALE DI COMPILAZIONE.
   for (const rap of (raps ?? []) as Array<{ id: string; staff_id: string | null; campi_snapshot: unknown }>) {
     const campi = (rap.campi_snapshot ?? []) as TemplateCampo[];
-    const { data: voci } = await db
+    const q = db
       .from('rapportino_voci')
       .select('id, intervento_id, raw_json, risposte, updated_at, campi_snapshot, odl, matricola, pdr, approvazione_stato')
       .eq('rapportino_id', rap.id);
+    const { data: voci } = await (opts.soloOrfane ? q.is('intervento_id', null) : q);
 
     for (const v of (voci ?? []) as VoceRow[]) {
       let interventoId = v.intervento_id;
