@@ -1,4 +1,4 @@
-// lib/acea/vociSpostamento.ts
+// lib/interventi/vociSpostamento.ts
 // PURA: quali voci di rapportino restano indietro quando un intervento cambia operatore o giorno.
 //
 // IL BUCO CHE CHIUDE

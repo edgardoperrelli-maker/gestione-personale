@@ -14,7 +14,7 @@ import {
   etichettaMotivo, pianoPianificazione,
   type InterventoEsistente, type OrdineDaPianificare,
 } from '@/lib/acea/pianificazione';
-import { allineaVociSpostateMulti, type Spostamento } from '@/lib/acea/allineaVociSpostate';
+import { allineaVociSpostateMulti, type Spostamento } from '@/lib/interventi/allineaVociSpostate';
 import { indiceTassonomiaCached } from '@/lib/acea/indiceTassonomia';
 import { tassonomiaAttivitaAcea } from '@/lib/acea/tassonomiaAcea';
 import { chiaveAssegnazione, controllaAssegnazioni } from '@/lib/acea/operatoriGiorno';

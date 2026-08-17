@@ -20,7 +20,7 @@ import {
   caricaContestoPiani, creaPianoCommessa, eNotaContenitore,
   risolviTerritorioIdCommessa, scegliPianoCommessa, sincronizzaOperatorePiano,
 } from '@/lib/acea/pianoCommessa';
-import { allineaVociSpostate } from '@/lib/acea/allineaVociSpostate';
+import { allineaVociSpostate } from '@/lib/interventi/allineaVociSpostate';
 
 export const runtime = 'nodejs';
 
@@ -337,7 +337,7 @@ export async function POST(req: Request) {
       stesso indirizzo, ma la voce di rapportino non seguiva l'intervento: restava sul giro di
       chi l'ODL non ce l'ha più, e lo storico — che legge l'esecutore dal rapportino padre — lo
       mostrava assegnato a due persone lo stesso giorno. Regola e casistica in
-      `lib/acea/vociSpostamento.ts`.
+      `lib/interventi/vociSpostamento.ts`.
     */
     const allineamento = await allineaVociSpostate(supabaseAdmin, spostatiDaAltri, { staffId, data });
 
