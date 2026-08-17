@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   agganciPerOdl, esitoRiga, gruppiChiusura, idsDaRiaprire, idsSenzaConcluso, NO_CHIUDE_DAL,
-  patchAggancioAnagrafica,
+  patchAggancioAnagrafica, rispostaPrevalente,
   STATO_APERTA_NON_ESEGUITA, STATO_CHIUSA_ESEGUITA, STATO_CHIUSA_NON_ESEGUITA,
   type InterventoConcluso, type InterventoSciolto, type RigaPerAggancio,
 } from './chiusuraRegistro';
@@ -350,5 +350,41 @@ describe('gruppiChiusura con i tre esiti', () => {
       { ordine_id: 'a', data: '2026-08-10', esito: null, eseguito: 'NO' },
     ]);
     expect(gruppi[gruppi.length - 1].esito).toBe('positivo');
+  });
+});
+
+describe('rispostaPrevalente', () => {
+  it('il lavoro FATTO vince su tutto', () => {
+    expect(rispostaPrevalente('NESSUN PASSAGGIO', 'SI')).toBe('SI');
+    expect(rispostaPrevalente('SI', 'NESSUN PASSAGGIO')).toBe('SI');
+    expect(rispostaPrevalente('NO', 'SI')).toBe('SI');
+    expect(rispostaPrevalente('SI', 'NO')).toBe('SI');
+  });
+
+  it('il NO, che chiude, vince sul giro che non c\u2019e` stato', () => {
+    expect(rispostaPrevalente('NESSUN PASSAGGIO', 'NO')).toBe('NO');
+    expect(rispostaPrevalente('NO', 'NESSUN PASSAGGIO')).toBe('NO');
+  });
+
+  it('una risposta qualsiasi vince sull\u2019assenza di risposta', () => {
+    expect(rispostaPrevalente(null, 'NESSUN PASSAGGIO')).toBe('NESSUN PASSAGGIO');
+    expect(rispostaPrevalente('NESSUN PASSAGGIO', undefined)).toBe('NESSUN PASSAGGIO');
+    expect(rispostaPrevalente(null, undefined)).toBe('');
+    expect(rispostaPrevalente('', '  ')).toBe('');
+  });
+
+  it('normalizza come il resto del modulo: spazi e minuscole', () => {
+    expect(rispostaPrevalente(' si ', 'no')).toBe('SI');
+  });
+
+  /*
+    ODL 12378907: la voce del 12/08 «NESSUN PASSAGGIO», rimasta indietro dopo lo spostamento,
+    e quella del 13/08 «SI» condividono l'intervento. In qualunque ordine arrivino dalla
+    select, la riga di registro deve chiudersi eseguita.
+  */
+  it('12378907: l\u2019ordine di arrivo non cambia il verdetto', () => {
+    const voci = ['NESSUN PASSAGGIO', 'SI'];
+    expect(voci.reduce<string>((a, b) => rispostaPrevalente(a, b), '')).toBe('SI');
+    expect([...voci].reverse().reduce<string>((a, b) => rispostaPrevalente(a, b), '')).toBe('SI');
   });
 });

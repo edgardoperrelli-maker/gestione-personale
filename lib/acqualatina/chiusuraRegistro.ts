@@ -291,6 +291,34 @@ export function esitoRiga(c: InterventoConcluso): EsitoRiga {
   return 'aperta_non_eseguita';
 }
 
+/**
+ * Fra le risposte `eseguito` delle voci che condividono UN intervento, quella che decide.
+ *
+ * Un intervento dovrebbe avere una voce sola, ma può ritrovarsene più d'una: la pianificazione
+ * lo sposta su un altro operatore o un altro giorno e la voce di prima resta indietro (ODL
+ * 12378907, «NESSUN PASSAGGIO» del 12/08 e «SI» del 13/08 sullo stesso intervento). La
+ * riconciliazione prendeva la PRIMA che le capitava sotto — e l'ordine di una select senza
+ * `order by` non è un ordine: la stessa riga di registro poteva chiudersi o restare aperta a
+ * seconda del giro.
+ *
+ * La precedenza è quella di `RANGO`, letta dal lato della voce: il lavoro FATTO vince su tutto,
+ * poi il NO che chiude, poi il giro che non c'è stato. È la stessa frase di `esitoRiga` —
+ * «il POSITIVO vince sempre, anche su una voce che dice altro» — applicata un gradino prima,
+ * dove le voci sono ancora più d'una.
+ */
+export function rispostaPrevalente(
+  a: string | null | undefined,
+  b: string | null | undefined,
+): string {
+  const rango = (r: string | null | undefined): number => {
+    const v = rispostaNorm(r);
+    if (v === 'SI') return 3;
+    if (v === 'NO') return 2;
+    return v === '' ? 0 : 1;
+  };
+  return rango(b) > rango(a) ? rispostaNorm(b) : rispostaNorm(a);
+}
+
 /** L'ordine di applicazione a parità di giorno: il positivo per ultimo, così vince lui. */
 const RANGO: Record<EsitoRiga, number> = {
   aperta_non_eseguita: 0,
