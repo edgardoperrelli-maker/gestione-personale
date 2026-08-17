@@ -137,6 +137,52 @@ export function tabellaMisuratori(committente: string | null | undefined): 'misu
   return committente === 'acqualatina' ? 'acqualatina_misuratori_rimossi' : 'misuratori_rimossi';
 }
 
+/** Cosa fare dell'intervento quando la sua voce viene cancellata dallo storico. */
+export type EsitoInterventoCancellato = {
+  /** `true` se l'intervento va eliminato insieme alla voce. */
+  elimina: boolean;
+  /** Spiegazione per l'ufficio quando l'intervento resta: perché, e chi lo tiene. */
+  avviso?: string;
+};
+
+/**
+ * Se l'intervento della voce cancellata muore con lei, o le sopravvive.
+ *
+ * La DELETE dello storico cancella voce + intervento collegato, e per la voce SOLA sul suo
+ * intervento è la pulizia giusta. Ma un intervento può avere PIÙ voci addosso: succede ogni
+ * volta che la pianificazione lo sposta da un operatore a un altro, perché
+ * `sincronizzaRapportiniAcea` aggiunge la voce al rapportino nuovo senza togliere quella dal
+ * vecchio — due voci, un intervento solo dietro tutt'e due.
+ *
+ * Cancellare l'intervento in quel caso è il danno peggiore che questa route possa fare, e non
+ * in astratto: il 17/08/2026 la riga di PRATESI dell'ODL 12384609 è stata cancellata dallo
+ * storico e si è portata via l'intervento di LIBERATORI, che quel lavoro l'aveva fatto. La FK
+ * `on delete set null` ha orfanato la sua voce in silenzio, e da lì
+ * `riconciliaChiusureAcqualatina` — che legge SOLO `interventi` — non ha più avuto niente da
+ * chiudere: la riga di registro è tornata «APERTA» 17 secondi dopo, e nessuna riesecuzione
+ * avrebbe potuto ripararla. Un lavoro fatto che il registro dichiarava da fare, per sempre.
+ *
+ * È la simmetrica della regola «voci mai orfane» (migration 20260810160000): là una voce non
+ * resta senza il suo intervento, qui un intervento non sparisce da sotto le sue voci. Nel
+ * dubbio si CONSERVA — un intervento di troppo si vede e si cancella, uno che manca no.
+ *
+ * `altreVoci` sono le voci che puntano ancora all'intervento DOPO la cancellazione di questa:
+ * si contano dopo apposta, perché è quello lo stato che l'eliminazione lascerebbe dietro.
+ */
+export function esitoInterventoCancellato(
+  interventoId: string | null | undefined,
+  altreVoci: number,
+): EsitoInterventoCancellato {
+  if (!interventoId) return { elimina: false };
+  if (altreVoci <= 0) return { elimina: true };
+  return {
+    elimina: false,
+    avviso: altreVoci === 1
+      ? 'Riga eliminata. L’intervento è stato conservato: un’altra voce di rapportino lo usa ancora (di norma lo stesso ODL rimasto anche sul giro di un altro operatore).'
+      : `Riga eliminata. L’intervento è stato conservato: altre ${altreVoci} voci di rapportino lo usano ancora.`,
+  };
+}
+
 /** Le colonne dell'anagrafica che convergono anche sul registro `acqualatina_ordini`. */
 export type RegistroAnagraficaPatch = Partial<Record<
   'impianto' | 'nominativo' | 'via' | 'civico' | 'comune' | 'cap', string | null

@@ -24,6 +24,8 @@ export type EsitoPianifica = {
   creati: number;
   aggiornati: number;
   saltati: Array<{ odl: string; numero_operazione: string; motivo: string }>;
+  /** Voci rimaste sull'esecutore precedente che lo spostamento non ha potuto togliere. */
+  avviso?: string;
 };
 
 type Props = {
@@ -151,6 +153,10 @@ export default function BarraAzioni({
             : `Saltati: ${primi}`,
         );
       }
+      // Lo spostamento porta con sé la voce di rapportino, ma non può togliere quelle già
+      // compilate o già consegnate: quelle restano nello storico sotto il nome di prima, e chi
+      // ha appena spostato è l'unico che in questo momento sa perché.
+      if (body.avviso) toast.info(body.avviso);
       if (body.operazioneId) {
         setUltima({ id: body.operazioneId, descrizione: `${body.creati + body.aggiornati} righe → ${nome}` });
       }

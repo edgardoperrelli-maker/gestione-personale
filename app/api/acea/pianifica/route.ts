@@ -20,6 +20,7 @@ import {
   caricaContestoPiani, creaPianoCommessa, eNotaContenitore,
   risolviTerritorioIdCommessa, scegliPianoCommessa, sincronizzaOperatorePiano,
 } from '@/lib/acea/pianoCommessa';
+import { allineaVociSpostate } from '@/lib/acea/allineaVociSpostate';
 
 export const runtime = 'nodejs';
 
@@ -233,6 +234,13 @@ export async function POST(req: Request) {
     const azioniLog: Array<Record<string, unknown>> = [];
     let creati = 0;
     let aggiornati = 0;
+    /*
+      Gli interventi SPOSTATI da un altro operatore o da un altro giorno: le loro voci sono
+      rimaste sul rapportino di prima, e vanno tolte da lì (§4-bis). Si raccolgono solo quelli
+      che cambiano davvero mano — uno spostamento che lascia staff e data com'erano non lascia
+      indietro niente.
+    */
+    const spostatiDaAltri: string[] = [];
 
     for (const a of piano.azioni) {
       if (a.tipo === 'salta') continue;
@@ -256,6 +264,7 @@ export async function POST(req: Request) {
           .eq('id', a.interventoId);
         if (error) throw error;
         aggiornati++;
+        if (a.prima.staff_id !== staffId || a.prima.data !== data) spostatiDaAltri.push(a.interventoId);
         azioniLog.push({
           odl: a.ordine.odl, numero_operazione: a.ordine.numero_operazione,
           azione: 'aggiornato', intervento_id: a.interventoId, prima: a.prima,
@@ -320,6 +329,17 @@ export async function POST(req: Request) {
         azione: 'creato', intervento_id: creato?.id ?? null, prima: null,
       });
     }
+
+    /*
+      4-bis) Le voci lasciate indietro dallo spostamento.
+
+      `pianoPianificazione` sposta invece di duplicare proprio per non mandare due squadre allo
+      stesso indirizzo, ma la voce di rapportino non seguiva l'intervento: restava sul giro di
+      chi l'ODL non ce l'ha più, e lo storico — che legge l'esecutore dal rapportino padre — lo
+      mostrava assegnato a due persone lo stesso giorno. Regola e casistica in
+      `lib/acea/vociSpostamento.ts`.
+    */
+    const allineamento = await allineaVociSpostate(supabaseAdmin, spostatiDaAltri, { staffId, data });
 
     /*
       4-ter) La riga operatore del piano, con i task `acea:*` ricostruiti dagli interventi:
@@ -390,6 +410,7 @@ export async function POST(req: Request) {
       operazioneId,
       creati,
       aggiornati,
+      ...(allineamento.avviso ? { avviso: allineamento.avviso } : {}),
       invariati: piano.azioni.length === 0 ? ordini.length : ordini.length - piano.azioni.length,
       saltati: piano.azioni
         .filter((a): a is Extract<typeof a, { tipo: 'salta' }> => a.tipo === 'salta')

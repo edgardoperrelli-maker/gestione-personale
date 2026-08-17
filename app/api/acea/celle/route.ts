@@ -14,6 +14,7 @@ import {
   etichettaMotivo, pianoPianificazione,
   type InterventoEsistente, type OrdineDaPianificare,
 } from '@/lib/acea/pianificazione';
+import { allineaVociSpostateMulti, type Spostamento } from '@/lib/acea/allineaVociSpostate';
 import { indiceTassonomiaCached } from '@/lib/acea/indiceTassonomia';
 import { tassonomiaAttivitaAcea } from '@/lib/acea/tassonomiaAcea';
 import { chiaveAssegnazione, controllaAssegnazioni } from '@/lib/acea/operatoriGiorno';
@@ -386,6 +387,12 @@ export async function POST(req: Request) {
     const azioniLog: Array<Record<string, unknown>> = [];
     let creati = 0;
     let aggiornati = 0;
+    /*
+      Gli interventi che questo incolla SPOSTA su un altro operatore o un altro giorno: le loro
+      voci sono rimaste sul rapportino di prima e vanno tolte da lì (vedi `vociSpostamento.ts`).
+      Ogni riga ha la SUA destinazione, quindi si porta dietro anche quella.
+    */
+    const spostatiDaAltri: Spostamento[] = [];
 
     /*
       Prima passata: lo STATO FINALE di ogni riga, senza scrivere niente.
@@ -524,6 +531,9 @@ export async function POST(req: Request) {
           .eq('id', azione.interventoId);
         if (error) throw error;
         aggiornati++;
+        if (azione.prima.staff_id !== staffFinale || azione.prima.data !== dataFinale) {
+          spostatiDaAltri.push({ interventoId: azione.interventoId, staffId: staffFinale, data: dataFinale });
+        }
         // Lo snapshot segue la scrittura: la riga dopo — un'altra operazione dello stesso ODL
         // nello stesso incolla — deve vedere l'intervento dov'è ADESSO, non a inizio richiesta.
         const spostato = (interventoPerOdl.get(chiaveUnita(ordine.odl, ordine.matricola)) ?? [])
@@ -614,6 +624,11 @@ export async function POST(req: Request) {
         .eq('numero_operazione', operazione);
       if (error) throw error;
     }
+
+    // Le voci lasciate indietro dagli spostamenti di questo incolla: la voce segue l'intervento,
+    // altrimenti lo stesso ODL resta nello storico sotto due esecutori lo stesso giorno.
+    const allineamento = await allineaVociSpostateMulti(supabaseAdmin, spostatiDaAltri);
+    if (allineamento.avviso) avvisi.push(allineamento.avviso);
 
     let operazioneId: string | null = null;
     if (azioniLog.length > 0) {
